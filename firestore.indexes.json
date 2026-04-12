@@ -1,0 +1,69 @@
+{
+  "indexes": [
+    {
+      "collectionGroup": "turnos",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "clienteId", "order": "ASCENDING" },
+        { "fieldPath": "fecha",     "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "turnos",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "fecha",   "order": "ASCENDING" },
+        { "fieldPath": "estado",  "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "tramites",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "clienteId", "order": "ASCENDING" },
+        { "fieldPath": "creadoEn",  "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "tramites",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "clienteId",    "order": "ASCENDING" },
+        { "fieldPath": "actualizadoEn","order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "tramites",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "estado",   "order": "ASCENDING" },
+        { "fieldPath": "creadoEn", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "notificaciones",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "destinatarioId", "order": "ASCENDING" },
+        { "fieldPath": "creadoEn",       "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "prospectos",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "orden",    "order": "ASCENDING" },
+        { "fieldPath": "creadoEn", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "prospectos",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "etapa",   "order": "ASCENDING" },
+        { "fieldPath": "orden",   "order": "ASCENDING" }
+      ]
+    }
+  ],
+  "fieldOverrides": []
+}

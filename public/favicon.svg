@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <!-- Fondo círculo naranja -->
+  <circle cx="32" cy="32" r="32" fill="#D4621A"/>
+  <!-- Auto simplificado en blanco -->
+  <g fill="white">
+    <!-- Carrocería -->
+    <rect x="10" y="34" width="44" height="14" rx="4"/>
+    <!-- Techo -->
+    <path d="M18 34 L22 22 L42 22 L46 34 Z" rx="2"/>
+    <!-- Ventanas -->
+    <rect x="24" y="24" width="8" height="7" rx="1.5" fill="#D4621A" opacity="0.7"/>
+    <rect x="34" y="24" width="8" height="7" rx="1.5" fill="#D4621A" opacity="0.7"/>
+    <!-- Ruedas -->
+    <circle cx="20" cy="49" r="6" fill="#D4621A"/>
+    <circle cx="20" cy="49" r="3" fill="white"/>
+    <circle cx="44" cy="49" r="6" fill="#D4621A"/>
+    <circle cx="44" cy="49" r="3" fill="white"/>
+    <!-- Faro -->
+    <rect x="10" y="36" width="5" height="4" rx="1" fill="#FCD34D"/>
+    <rect x="49" y="36" width="5" height="4" rx="1" fill="#FCD34D"/>
+  </g>
+  <!-- Checkmark documento arriba a la derecha -->
+  <circle cx="50" cy="14" r="10" fill="white"/>
+  <path d="M45 14 L49 18 L56 10" stroke="#D4621A" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+</svg>

@@ -1,0 +1,416 @@
+@import "tailwindcss";
+
+/* ═══════════════════════════════════════════════════════════════
+   GESTORAPP — DESIGN TOKENS
+   Gestoría Paz · JAH-NISSI Digital Studio
+   
+   Cambiar el color de marca: solo tocar --gp-orange
+   Cambiar la fuente: solo tocar --font-body / --font-display
+═══════════════════════════════════════════════════════════════ */
+
+:root {
+  /* ── MARCA ── */
+  --gp-orange:         #D4621A;
+  --gp-orange-dark:    #A84D12;
+  --gp-orange-hover:   #B8521A;
+  --gp-orange-light:   #F4936A;
+  --gp-orange-pale:    #FEF3EC;
+  --gp-orange-subtle:  rgba(212, 98, 26, 0.10);
+
+  --gp-black:          #1A1A1A;
+  --gp-black-card:     #242424;
+  --gp-black-soft:     #2E2E2E;
+
+  /* ── ESTADO SEMÁNTICO ── */
+  --color-pendiente:   #EAB308;
+  --color-en-proceso:  #3B82F6;
+  --color-docs:        #EF4444;
+  --color-organismo:   #F97316;
+  --color-retirar:     #10B981;
+  --color-entregado:   #22C55E;
+  --color-cancelado:   #9CA3AF;
+
+  /* ── NEUTROS ── */
+  --color-bg:          #F8F9FA;
+  --color-surface:     #FFFFFF;
+  --color-border:      #E5E7EB;
+  --color-border-soft: #F3F4F6;
+  --color-text-1:      #111827;   /* 17.74:1 ✅ */
+  --color-text-2:      #374151;   /* 10.31:1 ✅ */
+  --color-text-3:      #6B7280;   /*  4.83:1 ✅ AA */
+  --color-text-4:      #6B7280;   /* era #9CA3AF (❌ 2.54) → subido a 6B7280 */
+
+  /* ── ACCESIBILIDAD ── */
+  --gp-orange-text:    #B45316;   /*  5.01:1 ✅ — naranja accesible para texto */
+  --gp-orange-aa:      #B45316;   /* alias semántico */
+  --focus-ring:        rgba(212, 98, 26, 0.35);
+  --min-touch:         44px;      /* touch target mínimo WCAG */
+
+  /* ── TIPOGRAFÍA ── */
+  --font-body:         'Inter', system-ui, -apple-system, sans-serif;
+  --font-display:      'Syne', 'Inter', sans-serif;
+  --font-mono:         'JetBrains Mono', 'Fira Code', monospace;
+
+  /* ── ESPACIADO BASE ── */
+  --radius-sm:   8px;
+  --radius-md:   12px;
+  --radius-lg:   16px;
+  --radius-xl:   20px;
+  --radius-full: 999px;
+
+  /* ── SOMBRAS ── */
+  --shadow-sm:  0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04);
+  --shadow-md:  0 4px 12px rgba(0,0,0,0.08), 0 2px 4px rgba(0,0,0,0.04);
+  --shadow-lg:  0 10px 30px rgba(0,0,0,0.10), 0 4px 8px rgba(0,0,0,0.05);
+  --shadow-gp:  0 8px 24px rgba(212, 98, 26, 0.20);
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   BASE
+═══════════════════════════════════════════════════════════════ */
+
+@layer base {
+  *, *::before, *::after {
+    box-sizing: border-box;
+  }
+
+  html {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+    scroll-behavior: smooth;
+  }
+
+  body {
+    margin: 0;
+    font-family: var(--font-body);
+    font-size: 15px;
+    line-height: 1.6;
+    background-color: var(--color-bg);
+    color: var(--color-text-1);
+  }
+
+  /* Jerarquía tipográfica */
+  h1, h2, h3 {
+    font-family: var(--font-display);
+    font-weight: 700;
+    line-height: 1.2;
+    color: var(--color-text-1);
+  }
+
+  h1 { font-size: 24px; }
+  h2 { font-size: 20px; }
+  h3 { font-size: 16px; }
+
+  p {
+    color: var(--color-text-2);
+    line-height: 1.65;
+  }
+
+  /* Links */
+  a { color: var(--gp-orange); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+
+  /* Focus visible — accesibilidad */
+  :focus-visible {
+    outline: 2px solid var(--gp-orange);
+    outline-offset: 2px;
+    border-radius: var(--radius-sm);
+  }
+
+  /* Reducir motion para accesibilidad */
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+
+  /* ── SCROLLBAR ── */
+  ::-webkit-scrollbar        { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track  { background: transparent; }
+  ::-webkit-scrollbar-thumb  { background: #D1D5DB; border-radius: var(--radius-full); }
+  ::-webkit-scrollbar-thumb:hover { background: var(--gp-orange); }
+
+  /* ── SELECCIÓN DE TEXTO ── */
+  ::selection {
+    background: var(--gp-orange-pale);
+    color: var(--gp-orange-dark);
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   UTILIDADES GLOBALES
+═══════════════════════════════════════════════════════════════ */
+
+@layer utilities {
+  /* Botón primario de marca */
+  .btn-primary {
+    background-color: var(--gp-orange);
+    color: white;
+    font-weight: 600;
+    border-radius: var(--radius-md);
+    transition: background-color 0.15s, transform 0.1s, box-shadow 0.15s;
+    box-shadow: var(--shadow-gp);
+  }
+  .btn-primary:hover  { background-color: var(--gp-orange-hover); }
+  .btn-primary:active { transform: scale(0.98); }
+
+  /* Input de marca */
+  .input-gp {
+    border: 1.5px solid var(--color-border);
+    border-radius: var(--radius-md);
+    transition: border-color 0.15s, box-shadow 0.15s;
+    font-family: var(--font-body);
+  }
+  .input-gp:focus {
+    border-color: var(--gp-orange);
+    box-shadow: 0 0 0 3px var(--gp-orange-subtle);
+    outline: none;
+  }
+  .input-gp:hover:not(:focus) {
+    border-color: #D1D5DB;
+  }
+
+  /* Card base */
+  .card-gp {
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-sm);
+  }
+
+  /* Animación fade-in */
+  .animate-fadein {
+    animation: fadein 0.2s ease-out both;
+  }
+  @keyframes fadein {
+    from { opacity: 0; transform: translateY(6px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  /* Pulse naranja — para indicadores activos */
+  .pulse-orange {
+    animation: pulse-orange 2s infinite;
+  }
+  @keyframes pulse-orange {
+    0%, 100% { opacity: 1; }
+    50%       { opacity: 0.4; }
+  }
+
+  /* Patente monospace */
+  .patente {
+    font-family: var(--font-mono);
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    background: var(--color-border-soft);
+    color: var(--color-text-2);
+    padding: 2px 8px;
+    border-radius: var(--radius-sm);
+    font-size: 12px;
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   ACCESIBILIDAD — WCAG 2.1 AA
+═══════════════════════════════════════════════════════════════ */
+
+@layer base {
+  /* Skip to main content — para lectores de pantalla */
+  .skip-link {
+    position: absolute;
+    top: -40px;
+    left: 8px;
+    background: var(--gp-orange);
+    color: white;
+    padding: 8px 16px;
+    border-radius: var(--radius-md);
+    font-size: 14px;
+    font-weight: 700;
+    z-index: 9999;
+    text-decoration: none;
+    transition: top 0.15s;
+  }
+  .skip-link:focus {
+    top: 8px;
+  }
+
+  /* Focus visible global — NUNCA ocultar el foco */
+  :focus-visible {
+    outline: 2.5px solid var(--gp-orange);
+    outline-offset: 3px;
+    border-radius: var(--radius-sm);
+  }
+
+  /* Touch targets mínimos — 44x44px (WCAG 2.5.5) */
+  button, [role="button"], a, input[type="checkbox"], input[type="radio"] {
+    min-height: 44px;
+  }
+
+  /* Excepción para botones inline pequeños */
+  .touch-xs {
+    min-height: 32px !important;
+  }
+
+  /* Alto contraste — respetar preferencia del sistema */
+  @media (prefers-contrast: high) {
+    :root {
+      --color-text-3:   #374151;
+      --color-text-4:   #374151;
+      --color-border:   #9CA3AF;
+      --gp-orange:      #B45316;
+    }
+    .card-gp, .card-interactive {
+      border-width: 2px;
+    }
+    .badge, [class*="badge"] {
+      border: 1.5px solid currentColor;
+    }
+  }
+
+  /* Texto no debe ser solo decoración visual */
+  [aria-hidden="true"] {
+    pointer-events: none;
+    user-select: none;
+  }
+
+  /* Inputs — tamaño mínimo legible */
+  input, select, textarea {
+    font-size: 16px !important; /* evita zoom automático en iOS */
+  }
+
+  /* Labels accesibles */
+  label {
+    cursor: pointer;
+  }
+}
+
+@layer utilities {
+  /* Visualmente oculto pero accesible para screen readers */
+  .sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border-width: 0;
+  }
+
+  /* Solo visible cuando tiene foco */
+  .sr-only-focusable:focus {
+    position: static;
+    width: auto;
+    height: auto;
+    padding: initial;
+    margin: initial;
+    overflow: visible;
+    clip: auto;
+    white-space: normal;
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   MICRO-INTERACCIONES Y TRANSICIONES GLOBALES
+═══════════════════════════════════════════════════════════════ */
+
+@layer utilities {
+
+  /* Card con hover mejorado */
+  .card-interactive {
+    transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+    cursor: pointer;
+  }
+  .card-interactive:hover {
+    transform: translateY(-1px);
+    box-shadow: var(--shadow-md);
+    border-color: #E5E7EB;
+  }
+  .card-interactive:active {
+    transform: translateY(0);
+    box-shadow: var(--shadow-sm);
+  }
+
+  /* Entrada de items en lista */
+  .list-item-enter {
+    animation: list-item-in 0.2s ease-out both;
+  }
+  @keyframes list-item-in {
+    from { opacity: 0; transform: translateX(-8px); }
+    to   { opacity: 1; transform: translateX(0); }
+  }
+
+  /* Skeleton loader */
+  .skeleton {
+    background: linear-gradient(90deg, #F3F4F6 25%, #E5E7EB 50%, #F3F4F6 75%);
+    background-size: 200% 100%;
+    animation: skeleton-wave 1.5s infinite;
+    border-radius: var(--radius-sm);
+  }
+  @keyframes skeleton-wave {
+    0%   { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
+  }
+
+  /* Badge de estado con dot pulsante */
+  .badge-active .status-dot {
+    animation: pulse-orange 2s infinite;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .badge-active .status-dot { animation: none; }
+  }
+
+  /* Notificación badge bounce */
+  .notif-badge {
+    animation: notif-pop 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+  @keyframes notif-pop {
+    from { transform: scale(0); }
+    to   { transform: scale(1); }
+  }
+
+  /* Slide-in desde abajo para toasts */
+  .toast-slide {
+    animation: toast-in 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+  @keyframes toast-in {
+    from { opacity: 0; transform: translateY(16px) scale(0.95); }
+    to   { opacity: 1; transform: translateY(0) scale(1); }
+  }
+
+  /* Loading overlay para formularios */
+  .form-loading {
+    position: relative;
+    pointer-events: none;
+    opacity: 0.7;
+  }
+
+  /* Highlight al crear registro nuevo */
+  .row-highlight {
+    animation: row-highlight-in 1.5s ease-out;
+  }
+  @keyframes row-highlight-in {
+    0%   { background-color: rgba(212, 98, 26, 0.12); }
+    100% { background-color: transparent; }
+  }
+
+  /* Success checkmark */
+  .check-draw {
+    stroke-dasharray: 100;
+    stroke-dashoffset: 100;
+    animation: check-draw 0.4s ease-out 0.1s forwards;
+  }
+  @keyframes check-draw {
+    to { stroke-dashoffset: 0; }
+  }
+
+  /* Fade in con delay para items de lista escalonados */
+  .stagger-1 { animation-delay: 0.05s; }
+  .stagger-2 { animation-delay: 0.10s; }
+  .stagger-3 { animation-delay: 0.15s; }
+  .stagger-4 { animation-delay: 0.20s; }
+  .stagger-5 { animation-delay: 0.25s; }
+}

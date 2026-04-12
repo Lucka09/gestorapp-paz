@@ -1,0 +1,407 @@
+import { useState, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
+import {
+  BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
+  PieChart, Pie, Cell, CartesianGrid,
+} from 'recharts'
+import {
+  FileText, Users, CalendarDays,
+  TrendingUp, DollarSign, Clock,
+  ArrowRight, Target, Zap, Activity, Bell,
+  ChevronUp, ChevronDown,
+} from 'lucide-react'
+import {
+  useMetricas, useUltimosTramites,
+  useTurnosHoy, useDistribucionEstados,
+} from '@/hooks/useDashboard'
+import { useAuth } from '@/hooks/useAuth'
+import { useProspectos } from '@/hooks/usePipeline'
+import {
+  getIngresosPorMes, getTiposTramiteFrecuentes,
+  getAlertas, getTopClientes,
+  type IngresoMes, type TipoCount,
+  type AlertaDashboard, type TopCliente,
+} from '@/lib/firestore/dashboard'
+import { Card, Spinner } from '@/components/ui'
+import { EstadoBadge } from '@/features/tramites/EstadoBadge'
+import { TIPO_TRAMITE_LABELS } from '@/types'
+import { formatPesos } from '@/utils'
+import { format } from 'date-fns/format'
+import { es } from 'date-fns/locale/es'
+
+const COLORES_ESTADO: Record<string, string> = {
+  pendiente: '#EAB308', en_proceso: '#3B82F6',
+  documentacion_requerida: '#EF4444', en_organismo: '#F97316',
+  listo_para_retirar: '#10B981', entregado: '#22C55E', cancelado: '#9CA3AF',
+}
+
+function KpiCard({ label, value, icon: Icon, color = '#D4621A', sub, onClick }: {
+  label: string; value: string | number; icon: React.ElementType
+  color?: string; sub?: string; onClick?: () => void
+}) {
+  return (
+    <div onClick={onClick} role={onClick ? 'button' : undefined} tabIndex={onClick ? 0 : undefined}
+      onKeyDown={onClick ? e => { if (e.key === 'Enter') onClick() } : undefined}
+      className={`bg-white border border-gray-100 rounded-2xl p-5 shadow-sm
+                  ${onClick ? 'cursor-pointer hover:shadow-md hover:border-orange-100 transition-all' : ''}`}>
+      <div className="w-10 h-10 rounded-xl flex items-center justify-center mb-3"
+           style={{ background: `${color}18` }}>
+        <Icon size={19} style={{ color }} />
+      </div>
+      <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">{label}</p>
+      <p className="text-2xl font-bold text-gray-900" style={{ fontFamily: 'var(--font-display)' }}>
+        {value}
+      </p>
+      {sub && <p className="text-xs text-gray-400 mt-1">{sub}</p>}
+    </div>
+  )
+}
+
+function AlertaCard({ alerta, onClick }: { alerta: AlertaDashboard; onClick?: () => void }) {
+  const s = {
+    urgente:     { bg: 'bg-red-50',   border: 'border-red-200',   dot: 'bg-red-500',   text: 'text-red-700'   },
+    advertencia: { bg: 'bg-amber-50', border: 'border-amber-200', dot: 'bg-amber-400', text: 'text-amber-700' },
+    info:        { bg: 'bg-blue-50',  border: 'border-blue-200',  dot: 'bg-blue-400',  text: 'text-blue-700'  },
+  }[alerta.tipo]
+  return (
+    <button onClick={onClick}
+      className={`w-full text-left ${s.bg} border ${s.border} rounded-xl p-3.5 hover:brightness-95 transition-all`}>
+      <div className="flex items-start gap-3">
+        <span className={`w-2 h-2 rounded-full ${s.dot} mt-1.5 shrink-0`} />
+        <div className="flex-1">
+          <p className={`text-sm font-semibold ${s.text}`}>{alerta.titulo}</p>
+          <p className="text-xs text-gray-500 mt-0.5 leading-relaxed">{alerta.detalle}</p>
+        </div>
+        <ArrowRight size={14} className="text-gray-400 shrink-0 mt-0.5" />
+      </div>
+    </button>
+  )
+}
+
+function CustomTooltip({ active, payload, label }: any) {
+  if (!active || !payload?.length) return null
+  return (
+    <div className="bg-white border border-gray-100 rounded-xl shadow-lg px-4 py-3">
+      <p className="text-xs font-bold text-gray-500 mb-1">{label}</p>
+      {payload.map((p: any, i: number) => (
+        <p key={i} className="text-sm font-semibold" style={{ color: p.color }}>
+          {p.name === 'ingresos' ? formatPesos(p.value) : p.value}
+          {' '}<span className="text-xs font-normal text-gray-400">{p.name}</span>
+        </p>
+      ))}
+    </div>
+  )
+}
+
+export default function DashboardPage() {
+  const navigate = useNavigate()
+  const { user } = useAuth()
+  const { metricas, loading: loadM } = useMetricas()
+  const { tramites }                 = useUltimosTramites()
+  const { turnos: turnosHoy }        = useTurnosHoy()
+  const { data: distribucion }       = useDistribucionEstados()
+  const { metricas: metPipeline }    = useProspectos()
+
+  const [ingresosMes,   setIngresosMes]   = useState<IngresoMes[]>([])
+  const [tiposTramite,  setTiposTramite]  = useState<TipoCount[]>([])
+  const [alertas,       setAlertas]       = useState<AlertaDashboard[]>([])
+  const [topClientes,   setTopClientes]   = useState<TopCliente[]>([])
+  const [loadAnalytics, setLoadAnalytics] = useState(true)
+
+  useEffect(() => {
+    Promise.all([
+      getIngresosPorMes(6),
+      getTiposTramiteFrecuentes(),
+      getAlertas(),
+      getTopClientes(5),
+    ]).then(([ing, tipos, alts, top]) => {
+      setIngresosMes(ing); setTiposTramite(tipos)
+      setAlertas(alts);    setTopClientes(top)
+      setLoadAnalytics(false)
+    })
+  }, [])
+
+  const hoy = format(new Date(), "EEEE d 'de' MMMM", { locale: es })
+  if (loadM) return <Spinner label="Cargando dashboard..." />
+
+  return (
+    <div className="space-y-6 animate-fadein">
+
+      {/* Header */}
+      <div className="flex items-start justify-between flex-wrap gap-3">
+        <div>
+          <h1 style={{ fontFamily:'var(--font-display)',fontWeight:800,fontSize:22,margin:'0 0 4px' }}>
+            Buenos días, {user?.nombre ?? 'Admin'} 👋
+          </h1>
+          <p className="text-sm text-gray-400 capitalize">{hoy}</p>
+        </div>
+        {alertas.length > 0 && (
+          <div className="flex items-center gap-2 bg-red-50 border border-red-200 px-3 py-2 rounded-xl">
+            <Bell size={14} className="text-red-500" />
+            <span className="text-sm font-semibold text-red-700">
+              {alertas.length} alerta{alertas.length > 1 ? 's' : ''}
+            </span>
+          </div>
+        )}
+      </div>
+
+      {/* Alertas inteligentes */}
+      {alertas.length > 0 && (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          {alertas.map(a => (
+            <AlertaCard key={a.id} alerta={a} onClick={() => a.link && navigate(a.link)} />
+          ))}
+        </div>
+      )}
+
+      {/* KPIs — Operativos */}
+      <div>
+        <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3">Hoy</p>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          <KpiCard label="Trámites hoy"  value={metricas?.tramitesHoy ?? 0}     icon={FileText}    color="#D4621A" onClick={() => navigate('/admin/tramites')} />
+          <KpiCard label="Activos"        value={metricas?.tramitesActivos ?? 0}  icon={Clock}       color="#3B82F6" sub={`${metricas?.tramitesPendientes ?? 0} pendientes`} onClick={() => navigate('/admin/tramites')} />
+          <KpiCard label="Turnos hoy"     value={metricas?.turnosHoy ?? 0}        icon={CalendarDays} color="#10B981" sub={`${metricas?.turnosProximos ?? 0} próx. 7 días`} onClick={() => navigate('/admin/turnos')} />
+          <KpiCard label="Sin cobrar"     value={metricas?.sinPagar ?? 0}          icon={DollarSign}  color="#EF4444" sub="trámites con saldo" onClick={() => navigate('/admin/tramites')} />
+        </div>
+      </div>
+
+      {/* KPIs — Financiero */}
+      <div>
+        <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3">Financiero</p>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          <KpiCard label="Ingresos hoy"    value={formatPesos(metricas?.ingresosHoy ?? 0)}    icon={TrendingUp} color="#D4621A" />
+          <KpiCard label="Ingresos del mes" value={formatPesos(metricas?.ingresosMes ?? 0)}   icon={Activity}   color="#059669" />
+          <KpiCard label="Clientes"         value={metricas?.totalClientes ?? 0}               icon={Users}      color="#7C3AED" onClick={() => navigate('/admin/clientes')} />
+          <KpiCard label="Pipeline"         value={`${metPipeline.conversion}%`}              icon={Target}     color="#F97316" sub={`${metPipeline.cerrados} cerrados`} onClick={() => navigate('/admin/pipeline')} />
+        </div>
+      </div>
+
+      {/* Gráficos fila 1 */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+
+        {/* Ingresos por mes */}
+        <Card className="p-5 lg:col-span-2">
+          <div className="flex items-center justify-between mb-5">
+            <div>
+              <p className="text-xs font-bold text-gray-400 uppercase tracking-wider">Ingresos por mes</p>
+              <p className="text-sm font-semibold text-gray-700 mt-0.5">Últimos 6 meses</p>
+            </div>
+            <TrendingUp size={16} className="text-gray-300" />
+          </div>
+          {loadAnalytics ? (
+            <div className="skeleton h-48 rounded-xl" />
+          ) : ingresosMes.every(m => m.ingresos === 0) ? (
+            <div className="h-48 flex flex-col items-center justify-center text-gray-300">
+              <Activity size={32} className="mb-2 opacity-40" />
+              <p className="text-sm">Sin datos de ingresos todavía</p>
+            </div>
+          ) : (
+            <ResponsiveContainer width="100%" height={200}>
+              <BarChart data={ingresosMes} barSize={28} margin={{ top:4,right:0,left:0,bottom:0 }}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#F3F4F6" />
+                <XAxis dataKey="mes" tick={{ fontSize:11,fill:'#9CA3AF' }} axisLine={false} tickLine={false} />
+                <YAxis tick={{ fontSize:11,fill:'#9CA3AF' }} axisLine={false} tickLine={false} width={52}
+                  tickFormatter={v => v >= 1000 ? `$${(v/1000).toFixed(0)}k` : `$${v}`} />
+                <Tooltip content={<CustomTooltip />} cursor={{ fill:'#F9FAFB' }} />
+                <Bar dataKey="ingresos" name="ingresos" fill="#D4621A" radius={[6,6,0,0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          )}
+        </Card>
+
+        {/* Distribución de estados */}
+        <Card className="p-5">
+          <div className="flex items-center justify-between mb-5">
+            <p className="text-xs font-bold text-gray-400 uppercase tracking-wider">Estados</p>
+            <FileText size={16} className="text-gray-300" />
+          </div>
+          {distribucion.length === 0 ? (
+            <div className="h-48 flex flex-col items-center justify-center text-gray-300">
+              <FileText size={28} className="mb-2 opacity-40" />
+              <p className="text-sm">Sin trámites</p>
+            </div>
+          ) : (
+            <>
+              <ResponsiveContainer width="100%" height={150}>
+                <PieChart>
+                  <Pie data={distribucion} dataKey="cantidad" nameKey="label"
+                    cx="50%" cy="50%" innerRadius={40} outerRadius={65} paddingAngle={3}>
+                    {distribucion.map((e, i) => (
+                      <Cell key={i} fill={COLORES_ESTADO[e.estado] ?? '#E5E7EB'} />
+                    ))}
+                  </Pie>
+                  <Tooltip formatter={(v:any,n:any) => [v,n]}
+                    contentStyle={{ borderRadius:12,border:'1px solid #E5E7EB',fontSize:12 }} />
+                </PieChart>
+              </ResponsiveContainer>
+              <div className="space-y-1.5 mt-2">
+                {distribucion.slice(0,5).map((d,i) => (
+                  <div key={i} className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <span className="w-2.5 h-2.5 rounded-full shrink-0"
+                            style={{ background: COLORES_ESTADO[d.estado] ?? '#E5E7EB' }} />
+                      <span className="text-xs text-gray-600">{d.label}</span>
+                    </div>
+                    <span className="text-xs font-bold text-gray-900">{d.cantidad}</span>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
+        </Card>
+      </div>
+
+      {/* Gráficos fila 2 */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+
+        {/* Tipos de trámite */}
+        <Card className="p-5">
+          <div className="flex items-center justify-between mb-5">
+            <div>
+              <p className="text-xs font-bold text-gray-400 uppercase tracking-wider">Trámites por tipo</p>
+              <p className="text-sm font-semibold text-gray-700 mt-0.5">Los más frecuentes</p>
+            </div>
+            <Zap size={16} className="text-gray-300" />
+          </div>
+          {loadAnalytics ? (
+            <div className="space-y-3">{[1,2,3,4].map(i=><div key={i} className="skeleton h-8 rounded-lg"/>)}</div>
+          ) : tiposTramite.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-8 text-gray-300">
+              <p className="text-sm">Sin datos todavía</p>
+            </div>
+          ) : (
+            <ResponsiveContainer width="100%" height={200}>
+              <BarChart data={tiposTramite} layout="vertical" barSize={16}
+                margin={{ top:0,right:16,left:0,bottom:0 }}>
+                <XAxis type="number" hide />
+                <YAxis type="category" dataKey="label" width={110}
+                  tick={{ fontSize:11,fill:'#6B7280' }} axisLine={false} tickLine={false} />
+                <Tooltip cursor={{ fill:'#F9FAFB' }} formatter={(v:any) => [v,'trámites']}
+                  contentStyle={{ borderRadius:12,border:'1px solid #E5E7EB',fontSize:12 }} />
+                <Bar dataKey="cantidad" fill="#D4621A" radius={[0,6,6,0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          )}
+        </Card>
+
+        {/* Top clientes */}
+        <Card className="p-5">
+          <div className="flex items-center justify-between mb-5">
+            <div>
+              <p className="text-xs font-bold text-gray-400 uppercase tracking-wider">Top clientes</p>
+              <p className="text-sm font-semibold text-gray-700 mt-0.5">Por volumen de ingresos</p>
+            </div>
+            <Users size={16} className="text-gray-300" />
+          </div>
+          {loadAnalytics ? (
+            <div className="space-y-3">{[1,2,3,4,5].map(i=>(
+              <div key={i} className="flex items-center gap-3">
+                <div className="skeleton w-8 h-8 rounded-full shrink-0"/>
+                <div className="flex-1 space-y-1.5"><div className="skeleton h-3 w-32 rounded"/><div className="skeleton h-2.5 w-20 rounded"/></div>
+              </div>
+            ))}</div>
+          ) : topClientes.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-8 text-gray-300">
+              <Users size={28} className="mb-2 opacity-40"/>
+              <p className="text-sm">Sin datos todavía</p>
+            </div>
+          ) : (
+            <div className="space-y-0">
+              {topClientes.map((c,i) => (
+                <div key={c.clienteId} onClick={() => navigate(`/admin/clientes/${c.clienteId}`)}
+                  className="flex items-center gap-3 py-2.5 border-b border-gray-50 last:border-0
+                             cursor-pointer hover:bg-gray-50 rounded-lg px-2 -mx-2 transition-colors">
+                  <div className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold shrink-0"
+                       style={{ background:i===0?'#FEF3EC':'#F3F4F6', color:i===0?'#D4621A':'#6B7280' }}>
+                    {i+1}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold text-gray-800 truncate">{c.nombre}</p>
+                    <p className="text-xs text-gray-400">{c.tramites} trámite{c.tramites!==1?'s':''}</p>
+                  </div>
+                  <span className="text-sm font-bold text-gray-700 shrink-0">
+                    {c.ingresos>0?formatPesos(c.ingresos):'—'}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+        </Card>
+      </div>
+
+      {/* Agenda + Últimos trámites */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+        <Card className="p-5">
+          <div className="flex items-center justify-between mb-4">
+            <p className="text-xs font-bold text-gray-400 uppercase tracking-wider">Agenda de hoy</p>
+            <button onClick={() => navigate('/admin/turnos')}
+              className="text-xs font-medium flex items-center gap-1"
+              style={{ color:'var(--gp-orange)',background:'none',border:'none',cursor:'pointer' }}>
+              Ver agenda <ArrowRight size={12}/>
+            </button>
+          </div>
+          {turnosHoy.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-8 text-gray-300">
+              <CalendarDays size={28} className="mb-2 opacity-40"/>
+              <p className="text-sm">Sin turnos para hoy</p>
+            </div>
+          ) : (
+            <div className="space-y-0">
+              {turnosHoy.slice(0,6).map(t => (
+                <div key={t.id} className="flex items-center gap-3 py-2.5 border-b border-gray-50 last:border-0">
+                  <div className="text-center shrink-0 w-12">
+                    <p className="text-sm font-bold" style={{ color:'var(--gp-orange)' }}>{t.horaInicio}</p>
+                    <p className="text-xs text-gray-400">{t.horaFin}</p>
+                  </div>
+                  <div className="w-px h-8 bg-gray-100 shrink-0"/>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold text-gray-800 truncate">
+                      {TIPO_TRAMITE_LABELS[t.tipoTramite]}
+                    </p>
+                    <p className="text-xs text-gray-400 truncate">{(t as any).clienteNombre ?? 'Cliente'}</p>
+                  </div>
+                  <span className={`text-xs px-2 py-0.5 rounded-full font-semibold shrink-0 ${
+                    t.estado==='confirmado'?'bg-emerald-100 text-emerald-700':'bg-yellow-100 text-yellow-700'}`}>
+                    {t.estado==='confirmado'?'Confirmado':'Pendiente'}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+        </Card>
+
+        <Card className="p-5">
+          <div className="flex items-center justify-between mb-4">
+            <p className="text-xs font-bold text-gray-400 uppercase tracking-wider">Trámites recientes</p>
+            <button onClick={() => navigate('/admin/tramites')}
+              className="text-xs font-medium flex items-center gap-1"
+              style={{ color:'var(--gp-orange)',background:'none',border:'none',cursor:'pointer' }}>
+              Ver todos <ArrowRight size={12}/>
+            </button>
+          </div>
+          {tramites.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-8 text-gray-300">
+              <FileText size={28} className="mb-2 opacity-40"/>
+              <p className="text-sm">Sin trámites registrados</p>
+            </div>
+          ) : (
+            <div className="space-y-0">
+              {tramites.slice(0,6).map(t => (
+                <div key={t.id} onClick={() => navigate(`/admin/tramites/${t.id}`)}
+                  className="flex items-center justify-between gap-3 py-2.5 border-b border-gray-50 last:border-0
+                             cursor-pointer hover:bg-gray-50 rounded-lg px-2 -mx-2 transition-colors">
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold text-gray-800">{TIPO_TRAMITE_LABELS[t.tipo]}</p>
+                    <p className="text-xs text-gray-400 font-mono">{t.patente}</p>
+                  </div>
+                  <EstadoBadge estado={t.estado}/>
+                </div>
+              ))}
+            </div>
+          )}
+        </Card>
+      </div>
+
+    </div>
+  )
+}

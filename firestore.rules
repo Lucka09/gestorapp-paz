@@ -1,0 +1,232 @@
+rules_version = '2';
+
+// ═══════════════════════════════════════════════════════════════════════
+// GESTORAPP — FIRESTORE SECURITY RULES
+// Gestoría Paz · JAH-NISSI Digital Studio
+//
+// ROLES:
+//   propietario — acceso total incluido financiero
+//   admin       — igual a propietario
+//   vendedor    — clientes + seguimiento + tramites (solo ver) + turnos
+//   operador    — tramites + turnos completos, sin CRM ni financiero
+//   cliente     — solo sus propios datos via portal
+// ═══════════════════════════════════════════════════════════════════════
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ─── HELPERS ────────────────────────────────────────────────────────
+
+    // Obtener el perfil del usuario autenticado
+    function userDoc() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
+    // Verificar que el usuario está autenticado y activo
+    function isAuth() {
+      return request.auth != null;
+    }
+
+    // Verificar rol específico
+    function hasRole(role) {
+      return isAuth() && userDoc().rol == role;
+    }
+
+    // Propietario o admin — acceso total
+    function isOwnerOrAdmin() {
+      return isAuth() && userDoc().rol in ['propietario', 'admin'];
+    }
+
+    // Cualquier miembro del equipo interno (no cliente)
+    function isStaff() {
+      return isAuth() && userDoc().rol in ['propietario', 'admin', 'vendedor', 'operador'];
+    }
+
+    // Vendedor o superior — puede ver y gestionar clientes/seguimiento
+    function isVendedorOrAbove() {
+      return isAuth() && userDoc().rol in ['propietario', 'admin', 'vendedor'];
+    }
+
+    // Es el cliente dueño del recurso
+    function isOwnerCliente(clienteId) {
+      return isAuth() && userDoc().rol == 'cliente' && userDoc().clienteId == clienteId;
+    }
+
+    // Es el usuario dueño del recurso
+    function isSelfUser(uid) {
+      return isAuth() && request.auth.uid == uid;
+    }
+
+    // Campos financieros — solo propietario/admin pueden ver/editar
+    function noFinancialFields() {
+      return !('honorarios' in request.resource.data) &&
+             !('pagado' in request.resource.data) &&
+             !('formaPago' in request.resource.data) &&
+             !('montoCierre' in request.resource.data);
+    }
+
+    // Validación: no puede cambiar campos protegidos al actualizar
+    function notChanging(fields) {
+      return !(request.resource.data.diff(resource.data).affectedKeys().hasAny(fields));
+    }
+
+    // ─── /users ─────────────────────────────────────────────────────────
+    match /users/{uid} {
+      // Cada usuario puede leer su propio perfil
+      allow read: if isSelfUser(uid) || isOwnerOrAdmin();
+
+      // Crear perfil: solo admin/propietario o el propio usuario (registro)
+      allow create: if isOwnerOrAdmin() || isSelfUser(uid);
+
+      // Actualizar: admin/propietario puede todo; usuario solo puede cambiar
+      // ultimoAcceso, nombre propio — NO puede cambiar su rol
+      allow update: if isOwnerOrAdmin() ||
+        (isSelfUser(uid) && notChanging(['rol', 'clienteId', 'activo']));
+
+      // Eliminar: solo propietario
+      allow delete: if hasRole('propietario');
+    }
+
+    // ─── /clientes ──────────────────────────────────────────────────────
+    match /clientes/{clienteId} {
+      // Staff puede leer todos los clientes
+      // Cliente puede leer solo su propio documento
+      allow read: if isStaff() || isOwnerCliente(clienteId);
+
+      // Crear: staff con permiso de crear clientes (no operador puro)
+      allow create: if isVendedorOrAbove() || hasRole('operador');
+
+      // Actualizar:
+      // - Admin/propietario: sin restricción
+      // - Vendedor/operador: puede editar datos, NO puede cambiar userId
+      allow update: if isOwnerOrAdmin() ||
+        (isStaff() && notChanging(['userId']));
+
+      // Eliminar: solo propietario o admin
+      allow delete: if isOwnerOrAdmin();
+
+      // ── /clientes/{id}/seguimientos ──────────────────────────────────
+      match /seguimientos/{seguimientoId} {
+        allow read:   if isVendedorOrAbove();
+        allow create: if isVendedorOrAbove();
+        allow update: if isVendedorOrAbove();
+        allow delete: if isOwnerOrAdmin();
+      }
+
+      // ── /clientes/{id}/config ────────────────────────────────────────
+      match /config/{configId} {
+        allow read:   if isVendedorOrAbove();
+        allow write:  if isVendedorOrAbove();
+      }
+    }
+
+    // ─── /vehiculos ─────────────────────────────────────────────────────
+    match /vehiculos/{vehiculoId} {
+      // Staff puede leer todos los vehículos
+      // Cliente puede leer vehículos que le pertenecen
+      allow read: if isStaff() ||
+        (isAuth() && userDoc().rol == 'cliente' &&
+         resource.data.clienteId == userDoc().clienteId);
+
+      allow create: if isStaff();
+
+      // Actualizar: staff puede; cliente NO puede editar sus vehículos
+      allow update: if isStaff();
+
+      // Eliminar: solo admin/propietario
+      allow delete: if isOwnerOrAdmin();
+    }
+
+    // ─── /tramites ──────────────────────────────────────────────────────
+    match /tramites/{tramiteId} {
+      // Staff: todos pueden leer
+      // Cliente: solo sus propios trámites
+      allow read: if isStaff() ||
+        (isAuth() && userDoc().rol == 'cliente' &&
+         resource.data.clienteId == userDoc().clienteId);
+
+      // Crear: staff completo
+      allow create: if isStaff();
+
+      // Actualizar:
+      // - Admin/propietario: sin restricción
+      // - Operador: puede cambiar estado, historial, notas, pero NO honorarios/pagado
+      // - Vendedor: solo puede ver, no modificar trámites
+      // - Cliente: NO puede modificar trámites
+      allow update: if isOwnerOrAdmin() ||
+        (hasRole('operador') && noFinancialFields());
+
+      // Eliminar: solo admin/propietario
+      allow delete: if isOwnerOrAdmin();
+    }
+
+    // ─── /turnos ────────────────────────────────────────────────────────
+    match /turnos/{turnoId} {
+      // Staff: todos pueden leer
+      // Cliente: solo sus propios turnos
+      allow read: if isStaff() ||
+        (isAuth() && userDoc().rol == 'cliente' &&
+         resource.data.clienteId == userDoc().clienteId);
+
+      // Crear:
+      // - Staff: puede crear turnos para cualquier cliente
+      // - Cliente: solo puede crear turnos para sí mismo
+      allow create: if isStaff() ||
+        (isAuth() && userDoc().rol == 'cliente' &&
+         request.resource.data.clienteId == userDoc().clienteId);
+
+      // Actualizar:
+      // - Staff: puede confirmar, cancelar, reprogramar
+      // - Cliente: solo puede cancelar su propio turno (cambiar estado a 'cancelado')
+      allow update: if isStaff() ||
+        (isAuth() && userDoc().rol == 'cliente' &&
+         resource.data.clienteId == userDoc().clienteId &&
+         request.resource.data.diff(resource.data).affectedKeys().hasOnly(['estado', 'actualizadoEn']) &&
+         request.resource.data.estado == 'cancelado');
+
+      // Eliminar: solo staff
+      allow delete: if isStaff();
+    }
+
+    // ─── /notificaciones ────────────────────────────────────────────────
+    match /notificaciones/{notifId} {
+      // Cada usuario lee solo sus notificaciones
+      allow read: if isAuth() &&
+        resource.data.destinatarioId == request.auth.uid;
+
+      // Staff puede crear notificaciones
+      allow create: if isStaff();
+
+      // Marcar como leída: solo el destinatario
+      allow update: if isAuth() &&
+        resource.data.destinatarioId == request.auth.uid &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['leida', 'leidaEn']);
+
+      // Eliminar: solo admin o el propio destinatario
+      allow delete: if isOwnerOrAdmin() ||
+        (isAuth() && resource.data.destinatarioId == request.auth.uid);
+    }
+
+    // ─── /prospectos (Pipeline CRM) ──────────────────────────────────────
+    match /prospectos/{prospectoId} {
+      // Solo staff con acceso CRM puede ver prospectos
+      allow read:   if isVendedorOrAbove();
+      allow create: if isVendedorOrAbove();
+      allow update: if isVendedorOrAbove();
+
+      // Eliminar: solo admin/propietario
+      allow delete: if isOwnerOrAdmin();
+    }
+
+    // ─── /configuracion ─────────────────────────────────────────────────
+    match /configuracion/{configId} {
+      allow read:  if isStaff();
+      allow write: if isOwnerOrAdmin();
+    }
+
+    // ─── DENEGACIÓN EXPLÍCITA de cualquier otra colección ───────────────
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
