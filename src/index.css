@@ -38,13 +38,13 @@
   --color-text-1:      #111827;   /* 17.74:1 ✅ */
   --color-text-2:      #374151;   /* 10.31:1 ✅ */
   --color-text-3:      #6B7280;   /*  4.83:1 ✅ AA */
-  --color-text-4:      #6B7280;   /* era #9CA3AF (❌ 2.54) → subido a 6B7280 */
+  --color-text-4:      #6B7280;
 
   /* ── ACCESIBILIDAD ── */
   --gp-orange-text:    #B45316;   /*  5.01:1 ✅ — naranja accesible para texto */
-  --gp-orange-aa:      #B45316;   /* alias semántico */
+  --gp-orange-aa:      #B45316;
   --focus-ring:        rgba(212, 98, 26, 0.35);
-  --min-touch:         44px;      /* touch target mínimo WCAG */
+  --min-touch:         44px;
 
   /* ── TIPOGRAFÍA ── */
   --font-body:         'Inter', system-ui, -apple-system, sans-serif;
@@ -63,6 +63,63 @@
   --shadow-md:  0 4px 12px rgba(0,0,0,0.08), 0 2px 4px rgba(0,0,0,0.04);
   --shadow-lg:  0 10px 30px rgba(0,0,0,0.10), 0 4px 8px rgba(0,0,0,0.05);
   --shadow-gp:  0 8px 24px rgba(212, 98, 26, 0.20);
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   TAILWIND v4 — DESIGN TOKENS COMO UTILIDADES
+   
+   @theme inline: los utilities generados referencian las CSS vars
+   directamente (no valores estáticos), por lo que el branding
+   dinámico de GestoriaContext sigue funcionando en runtime.
+
+   Ejemplo: bg-gp-orange genera → background-color: var(--gp-orange)
+   Cuando GestoriaContext cambia --gp-orange, todos los bg-gp-orange
+   se actualizan automáticamente sin recompilar.
+═══════════════════════════════════════════════════════════════ */
+
+@theme inline {
+  /* ── Colores de marca ──────────────────────────────────────── */
+  --color-gp-orange:        var(--gp-orange);
+  --color-gp-orange-dark:   var(--gp-orange-dark);
+  --color-gp-orange-hover:  var(--gp-orange-hover);
+  --color-gp-orange-light:  var(--gp-orange-light);
+  --color-gp-orange-pale:   var(--gp-orange-pale);
+  --color-gp-orange-text:   var(--gp-orange-text);
+  --color-gp-black:         var(--gp-black);
+  --color-gp-black-card:    var(--gp-black-card);
+  --color-gp-black-soft:    var(--gp-black-soft);
+
+  /* ── Colores neutros ────────────────────────────────────────── */
+  --color-gp-bg:            var(--color-bg);
+  --color-gp-surface:       var(--color-surface);
+  --color-gp-border:        var(--color-border);
+  --color-gp-border-soft:   var(--color-border-soft);
+  --color-gp-text-1:        var(--color-text-1);
+  --color-gp-text-2:        var(--color-text-2);
+  --color-gp-text-3:        var(--color-text-3);
+  --color-gp-text-4:        var(--color-text-4);
+
+  /* ── Tipografía ─────────────────────────────────────────────── */
+  /* Genera: .font-gp-display { font-family: var(--font-display) } */
+  --font-gp-display: var(--font-display);
+  --font-gp-body:    var(--font-body);
+  --font-gp-mono:    var(--font-mono);
+
+  /* ── Border radius ──────────────────────────────────────────── */
+  /* Genera: .rounded-gp-md { border-radius: var(--radius-md) }   */
+  /* Prefijo gp- para no solapar con los valores built-in de TW   */
+  --radius-gp-sm:   var(--radius-sm);
+  --radius-gp-md:   var(--radius-md);
+  --radius-gp-lg:   var(--radius-lg);
+  --radius-gp-xl:   var(--radius-xl);
+  --radius-gp-full: var(--radius-full);
+
+  /* ── Sombras ────────────────────────────────────────────────── */
+  /* Genera: .shadow-gp-brand { box-shadow: var(--shadow-gp) }    */
+  --shadow-gp-sm:    var(--shadow-sm);
+  --shadow-gp-md:    var(--shadow-md);
+  --shadow-gp-lg:    var(--shadow-lg);
+  --shadow-gp-brand: var(--shadow-gp);
 }
 
 /* ═══════════════════════════════════════════════════════════════
@@ -90,7 +147,6 @@
     color: var(--color-text-1);
   }
 
-  /* Jerarquía tipográfica */
   h1, h2, h3 {
     font-family: var(--font-display);
     font-weight: 700;
@@ -107,18 +163,15 @@
     line-height: 1.65;
   }
 
-  /* Links */
   a { color: var(--gp-orange); text-decoration: none; }
   a:hover { text-decoration: underline; }
 
-  /* Focus visible — accesibilidad */
   :focus-visible {
     outline: 2px solid var(--gp-orange);
     outline-offset: 2px;
     border-radius: var(--radius-sm);
   }
 
-  /* Reducir motion para accesibilidad */
   @media (prefers-reduced-motion: reduce) {
     *, *::before, *::after {
       animation-duration: 0.01ms !important;
@@ -127,13 +180,11 @@
     }
   }
 
-  /* ── SCROLLBAR ── */
   ::-webkit-scrollbar        { width: 6px; height: 6px; }
   ::-webkit-scrollbar-track  { background: transparent; }
   ::-webkit-scrollbar-thumb  { background: #D1D5DB; border-radius: var(--radius-full); }
   ::-webkit-scrollbar-thumb:hover { background: var(--gp-orange); }
 
-  /* ── SELECCIÓN DE TEXTO ── */
   ::selection {
     background: var(--gp-orange-pale);
     color: var(--gp-orange-dark);
@@ -153,9 +204,19 @@
     border-radius: var(--radius-md);
     transition: background-color 0.15s, transform 0.1s, box-shadow 0.15s;
     box-shadow: var(--shadow-gp);
+    border: none;
+    cursor: pointer;
+    font-family: var(--font-body);
   }
-  .btn-primary:hover  { background-color: var(--gp-orange-hover); }
-  .btn-primary:active { transform: scale(0.98); }
+  .btn-primary:hover:not(:disabled)  { background-color: var(--gp-orange-hover); }
+  .btn-primary:active:not(:disabled) { transform: scale(0.98); }
+  /* Estado deshabilitado / cargando */
+  .btn-primary:disabled {
+    background-color: var(--gp-orange-light);
+    cursor: not-allowed;
+    opacity: 0.8;
+    box-shadow: none;
+  }
 
   /* Input de marca */
   .input-gp {
@@ -169,8 +230,16 @@
     box-shadow: 0 0 0 3px var(--gp-orange-subtle);
     outline: none;
   }
-  .input-gp:hover:not(:focus) {
-    border-color: #D1D5DB;
+  .input-gp:hover:not(:focus) { border-color: #D1D5DB; }
+
+  /* Input en estado de error */
+  .input-gp-error {
+    border-color: #FCA5A5;
+    background-color: #FFF5F5;
+  }
+  .input-gp-error:focus {
+    border-color: var(--gp-orange);
+    box-shadow: 0 0 0 3px var(--gp-orange-subtle);
   }
 
   /* Card base */
@@ -190,10 +259,21 @@
     to   { opacity: 1; transform: translateY(0); }
   }
 
-  /* Pulse naranja — para indicadores activos */
-  .pulse-orange {
-    animation: pulse-orange 2s infinite;
+  /* Modal panel — entrada con spring */
+  .animate-modal-in {
+    animation: modal-panel-in 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
   }
+  /* Versión más lenta para el ícono interior */
+  .animate-modal-in-slow {
+    animation: modal-panel-in 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+  @keyframes modal-panel-in {
+    from { opacity: 0; transform: scale(0.92) translateY(12px); }
+    to   { opacity: 1; transform: scale(1) translateY(0); }
+  }
+
+  /* Pulse naranja */
+  .pulse-orange { animation: pulse-orange 2s infinite; }
   @keyframes pulse-orange {
     0%, 100% { opacity: 1; }
     50%       { opacity: 0.4; }
@@ -217,7 +297,6 @@
 ═══════════════════════════════════════════════════════════════ */
 
 @layer base {
-  /* Skip to main content — para lectores de pantalla */
   .skip-link {
     position: absolute;
     top: -40px;
@@ -232,28 +311,19 @@
     text-decoration: none;
     transition: top 0.15s;
   }
-  .skip-link:focus {
-    top: 8px;
-  }
+  .skip-link:focus { top: 8px; }
 
-  /* Focus visible global — NUNCA ocultar el foco */
   :focus-visible {
     outline: 2.5px solid var(--gp-orange);
     outline-offset: 3px;
     border-radius: var(--radius-sm);
   }
 
-  /* Touch targets mínimos — 44x44px (WCAG 2.5.5) */
   button, [role="button"], a, input[type="checkbox"], input[type="radio"] {
     min-height: 44px;
   }
+  .touch-xs { min-height: 32px !important; }
 
-  /* Excepción para botones inline pequeños */
-  .touch-xs {
-    min-height: 32px !important;
-  }
-
-  /* Alto contraste — respetar preferencia del sistema */
   @media (prefers-contrast: high) {
     :root {
       --color-text-3:   #374151;
@@ -261,33 +331,19 @@
       --color-border:   #9CA3AF;
       --gp-orange:      #B45316;
     }
-    .card-gp, .card-interactive {
-      border-width: 2px;
-    }
-    .badge, [class*="badge"] {
-      border: 1.5px solid currentColor;
-    }
+    .card-gp, .card-interactive { border-width: 2px; }
+    .badge, [class*="badge"]    { border: 1.5px solid currentColor; }
   }
 
-  /* Texto no debe ser solo decoración visual */
-  [aria-hidden="true"] {
-    pointer-events: none;
-    user-select: none;
-  }
+  [aria-hidden="true"] { pointer-events: none; user-select: none; }
 
-  /* Inputs — tamaño mínimo legible */
-  input, select, textarea {
-    font-size: 16px !important; /* evita zoom automático en iOS */
-  }
+  /* Evita zoom automático en iOS */
+  input, select, textarea { font-size: 16px !important; }
 
-  /* Labels accesibles */
-  label {
-    cursor: pointer;
-  }
+  label { cursor: pointer; }
 }
 
 @layer utilities {
-  /* Visualmente oculto pero accesible para screen readers */
   .sr-only {
     position: absolute;
     width: 1px;
@@ -299,8 +355,6 @@
     white-space: nowrap;
     border-width: 0;
   }
-
-  /* Solo visible cuando tiene foco */
   .sr-only-focusable:focus {
     position: static;
     width: auto;
@@ -318,32 +372,19 @@
 ═══════════════════════════════════════════════════════════════ */
 
 @layer utilities {
-
-  /* Card con hover mejorado */
   .card-interactive {
     transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
     cursor: pointer;
   }
-  .card-interactive:hover {
-    transform: translateY(-1px);
-    box-shadow: var(--shadow-md);
-    border-color: #E5E7EB;
-  }
-  .card-interactive:active {
-    transform: translateY(0);
-    box-shadow: var(--shadow-sm);
-  }
+  .card-interactive:hover  { transform: translateY(-1px); box-shadow: var(--shadow-md); border-color: #E5E7EB; }
+  .card-interactive:active { transform: translateY(0); box-shadow: var(--shadow-sm); }
 
-  /* Entrada de items en lista */
-  .list-item-enter {
-    animation: list-item-in 0.2s ease-out both;
-  }
+  .list-item-enter { animation: list-item-in 0.2s ease-out both; }
   @keyframes list-item-in {
     from { opacity: 0; transform: translateX(-8px); }
     to   { opacity: 1; transform: translateX(0); }
   }
 
-  /* Skeleton loader */
   .skeleton {
     background: linear-gradient(90deg, #F3F4F6 25%, #E5E7EB 50%, #F3F4F6 75%);
     background-size: 200% 100%;
@@ -355,59 +396,38 @@
     100% { background-position: -200% 0; }
   }
 
-  /* Badge de estado con dot pulsante */
-  .badge-active .status-dot {
-    animation: pulse-orange 2s infinite;
-  }
+  .badge-active .status-dot { animation: pulse-orange 2s infinite; }
   @media (prefers-reduced-motion: reduce) {
     .badge-active .status-dot { animation: none; }
   }
 
-  /* Notificación badge bounce */
-  .notif-badge {
-    animation: notif-pop 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
-  }
+  .notif-badge { animation: notif-pop 0.3s cubic-bezier(0.34, 1.56, 0.64, 1); }
   @keyframes notif-pop {
     from { transform: scale(0); }
     to   { transform: scale(1); }
   }
 
-  /* Slide-in desde abajo para toasts */
-  .toast-slide {
-    animation: toast-in 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
-  }
+  .toast-slide { animation: toast-in 0.25s cubic-bezier(0.34, 1.56, 0.64, 1); }
   @keyframes toast-in {
     from { opacity: 0; transform: translateY(16px) scale(0.95); }
     to   { opacity: 1; transform: translateY(0) scale(1); }
   }
 
-  /* Loading overlay para formularios */
-  .form-loading {
-    position: relative;
-    pointer-events: none;
-    opacity: 0.7;
-  }
+  .form-loading { position: relative; pointer-events: none; opacity: 0.7; }
 
-  /* Highlight al crear registro nuevo */
-  .row-highlight {
-    animation: row-highlight-in 1.5s ease-out;
-  }
+  .row-highlight { animation: row-highlight-in 1.5s ease-out; }
   @keyframes row-highlight-in {
     0%   { background-color: rgba(212, 98, 26, 0.12); }
     100% { background-color: transparent; }
   }
 
-  /* Success checkmark */
   .check-draw {
     stroke-dasharray: 100;
     stroke-dashoffset: 100;
     animation: check-draw 0.4s ease-out 0.1s forwards;
   }
-  @keyframes check-draw {
-    to { stroke-dashoffset: 0; }
-  }
+  @keyframes check-draw { to { stroke-dashoffset: 0; } }
 
-  /* Fade in con delay para items de lista escalonados */
   .stagger-1 { animation-delay: 0.05s; }
   .stagger-2 { animation-delay: 0.10s; }
   .stagger-3 { animation-delay: 0.15s; }

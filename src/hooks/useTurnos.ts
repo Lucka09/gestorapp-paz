@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { useGestoriaId } from '@/context/GestoriaContext'
 import {
   subscribeTurnos,
   subscribeTurnosPorFecha,
@@ -7,52 +8,84 @@ import {
 } from '@/lib/firestore/turnos'
 import type { Turno } from '@/types'
 
+// ─── TODOS LOS TURNOS DEL TENANT ─────────────────────────────────────────────
+
 export function useTurnos() {
-  const [turnos, setTurnos] = useState<Turno[]>([])
+  const gestoriaId = useGestoriaId()
+  const [turnos,  setTurnos]  = useState<Turno[]>([])
   const [loading, setLoading] = useState(true)
+
   useEffect(() => {
-    const unsub = subscribeTurnos(data => { setTurnos(data); setLoading(false) })
+    if (!gestoriaId) return
+    setLoading(true)
+    const unsub = subscribeTurnos(gestoriaId, data => {
+      setTurnos(data)
+      setLoading(false)
+    })
     return () => unsub()
-  }, [])
+  }, [gestoriaId])
+
   return { turnos, loading }
 }
+
+// ─── TURNOS DE UN DÍA ESPECÍFICO ─────────────────────────────────────────────
 
 export function useTurnosPorFecha(fecha: Date) {
-  const [turnos, setTurnos] = useState<Turno[]>([])
+  const gestoriaId = useGestoriaId()
+  const [turnos,  setTurnos]  = useState<Turno[]>([])
   const [loading, setLoading] = useState(true)
+  const fechaString = fecha.toDateString()
+
   useEffect(() => {
-    const unsub = subscribeTurnosPorFecha(fecha, data => {
+    if (!gestoriaId) return
+    setLoading(true)
+    const unsub = subscribeTurnosPorFecha(fecha, gestoriaId, data => {
       setTurnos(data)
       setLoading(false)
     })
     return () => unsub()
-  }, [fecha.toDateString()])
+  // fechaString evita re-renders por referencia en cada render padre
+  }, [fechaString, gestoriaId])
+
   return { turnos, loading }
 }
+
+// ─── TURNOS DE UN CLIENTE ────────────────────────────────────────────────────
 
 export function useTurnosPorCliente(clienteId: string | undefined) {
-  const [turnos, setTurnos] = useState<Turno[]>([])
+  const gestoriaId = useGestoriaId()
+  const [turnos,  setTurnos]  = useState<Turno[]>([])
   const [loading, setLoading] = useState(true)
+
   useEffect(() => {
-    if (!clienteId) { setLoading(false); return }
-    const unsub = subscribeTurnosPorCliente(clienteId, data => {
+    if (!clienteId || !gestoriaId) { setLoading(false); return }
+    setLoading(true)
+    const unsub = subscribeTurnosPorCliente(clienteId, gestoriaId, data => {
       setTurnos(data)
       setLoading(false)
     })
     return () => unsub()
-  }, [clienteId])
+  }, [clienteId, gestoriaId])
+
   return { turnos, loading }
 }
 
+// ─── TURNOS PRÓXIMOS (hoy en adelante, estado activo) ────────────────────────
+
 export function useTurnosProximos() {
-  const [turnos, setTurnos] = useState<Turno[]>([])
+  const gestoriaId = useGestoriaId()
+  const [turnos,  setTurnos]  = useState<Turno[]>([])
   const [loading, setLoading] = useState(true)
+
   useEffect(() => {
-    const unsub = subscribeTurnosProximos(data => {
+    if (!gestoriaId) return
+    setLoading(true)
+    const unsub = subscribeTurnosProximos(gestoriaId, data => {
       setTurnos(data)
       setLoading(false)
     })
     return () => unsub()
-  }, [])
+  }, [gestoriaId])
+
   return { turnos, loading }
 }

@@ -4,7 +4,16 @@ import tailwindcss from '@tailwindcss/vite'
 import path from 'path'
 
 export default defineConfig({
-  plugins: [react(), tailwindcss()],
+  plugins: [
+  react(),
+  tailwindcss(),
+  {
+    name: 'inject-sw-env',
+    generateBundle() {
+      // se hace automáticamente con las variables de entorno en Vercel
+    }
+  }
+],
 
   resolve: {
     alias: { '@': path.resolve(__dirname, './src') },

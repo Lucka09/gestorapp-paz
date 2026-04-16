@@ -9,50 +9,68 @@ import type { Vehiculo, TipoVehiculo } from '@/types'
 // ─── READ ─────────────────────────────────────────────────────────────────────
 
 export function subscribeVehiculos(
-  callback: (vehiculos: Vehiculo[]) => void
+  gestoriaId: string,
+  callback:   (vehiculos: Vehiculo[]) => void
 ): Unsubscribe {
-  const q = query(vehiculosCol, orderBy('patente'))
+  const q = query(
+    vehiculosCol,
+    where('gestoriaId', '==', gestoriaId),
+    orderBy('patente')
+  )
   return onSnapshot(q, snap =>
-    callback(snap.docs.map(d => ({ ...d.data(), id: d.id })))
+    callback(snap.docs.map(d => ({ ...d.data(), id: d.id }) as Vehiculo))
   )
 }
 
 export function subscribeVehiculosPorCliente(
-  clienteId: string,
-  callback: (vehiculos: Vehiculo[]) => void
+  clienteId:  string,
+  gestoriaId: string,
+  callback:   (vehiculos: Vehiculo[]) => void
 ): Unsubscribe {
-  const q = query(vehiculosCol, where('clienteId', '==', clienteId))
+  const q = query(
+    vehiculosCol,
+    where('gestoriaId', '==', gestoriaId),
+    where('clienteId',  '==', clienteId)
+  )
   return onSnapshot(q, snap =>
-    callback(snap.docs.map(d => ({ ...d.data(), id: d.id })))
+    callback(snap.docs.map(d => ({ ...d.data(), id: d.id }) as Vehiculo))
   )
 }
 
 export function subscribeVehiculo(
-  id: string,
+  id:       string,
   callback: (v: Vehiculo | null) => void
 ): Unsubscribe {
   return onSnapshot(vehiculoDoc(id), snap =>
-    callback(snap.exists() ? { ...snap.data(), id: snap.id } : null)
+    callback(snap.exists() ? ({ ...snap.data(), id: snap.id } as Vehiculo) : null)
   )
 }
 
 export async function getVehiculo(id: string): Promise<Vehiculo | null> {
   const snap = await getDoc(vehiculoDoc(id))
   if (!snap.exists()) return null
-  return { ...snap.data(), id: snap.id }
+  return { ...snap.data(), id: snap.id } as Vehiculo
 }
 
-export async function buscarVehiculoPorPatente(patente: string): Promise<Vehiculo | null> {
-  const q = query(vehiculosCol, where('patente', '==', patente.toUpperCase().trim()))
+export async function buscarVehiculoPorPatente(
+  patente:    string,
+  gestoriaId: string
+): Promise<Vehiculo | null> {
+  const q = query(
+    vehiculosCol,
+    where('gestoriaId', '==', gestoriaId),
+    where('patente',    '==', patente.toUpperCase().trim())
+  )
   const snap = await getDocs(q)
   if (snap.empty) return null
   const d = snap.docs[0]
-  return { ...d.data(), id: d.id }
+  return { ...d.data(), id: d.id } as Vehiculo
 }
 
 // ─── WRITE ────────────────────────────────────────────────────────────────────
 
 export type VehiculoInput = {
+  gestoriaId: string   // requerido — tenant scope
   patente:    string
   tipo:       TipoVehiculo
   marca:      string
@@ -65,24 +83,24 @@ export type VehiculoInput = {
 }
 
 export async function crearVehiculo(data: VehiculoInput): Promise<string> {
-  // Verificar que no exista esa patente
-  const existe = await buscarVehiculoPorPatente(data.patente)
+  // Verificar que no exista esa patente dentro de la misma gestoría
+  const existe = await buscarVehiculoPorPatente(data.patente, data.gestoriaId)
   if (existe) throw new Error('YA_EXISTE')
 
   const ref = await addDoc(vehiculosCol, {
     ...data,
-    patente: data.patente.toUpperCase().trim(),
+    patente:            data.patente.toUpperCase().trim(),
     historialTitulares: [{
       clienteId: data.clienteId,
-      desde: serverTimestamp(),
-      hasta: null,
+      desde:     serverTimestamp(),
+      hasta:     null,
     }],
     tramitesIds: [],
-    creadoEn: serverTimestamp(),
-  } as any)
+    creadoEn:    serverTimestamp(),
+  })
 
   // Agregar referencia al cliente
-  const cRef = clienteDoc(data.clienteId)
+  const cRef  = clienteDoc(data.clienteId)
   const cSnap = await getDoc(cRef)
   if (cSnap.exists()) {
     const ids: string[] = cSnap.data().vehiculosIds ?? []
@@ -93,8 +111,8 @@ export async function crearVehiculo(data: VehiculoInput): Promise<string> {
 }
 
 export async function actualizarVehiculo(
-  id: string,
-  data: Partial<Omit<VehiculoInput, 'clienteId'>>
+  id:   string,
+  data: Partial<Omit<VehiculoInput, 'clienteId' | 'gestoriaId'>>
 ): Promise<void> {
   const payload: Record<string, unknown> = { ...data }
   if (data.patente) payload.patente = data.patente.toUpperCase().trim()
@@ -103,7 +121,7 @@ export async function actualizarVehiculo(
 
 export async function eliminarVehiculo(id: string, clienteId: string): Promise<void> {
   // Remover referencia del cliente
-  const cRef = clienteDoc(clienteId)
+  const cRef  = clienteDoc(clienteId)
   const cSnap = await getDoc(cRef)
   if (cSnap.exists()) {
     const ids: string[] = (cSnap.data().vehiculosIds ?? []).filter((v: string) => v !== id)

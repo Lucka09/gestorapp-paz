@@ -1,0 +1,101 @@
+import {
+  getDoc, setDoc, onSnapshot,
+  serverTimestamp, type Unsubscribe,
+} from 'firebase/firestore'
+import { configuracionDoc } from './collections'
+import type { Configuracion, TipoTramite } from '@/types'
+import { TIPO_TRAMITE_LABELS } from '@/types'
+
+// ─── VALORES POR DEFECTO ──────────────────────────────────────────────────────
+
+const DIAS_SEMANA = ['lunes','martes','miercoles','jueves','viernes','sabado']
+
+export const CONFIG_DEFAULT: Omit<Configuracion,'actualizadoEn'|'actualizadoPor'> = {
+  nombre:           'Gestoría Paz',
+  nombreComercial:  'Gestoría Paz',
+  responsable:      'Ezequiel Paz',
+  email:            'info@gestoriapaz.com',
+  emailSecundario:  'abigail@gestoriapaz.com',
+  telefono1:        '1136141431',
+  telefono2:        '1152219011',
+  direccion:        '',
+  localidad:        'San Martín',
+  provincia:        'Buenos Aires',
+  horarioAtencion:  Object.fromEntries(
+    DIAS_SEMANA.map(d => [d, {
+      activo:  d !== 'sabado',
+      inicio:  '09:00',
+      fin:     d !== 'sabado' ? '17:00' : '13:00',
+    }])
+  ),
+  duracionTurnoMin: 30,
+  turnosMaxDia:     16,
+  diasAnticipacion: 30,
+  tramitesActivos:  Object.keys(TIPO_TRAMITE_LABELS) as TipoTramite[],
+  tarifas:          Object.keys(TIPO_TRAMITE_LABELS).map(tipo => ({
+    tipo:       tipo as TipoTramite,
+    honorarios: 0,
+    incluye:    '',
+    activo:     true,
+  })),
+  datosBancarios: {
+    titular: 'Ezequiel Paz',
+    banco:   '',
+    cbu:     '',
+    alias:   '',
+    cuit:    '',
+  },
+  redesSociales: {
+    whatsapp1: '5491136141431',
+    whatsapp2: '5491152219011',
+    instagram: '',
+    facebook:  '',
+    web:       'gestoriapaz.com',
+  },
+  mensajeBienvenida:   '¡Bienvenido al portal de Gestoría Paz! Aquí podés seguir tus trámites y reservar turnos.',
+  mensajeTurnoConfirm: 'Tu turno fue confirmado. Te esperamos el {fecha} a las {hora} hs.',
+  mensajeListoRetirar: 'Tu trámite de {tipo} ya está listo para retirar. ¡Pasá cuando quieras!',
+}
+
+// ─── LEER ─────────────────────────────────────────────────────────────────────
+
+export async function getConfiguracion(): Promise<Configuracion> {
+  const snap = await getDoc(configuracionDoc)
+  if (!snap.exists()) return { ...CONFIG_DEFAULT } as Configuracion
+  return { ...CONFIG_DEFAULT, ...snap.data() } as Configuracion
+}
+
+export function subscribeConfiguracion(
+  callback: (cfg: Configuracion) => void
+): Unsubscribe {
+  return onSnapshot(configuracionDoc, snap => {
+    if (!snap.exists()) callback({ ...CONFIG_DEFAULT } as Configuracion)
+    else callback({ ...CONFIG_DEFAULT, ...snap.data() } as Configuracion)
+  })
+}
+
+// ─── GUARDAR ──────────────────────────────────────────────────────────────────
+
+export async function guardarConfiguracion(
+  data:   Partial<Omit<Configuracion,'actualizadoEn'|'actualizadoPor'>>,
+  userId: string
+): Promise<void> {
+  await setDoc(configuracionDoc, {
+    ...data,
+    actualizadoEn:  serverTimestamp(),
+    actualizadoPor: userId,
+  }, { merge: true })
+}
+
+// ─── HOOK PÚBLICO ─────────────────────────────────────────────────────────────
+// Exportar config para usar en otros módulos (ej: turnos)
+
+let _config: Configuracion | null = null
+let _listeners: Array<(c: Configuracion) => void> = []
+
+subscribeConfiguracion(cfg => {
+  _config = cfg
+  _listeners.forEach(l => l(cfg))
+})
+
+export function getConfigCache(): Configuracion | null { return _config }

@@ -1,230 +1,164 @@
 rules_version = '2';
-
-// ═══════════════════════════════════════════════════════════════════════
-// GESTORAPP — FIRESTORE SECURITY RULES
-// Gestoría Paz · JAH-NISSI Digital Studio
-//
-// ROLES:
-//   propietario — acceso total incluido financiero
-//   admin       — igual a propietario
-//   vendedor    — clientes + seguimiento + tramites (solo ver) + turnos
-//   operador    — tramites + turnos completos, sin CRM ni financiero
-//   cliente     — solo sus propios datos via portal
-// ═══════════════════════════════════════════════════════════════════════
-
 service cloud.firestore {
   match /databases/{database}/documents {
-
-    // ─── HELPERS ────────────────────────────────────────────────────────
-
-    // Obtener el perfil del usuario autenticado
     function userDoc() {
       return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
     }
-
-    // Verificar que el usuario está autenticado y activo
-    function isAuth() {
-      return request.auth != null;
+    function isAuth() { return request.auth != null; }
+    function isSuperAdmin() {
+      return isAuth() && userDoc().rol == 'superadmin';
     }
-
-    // Verificar rol específico
-    function hasRole(role) {
-      return isAuth() && userDoc().rol == role;
+    function mismaGestoria(gestoriaId) {
+      return isAuth() && userDoc().gestoriaId == gestoriaId;
     }
-
-    // Propietario o admin — acceso total
-    function isOwnerOrAdmin() {
-      return isAuth() && userDoc().rol in ['propietario', 'admin'];
+    function docDeMiGestoria() {
+      return isAuth() && resource.data.gestoriaId == userDoc().gestoriaId;
     }
-
-    // Cualquier miembro del equipo interno (no cliente)
+    function nuevaDocDeMiGestoria() {
+      return isAuth() && request.resource.data.gestoriaId == userDoc().gestoriaId;
+    }
     function isStaff() {
-      return isAuth() && userDoc().rol in ['propietario', 'admin', 'vendedor', 'operador'];
+      return isAuth() &&
+        userDoc().rol in ['propietario','admin','vendedor','operador'] &&
+        userDoc().gestoriaId != null;
     }
-
-    // Vendedor o superior — puede ver y gestionar clientes/seguimiento
+    function isOwnerOrAdmin() {
+      return isAuth() && userDoc().rol in ['propietario','admin'];
+    }
     function isVendedorOrAbove() {
-      return isAuth() && userDoc().rol in ['propietario', 'admin', 'vendedor'];
+      return isAuth() && userDoc().rol in ['propietario','admin','vendedor'];
     }
-
-    // Es el cliente dueño del recurso
-    function isOwnerCliente(clienteId) {
-      return isAuth() && userDoc().rol == 'cliente' && userDoc().clienteId == clienteId;
-    }
-
-    // Es el usuario dueño del recurso
-    function isSelfUser(uid) {
-      return isAuth() && request.auth.uid == uid;
-    }
-
-    // Campos financieros — solo propietario/admin pueden ver/editar
-    function noFinancialFields() {
-      return !('honorarios' in request.resource.data) &&
-             !('pagado' in request.resource.data) &&
-             !('formaPago' in request.resource.data) &&
-             !('montoCierre' in request.resource.data);
-    }
-
-    // Validación: no puede cambiar campos protegidos al actualizar
     function notChanging(fields) {
       return !(request.resource.data.diff(resource.data).affectedKeys().hasAny(fields));
     }
+    function noFinancialFields() {
+      return !('honorarios' in request.resource.data) &&
+             !('pagado' in request.resource.data);
+    }
 
-    // ─── /users ─────────────────────────────────────────────────────────
+    match /gestionarias/{gestoriaId} {
+      allow read:   if isSuperAdmin() || mismaGestoria(gestoriaId);
+      allow create: if isSuperAdmin();
+      allow update: if isSuperAdmin() || (mismaGestoria(gestoriaId) && isOwnerOrAdmin());
+      allow delete: if isSuperAdmin();
+    }
+
     match /users/{uid} {
-      // Cada usuario puede leer su propio perfil
-      allow read: if isSelfUser(uid) || isOwnerOrAdmin();
-
-      // Crear perfil: solo admin/propietario o el propio usuario (registro)
-      allow create: if isOwnerOrAdmin() || isSelfUser(uid);
-
-      // Actualizar: admin/propietario puede todo; usuario solo puede cambiar
-      // ultimoAcceso, nombre propio — NO puede cambiar su rol
-      allow update: if isOwnerOrAdmin() ||
-        (isSelfUser(uid) && notChanging(['rol', 'clienteId', 'activo']));
-
-      // Eliminar: solo propietario
-      allow delete: if hasRole('propietario');
+      allow read: if isSuperAdmin() || request.auth.uid == uid ||
+        (isAuth() && isOwnerOrAdmin() && resource.data.gestoriaId == userDoc().gestoriaId);
+      allow create: if isSuperAdmin() ||
+        (isOwnerOrAdmin() && request.resource.data.gestoriaId == userDoc().gestoriaId) ||
+        request.auth.uid == uid;
+      allow update: if isSuperAdmin() ||
+        (isOwnerOrAdmin() && resource.data.gestoriaId == userDoc().gestoriaId) ||
+        (request.auth.uid == uid && notChanging(['rol','gestoriaId','activo']));
+      allow delete: if isSuperAdmin();
     }
 
-    // ─── /clientes ──────────────────────────────────────────────────────
     match /clientes/{clienteId} {
-      // Staff puede leer todos los clientes
-      // Cliente puede leer solo su propio documento
-      allow read: if isStaff() || isOwnerCliente(clienteId);
-
-      // Crear: staff con permiso de crear clientes (no operador puro)
-      allow create: if isVendedorOrAbove() || hasRole('operador');
-
-      // Actualizar:
-      // - Admin/propietario: sin restricción
-      // - Vendedor/operador: puede editar datos, NO puede cambiar userId
-      allow update: if isOwnerOrAdmin() ||
-        (isStaff() && notChanging(['userId']));
-
-      // Eliminar: solo propietario o admin
-      allow delete: if isOwnerOrAdmin();
-
-      // ── /clientes/{id}/seguimientos ──────────────────────────────────
-      match /seguimientos/{seguimientoId} {
-        allow read:   if isVendedorOrAbove();
-        allow create: if isVendedorOrAbove();
-        allow update: if isVendedorOrAbove();
-        allow delete: if isOwnerOrAdmin();
+      allow read: if isSuperAdmin() || (isStaff() && docDeMiGestoria()) ||
+        (isAuth() && userDoc().rol == 'cliente' &&
+         resource.data.clienteId == userDoc().clienteId && docDeMiGestoria());
+      allow create: if isSuperAdmin() || (isStaff() && nuevaDocDeMiGestoria());
+      allow update: if isSuperAdmin() ||
+        (isOwnerOrAdmin() && docDeMiGestoria()) ||
+        (isStaff() && docDeMiGestoria() && notChanging(['userId','gestoriaId']));
+      allow delete: if isSuperAdmin() || (isOwnerOrAdmin() && docDeMiGestoria());
+      match /seguimientos/{id} {
+        allow read, write: if isSuperAdmin() || (isVendedorOrAbove() && docDeMiGestoria());
       }
-
-      // ── /clientes/{id}/config ────────────────────────────────────────
-      match /config/{configId} {
-        allow read:   if isVendedorOrAbove();
-        allow write:  if isVendedorOrAbove();
+      match /config/{id} {
+        allow read, write: if isSuperAdmin() || (isVendedorOrAbove() && docDeMiGestoria());
       }
     }
 
-    // ─── /vehiculos ─────────────────────────────────────────────────────
     match /vehiculos/{vehiculoId} {
-      // Staff puede leer todos los vehículos
-      // Cliente puede leer vehículos que le pertenecen
-      allow read: if isStaff() ||
+      allow read: if isSuperAdmin() || (isStaff() && docDeMiGestoria()) ||
         (isAuth() && userDoc().rol == 'cliente' &&
-         resource.data.clienteId == userDoc().clienteId);
-
-      allow create: if isStaff();
-
-      // Actualizar: staff puede; cliente NO puede editar sus vehículos
-      allow update: if isStaff();
-
-      // Eliminar: solo admin/propietario
-      allow delete: if isOwnerOrAdmin();
+         resource.data.clienteId == userDoc().clienteId && docDeMiGestoria());
+      allow create, update: if isSuperAdmin() || (isStaff() && nuevaDocDeMiGestoria());
+      allow delete: if isSuperAdmin() || (isOwnerOrAdmin() && docDeMiGestoria());
     }
 
-    // ─── /tramites ──────────────────────────────────────────────────────
     match /tramites/{tramiteId} {
-      // Staff: todos pueden leer
-      // Cliente: solo sus propios trámites
-      allow read: if isStaff() ||
+      allow read: if isSuperAdmin() || (isStaff() && docDeMiGestoria()) ||
         (isAuth() && userDoc().rol == 'cliente' &&
-         resource.data.clienteId == userDoc().clienteId);
-
-      // Crear: staff completo
-      allow create: if isStaff();
-
-      // Actualizar:
-      // - Admin/propietario: sin restricción
-      // - Operador: puede cambiar estado, historial, notas, pero NO honorarios/pagado
-      // - Vendedor: solo puede ver, no modificar trámites
-      // - Cliente: NO puede modificar trámites
-      allow update: if isOwnerOrAdmin() ||
-        (hasRole('operador') && noFinancialFields());
-
-      // Eliminar: solo admin/propietario
-      allow delete: if isOwnerOrAdmin();
+         resource.data.clienteId == userDoc().clienteId && docDeMiGestoria()) ||
+        resource.data.tokenPublico != null;
+      allow create: if isSuperAdmin() || (isStaff() && nuevaDocDeMiGestoria());
+      allow update: if isSuperAdmin() ||
+        (isOwnerOrAdmin() && docDeMiGestoria()) ||
+        (isAuth() && userDoc().rol == 'operador' && docDeMiGestoria() && noFinancialFields());
+      allow delete: if isSuperAdmin() || (isOwnerOrAdmin() && docDeMiGestoria());
     }
 
-    // ─── /turnos ────────────────────────────────────────────────────────
     match /turnos/{turnoId} {
-      // Staff: todos pueden leer
-      // Cliente: solo sus propios turnos
-      allow read: if isStaff() ||
+      allow read: if isSuperAdmin() || (isStaff() && docDeMiGestoria()) ||
         (isAuth() && userDoc().rol == 'cliente' &&
-         resource.data.clienteId == userDoc().clienteId);
-
-      // Crear:
-      // - Staff: puede crear turnos para cualquier cliente
-      // - Cliente: solo puede crear turnos para sí mismo
-      allow create: if isStaff() ||
+         resource.data.clienteId == userDoc().clienteId && docDeMiGestoria());
+      allow create: if isSuperAdmin() || (isStaff() && nuevaDocDeMiGestoria()) ||
         (isAuth() && userDoc().rol == 'cliente' &&
-         request.resource.data.clienteId == userDoc().clienteId);
-
-      // Actualizar:
-      // - Staff: puede confirmar, cancelar, reprogramar
-      // - Cliente: solo puede cancelar su propio turno (cambiar estado a 'cancelado')
-      allow update: if isStaff() ||
-        (isAuth() && userDoc().rol == 'cliente' &&
+         request.resource.data.clienteId == userDoc().clienteId && nuevaDocDeMiGestoria());
+      allow update: if isSuperAdmin() || (isStaff() && docDeMiGestoria()) ||
+        (isAuth() && userDoc().rol == 'cliente' && docDeMiGestoria() &&
          resource.data.clienteId == userDoc().clienteId &&
-         request.resource.data.diff(resource.data).affectedKeys().hasOnly(['estado', 'actualizadoEn']) &&
+         request.resource.data.diff(resource.data).affectedKeys().hasOnly(['estado','actualizadoEn']) &&
          request.resource.data.estado == 'cancelado');
-
-      // Eliminar: solo staff
-      allow delete: if isStaff();
+      allow delete: if isSuperAdmin() || (isStaff() && docDeMiGestoria());
     }
 
-    // ─── /notificaciones ────────────────────────────────────────────────
     match /notificaciones/{notifId} {
-      // Cada usuario lee solo sus notificaciones
-      allow read: if isAuth() &&
-        resource.data.destinatarioId == request.auth.uid;
-
-      // Staff puede crear notificaciones
-      allow create: if isStaff();
-
-      // Marcar como leída: solo el destinatario
-      allow update: if isAuth() &&
-        resource.data.destinatarioId == request.auth.uid &&
-        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['leida', 'leidaEn']);
-
-      // Eliminar: solo admin o el propio destinatario
-      allow delete: if isOwnerOrAdmin() ||
-        (isAuth() && resource.data.destinatarioId == request.auth.uid);
+      allow read: if isSuperAdmin() ||
+        (isAuth() && resource.data.destinatarioId == request.auth.uid && docDeMiGestoria());
+      allow create: if isSuperAdmin() || (isStaff() && nuevaDocDeMiGestoria());
+      allow update: if isSuperAdmin() ||
+        (isAuth() && resource.data.destinatarioId == request.auth.uid && docDeMiGestoria() &&
+         request.resource.data.diff(resource.data).affectedKeys().hasOnly(['leida','leidaEn']));
+      allow delete: if isSuperAdmin() ||
+        (isOwnerOrAdmin() && docDeMiGestoria()) ||
+        (isAuth() && resource.data.destinatarioId == request.auth.uid && docDeMiGestoria());
     }
 
-    // ─── /prospectos (Pipeline CRM) ──────────────────────────────────────
     match /prospectos/{prospectoId} {
-      // Solo staff con acceso CRM puede ver prospectos
-      allow read:   if isVendedorOrAbove();
-      allow create: if isVendedorOrAbove();
-      allow update: if isVendedorOrAbove();
-
-      // Eliminar: solo admin/propietario
-      allow delete: if isOwnerOrAdmin();
+      allow read, create, update: if isSuperAdmin() || (isVendedorOrAbove() && docDeMiGestoria());
+      allow delete: if isSuperAdmin() || (isOwnerOrAdmin() && docDeMiGestoria());
     }
 
-    // ─── /configuracion ─────────────────────────────────────────────────
     match /configuracion/{configId} {
-      allow read:  if isStaff();
-      allow write: if isOwnerOrAdmin();
+      allow read:  if isSuperAdmin() || (isStaff() && mismaGestoria(configId));
+      allow write: if isSuperAdmin() || (isOwnerOrAdmin() && mismaGestoria(configId));
     }
 
-    // ─── DENEGACIÓN EXPLÍCITA de cualquier otra colección ───────────────
+    match /notas_internas/{notaId} {
+      allow read: if isSuperAdmin() || (isStaff() && docDeMiGestoria());
+      allow create: if isSuperAdmin() || (isStaff() && nuevaDocDeMiGestoria());
+      allow update, delete: if isSuperAdmin() ||
+        (isAuth() && resource.data.autorId == request.auth.uid && docDeMiGestoria()) ||
+        (isOwnerOrAdmin() && docDeMiGestoria());
+    }
+
+    match /tareas/{tareaId} {
+      allow read: if isSuperAdmin() || (isStaff() && docDeMiGestoria());
+      allow create: if isSuperAdmin() || (isStaff() && nuevaDocDeMiGestoria());
+      allow update, delete: if isSuperAdmin() || (isStaff() && docDeMiGestoria());
+    }
+
+    match /vencimientos/{vencimientoId} {
+      allow read, create, update: if isSuperAdmin() || (isStaff() && docDeMiGestoria());
+      allow delete: if isSuperAdmin() || (isOwnerOrAdmin() && docDeMiGestoria());
+    }
+
+    match /alertas_sistema/{alertaId} {
+      allow read: if isSuperAdmin() || (isStaff() && docDeMiGestoria());
+      allow write: if isSuperAdmin() || (isStaff() && nuevaDocDeMiGestoria());
+    }
+
+    match /audit_log/{entradaId} {
+      allow read: if isSuperAdmin() || (isOwnerOrAdmin() && docDeMiGestoria());
+      allow create: if isSuperAdmin() || isStaff();
+      allow update, delete: if isSuperAdmin();
+    }
+
     match /{document=**} {
       allow read, write: if false;
     }

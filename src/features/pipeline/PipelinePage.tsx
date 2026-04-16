@@ -1,6 +1,6 @@
 import { useState, useRef } from 'react'
 import {
-  Plus, Phone, MessageCircle, Target,
+  Plus, Phone, MessageCircle, FileText, Target,
   DollarSign, TrendingUp, AlertCircle,
   ChevronRight, X, Check, Trash2, Bell,
   MoreVertical, Users, ArrowRight,
@@ -18,6 +18,7 @@ import { Button, Spinner } from '@/components/ui'
 import Modal from '@/components/shared/Modal'
 import { formatPesos } from '@/utils'
 import toast from 'react-hot-toast'
+import ModalPresupuesto from '@/features/presupuestos/ModalPresupuesto'
 
 // ─── HELPERS ──────────────────────────────────────────────────────────────────
 
@@ -384,6 +385,7 @@ function ModalDetalle({
   onClose:   () => void
 }) {
   const [editando, setEditando]   = useState(false)
+  const [presupOpen, setPresupOpen] = useState(false)
   const [nuevaTarea, setNuevaTarea] = useState('')
   const [fechaTarea, setFechaTarea] = useState('')
   const [loadingT, setLoadingT]   = useState(false)
@@ -482,6 +484,11 @@ function ModalDetalle({
                      rounded-xl py-2.5 text-sm font-semibold hover:bg-blue-600 transition-colors">
           <Phone size={16} /> Llamar
         </a>
+        <button onClick={() => setPresupOpen(true)}
+          className="flex-1 flex items-center justify-center gap-2 rounded-xl py-2.5 text-sm font-semibold transition-colors"
+          style={{ background:'var(--gp-orange-pale)',color:'var(--gp-orange)',border:'1px solid rgba(212,98,26,0.2)' }}>
+          <FileText size={16} /> Presupuesto
+        </button>
       </div>
 
       {/* Datos */}
@@ -578,6 +585,16 @@ function ModalDetalle({
           </button>
         </div>
       </div>
+      <ModalPresupuesto
+        open={presupOpen}
+        onClose={() => setPresupOpen(false)}
+        cliente={{
+          id: '', nombre: prospecto.nombre, apellido: prospecto.apellido,
+          dni: '', telefono: prospecto.telefono, email: prospecto.email,
+          creadoEn: null, actualizadoEn: null,
+        } as any}
+        tipoInicial={prospecto.tipoTramite}
+      />
     </div>
   )
 }

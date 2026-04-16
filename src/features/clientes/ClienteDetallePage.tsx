@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import {
   ArrowLeft, Pencil, Trash2, Phone, Mail,
-  MapPin, FileText, Car, User, AlertTriangle, KeyRound, CheckCircle, Target
+  MapPin, FileText, Car, User, AlertTriangle, KeyRound, CheckCircle, Target, Receipt
 } from 'lucide-react'
 import { useCliente } from '@/hooks/useClientes'
 import { actualizarCliente, eliminarCliente } from '@/lib/firestore/clientes'
@@ -10,6 +10,8 @@ import { Button, Card, Spinner, Badge } from '@/components/ui'
 import Modal from '@/components/shared/Modal'
 import ClienteForm, { type ClienteFormData } from './ClienteForm'
 import ModalAccesoPortal from './ModalAccesoPortal'
+import ModalPresupuesto from '@/features/presupuestos/ModalPresupuesto'
+import { PanelNotas }   from '@/components/shared/PanelNotas'
 import SeguimientoPanel from './SeguimientoPanel'
 import { initiales, formatFecha, nombreCompleto } from '@/utils'
 import toast from 'react-hot-toast'
@@ -22,6 +24,7 @@ export default function ClienteDetallePage() {
   const [editOpen,   setEditOpen]   = useState(false)
   const [deleteOpen, setDeleteOpen] = useState(false)
   const [accesoOpen, setAccesoOpen] = useState(false)
+  const [presupOpen, setPresupOpen] = useState(false)
   const [deleting,   setDeleting]   = useState(false)
 
   const handleEditar = async (data: ClienteFormData) => {
@@ -71,6 +74,9 @@ export default function ClienteDetallePage() {
         <div className="flex gap-2">
           <Button variant="secondary" size="sm" onClick={() => setEditOpen(true)}>
             <Pencil size={14} /> Editar
+          </Button>
+          <Button variant="secondary" size="sm" onClick={() => setPresupOpen(true)}>
+            <Receipt size={14} /> Presupuesto
           </Button>
           {!cliente.userId ? (
             <Button size="sm" onClick={() => setAccesoOpen(true)}>
@@ -188,6 +194,22 @@ export default function ClienteDetallePage() {
         />
       </Modal>
 
+      {/* Notas internas */}
+      {cliente && (
+        <div className="mt-6 bg-white border border-gray-100 rounded-2xl p-5 shadow-sm">
+          <PanelNotas entidad="cliente" entidadId={cliente.id} />
+        </div>
+      )}
+
+      {/* Modal presupuesto */}
+      {cliente && (
+        <ModalPresupuesto
+          open={presupOpen}
+          onClose={() => setPresupOpen(false)}
+          cliente={cliente}
+        />
+      )}
+
       {/* Modal acceso portal */}
       {cliente && (
         <ModalAccesoPortal
@@ -235,4 +257,3 @@ function InfoRow({ icon, label, value }: { icon: React.ReactNode; label: string;
     </div>
   )
 }
-

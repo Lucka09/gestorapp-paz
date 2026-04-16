@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Clock, CheckCircle, Share2, CalendarDays } from 'lucide-react'
 import { Select, Button } from '@/components/ui'
+import { useGestoriaId } from '@/context/GestoriaContext'
 import { useClientes } from '@/hooks/useClientes'
 import { useTurnosPorFecha } from '@/hooks/useTurnos'
 import { crearTurno, generarFranjas, franjasOcupadas } from '@/lib/firestore/turnos'
@@ -8,39 +9,42 @@ import { TIPO_TRAMITE_LABELS, type TipoTramite } from '@/types'
 import { format } from 'date-fns'
 import { es } from 'date-fns/locale'
 
-// Horario de atención por defecto — configurable en Paso 8
-const HORA_APERTURA  = '09:00'
-const HORA_CIERRE    = '18:00'
-const DURACION_MIN   = 30
+// Horario de atención por defecto — configurable desde ConfiguracionPage
+const HORA_APERTURA = '09:00'
+const HORA_CIERRE   = '18:00'
+const DURACION_MIN  = 30
 
 interface Props {
-  fechaInicial: Date
+  fechaInicial:   Date
   clienteIdFijo?: string
-  onSuccess:  () => void
-  onCancel:   () => void
+  onSuccess:      () => void
+  onCancel:       () => void
 }
 
 export default function NuevoTurnoForm({
-  fechaInicial, clienteIdFijo, onSuccess, onCancel
+  fechaInicial, clienteIdFijo, onSuccess, onCancel,
 }: Props) {
-  const { clientes }            = useClientes()
-  const [fecha, setFecha]       = useState(format(fechaInicial, 'yyyy-MM-dd'))
-  const [clienteId, setCliente] = useState(clienteIdFijo ?? '')
-  const [tipo, setTipo]         = useState<TipoTramite>('transferencia')
-  const [franja, setFranja]     = useState('')
-  const [notas, setNotas]       = useState('')
-  const [loading, setLoading]   = useState(false)
-  const [error, setError]       = useState('')
-  const [confirmado, setConfirmado] = useState<{fecha:string;hora:string;horaFin:string;tipo:string} | null>(null)
+  const gestoriaId           = useGestoriaId()
+  const { clientes }         = useClientes()
+  const [fecha, setFecha]    = useState(format(fechaInicial, 'yyyy-MM-dd'))
+  const [clienteId, setClienteId] = useState(clienteIdFijo ?? '')
+  const [tipo, setTipo]      = useState<TipoTramite>('transferencia')
+  const [franja, setFranja]  = useState('')
+  const [notas, setNotas]    = useState('')
+  const [loading, setLoading] = useState(false)
+  const [error, setError]    = useState('')
+  const [confirmado, setConfirmado] = useState<{
+    fecha: string; hora: string; horaFin: string; tipo: string
+  } | null>(null)
 
-  const fechaObj = new Date(fecha + 'T00:00:00')
+  const fechaObj   = new Date(fecha + 'T00:00:00')
   const { turnos } = useTurnosPorFecha(fechaObj)
 
   const todasFranjas = generarFranjas(HORA_APERTURA, HORA_CIERRE, DURACION_MIN)
   const ocupadas     = franjasOcupadas(turnos)
   const disponibles  = todasFranjas.filter(f => !ocupadas.includes(f))
 
-  // Resetear franja si cambia la fecha
+  // Resetear franja al cambiar fecha
   useEffect(() => { setFranja('') }, [fecha])
 
   const calcularFin = (inicio: string) => {
@@ -56,7 +60,9 @@ export default function NuevoTurnoForm({
     setError('')
     setLoading(true)
     try {
+      // gestoriaId es inyectado aquí — el formulario no lo conoce
       await crearTurno({
+        gestoriaId,
         clienteId,
         tramiteId:   null,
         tipoTramite: tipo,
@@ -66,7 +72,10 @@ export default function NuevoTurnoForm({
         notas,
       })
       const fechaStr = format(fechaObj, "EEEE d 'de' MMMM", { locale: es })
-      setConfirmado({ fecha: fechaStr, hora: franja, horaFin: calcularFin(franja), tipo: TIPO_TRAMITE_LABELS[tipo] })
+      setConfirmado({
+        fecha: fechaStr, hora: franja,
+        horaFin: calcularFin(franja), tipo: TIPO_TRAMITE_LABELS[tipo],
+      })
     } catch {
       setError('Error al crear el turno. Intentá de nuevo.')
     } finally {
@@ -74,10 +83,10 @@ export default function NuevoTurnoForm({
     }
   }
 
-  // Pantalla de confirmación
+  // ── Pantalla de confirmación ─────────────────────────────────────────────────
   if (confirmado) {
     const waUrl = 'https://wa.me/5491136141431?text=' + encodeURIComponent(
-      'Hola! Confirmo mi turno del ' + confirmado.fecha + ' a las ' + confirmado.hora + ' hs para ' + confirmado.tipo + ' en Gestoria Paz.'
+      `Hola! Confirmo mi turno del ${confirmado.fecha} a las ${confirmado.hora} hs para ${confirmado.tipo} en Gestoria Paz.`
     )
     return (
       <div className="text-center py-4 animate-fadein">
@@ -85,8 +94,10 @@ export default function NuevoTurnoForm({
              style={{ background: '#D1FAE5' }}>
           <CheckCircle size={32} style={{ color: '#059669' }} />
         </div>
-        <h3 style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 20,
-                     margin: '0 0 6px', color: 'var(--color-text-1)' }}>
+        <h3 style={{
+          fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 20,
+          margin: '0 0 6px', color: 'var(--color-text-1)',
+        }}>
           Turno reservado
         </h3>
         <p style={{ fontSize: 14, color: 'var(--color-text-3)', margin: '0 0 20px' }}>
@@ -96,8 +107,10 @@ export default function NuevoTurnoForm({
              style={{ background: 'var(--gp-orange-pale)', border: '1px solid rgba(212,98,26,0.2)' }}>
           <div className="flex items-center gap-2 mb-3">
             <CalendarDays size={16} style={{ color: 'var(--gp-orange)' }} />
-            <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--gp-orange)',
-                           textTransform: 'uppercase', letterSpacing: '0.1em' }}>
+            <span style={{
+              fontSize: 11, fontWeight: 700, color: 'var(--gp-orange)',
+              textTransform: 'uppercase', letterSpacing: '0.1em',
+            }}>
               Resumen del turno
             </span>
           </div>
@@ -116,20 +129,26 @@ export default function NuevoTurnoForm({
           </p>
         </div>
         <a href={waUrl} target="_blank" rel="noopener noreferrer"
-          className="flex items-center justify-center gap-2 w-full rounded-xl py-3 mb-3 font-semibold"
-          style={{ background: '#25D366', color: 'white', fontSize: 14,
-                   textDecoration: 'none', boxShadow: '0 4px 12px rgba(37,211,102,0.3)', display: 'flex' }}>
+           className="flex items-center justify-center gap-2 w-full rounded-xl py-3 mb-3 font-semibold"
+           style={{
+             background: '#25D366', color: 'white', fontSize: 14,
+             textDecoration: 'none', boxShadow: '0 4px 12px rgba(37,211,102,0.3)', display: 'flex',
+           }}>
           <Share2 size={16} /> Confirmar por WhatsApp
         </a>
         <button onClick={onSuccess}
-          style={{ background: 'none', border: 'none', fontSize: 13, color: 'var(--color-text-4)',
-                   cursor: 'pointer', fontFamily: 'var(--font-body)', padding: '8px' }}>
+          style={{
+            background: 'none', border: 'none', fontSize: 13,
+            color: 'var(--color-text-4)', cursor: 'pointer',
+            fontFamily: 'var(--font-body)', padding: '8px',
+          }}>
           Ir a mis turnos
         </button>
       </div>
     )
   }
 
+  // ── Formulario ───────────────────────────────────────────────────────────────
   return (
     <form onSubmit={handleSubmit} className="space-y-5">
 
@@ -209,7 +228,7 @@ export default function NuevoTurnoForm({
         <Select
           label="Cliente *"
           value={clienteId}
-          onChange={e => setCliente(e.target.value)}
+          onChange={e => setClienteId(e.target.value)}
         >
           <option value="">— Seleccioná un cliente —</option>
           {clientes
@@ -245,12 +264,8 @@ export default function NuevoTurnoForm({
       )}
 
       <div className="flex gap-3 pt-2 border-t border-gray-100">
-        <Button type="submit" loading={loading} className="flex-1">
-          Reservar turno
-        </Button>
-        <Button type="button" variant="secondary" onClick={onCancel}>
-          Cancelar
-        </Button>
+        <Button type="submit" loading={loading} className="flex-1">Reservar turno</Button>
+        <Button type="button" variant="secondary" onClick={onCancel}>Cancelar</Button>
       </div>
     </form>
   )

@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { signInWithEmailAndPassword } from 'firebase/auth'
+import { FirebaseError } from 'firebase/app'
 import { auth } from '@/lib/firebase'
 import { Eye, EyeOff, Loader2 } from 'lucide-react'
 
@@ -17,73 +18,58 @@ export default function LoginPage() {
     setLoading(true)
     try {
       await signInWithEmailAndPassword(auth, email, password)
-    } catch (err: any) {
-      setError(getErrorMessage(err.code))
+    } catch (err) {
+      setError(getErrorMessage((err as FirebaseError).code))
     } finally {
       setLoading(false)
     }
   }
 
   return (
-    <div
-      className="min-h-screen flex items-center justify-center p-4"
-      style={{ background: 'var(--gp-black)' }}
-    >
-      {/* Glow de fondo */}
-      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+    <div className="min-h-screen flex items-center justify-center p-4 bg-gp-black">
+
+      {/* Glows decorativos — radial gradients no tienen equivalente en TW */}
+      <div className="absolute inset-0 overflow-hidden pointer-events-none" aria-hidden="true">
         <div style={{
           position: 'absolute', top: '-20%', right: '-10%',
-          width: '500px', height: '500px', borderRadius: '50%',
+          width: 500, height: 500, borderRadius: '50%',
           background: 'radial-gradient(circle, rgba(212,98,26,0.12) 0%, transparent 70%)',
         }} />
         <div style={{
           position: 'absolute', bottom: '-20%', left: '-10%',
-          width: '400px', height: '400px', borderRadius: '50%',
+          width: 400, height: 400, borderRadius: '50%',
           background: 'radial-gradient(circle, rgba(212,98,26,0.07) 0%, transparent 70%)',
         }} />
       </div>
 
       <div className="relative w-full max-w-sm">
-        <div className="bg-white overflow-hidden" style={{ borderRadius: 'var(--radius-xl)', boxShadow: '0 24px 60px rgba(0,0,0,0.3)' }}>
+
+        {/* Card principal */}
+        <div className="bg-white overflow-hidden rounded-gp-xl shadow-[0_24px_60px_rgba(0,0,0,0.3)]">
 
           {/* Header naranja */}
-          <div style={{ background: 'var(--gp-orange)', padding: '28px 32px 24px' }}>
-            {/* Logo GP */}
+          <div className="bg-gp-orange px-8 pt-7 pb-6">
+
+            {/* Logo + nombre */}
             <div className="flex items-center gap-3 mb-5">
               <img
                 src="/logo-gp-64.jpg"
                 alt="Logo Gestoría Paz"
-                style={{
-                  width: 48, height: 48,
-                  borderRadius: '50%',
-                  border: '2px solid rgba(255,255,255,0.4)',
-                  objectFit: 'cover',
-                  background: 'rgba(255,255,255,0.1)',
-                }}
-                onError={e => {
-                  e.currentTarget.style.display = 'none'
-                }}
+                className="w-12 h-12 rounded-full border-2 border-white/40 object-cover bg-white/10"
+                onError={e => { e.currentTarget.style.display = 'none' }}
               />
               <div>
-                <p style={{
-                  fontFamily: 'var(--font-display)',
-                  fontWeight: 800, fontSize: 16,
-                  color: 'white', lineHeight: 1.2, margin: 0,
-                }}>GestorApp</p>
-                <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.75)', margin: 0 }}>
-                  Gestoría Paz
+                <p className="font-gp-display font-extrabold text-base text-white leading-tight m-0">
+                  GestorApp
                 </p>
+                <p className="text-xs text-white/75 m-0">Gestoría Paz</p>
               </div>
             </div>
 
-            <h1 style={{
-              fontFamily: 'var(--font-display)',
-              fontWeight: 800, fontSize: 26,
-              color: 'white', margin: '0 0 4px',
-            }}>
+            <h1 className="font-gp-display font-extrabold text-[26px] text-white mb-1">
               Bienvenido
             </h1>
-            <p style={{ fontSize: 14, color: 'rgba(255,255,255,0.75)', margin: 0 }}>
+            <p className="text-sm text-white/75 m-0">
               Ingresá con tu cuenta para continuar
             </p>
           </div>
@@ -91,101 +77,61 @@ export default function LoginPage() {
           {/* Formulario */}
           <form
             onSubmit={handleSubmit}
-            style={{ padding: '28px 32px' }}
+            className="px-8 py-7"
             aria-label="Formulario de inicio de sesión"
             noValidate
           >
 
             {/* Email */}
-            <div style={{ marginBottom: 18 }}>
+            <div className="mb-4.5">
               <label
                 htmlFor="login-email"
-                style={{
-                  display: 'block', fontSize: 11, fontWeight: 600,
-                  color: 'var(--color-text-3)', textTransform: 'uppercase',
-                  letterSpacing: '0.08em', marginBottom: 8,
-                }}
+                className="block text-[11px] font-semibold text-gp-text-3 uppercase tracking-[0.08em] mb-2"
               >
                 Correo electrónico
               </label>
               <input
                 type="email"
+                id="login-email"
                 value={email}
                 onChange={e => { setEmail(e.target.value); setError('') }}
                 placeholder="ejemplo@correo.com"
                 autoComplete="email"
-                id="login-email"
                 aria-required="true"
                 aria-describedby={error ? 'login-error' : undefined}
-                style={{
-                  width: '100%', borderRadius: 'var(--radius-md)',
-                  border: `1.5px solid ${error ? '#FCA5A5' : 'var(--color-border)'}`,
-                  padding: '12px 14px', fontSize: 16, outline: 'none',
-                  fontFamily: 'var(--font-body)', boxSizing: 'border-box',
-                  background: error ? '#FFF5F5' : 'white',
-                  transition: 'border-color 0.15s, box-shadow 0.15s',
-                  color: 'var(--color-text-1)',
-                }}
-                onFocus={e => {
-                  e.target.style.borderColor = 'var(--gp-orange)'
-                  e.target.style.boxShadow   = '0 0 0 3px var(--gp-orange-subtle)'
-                }}
-                onBlur={e => {
-                  e.target.style.borderColor = error ? '#FCA5A5' : 'var(--color-border)'
-                  e.target.style.boxShadow   = 'none'
-                }}
+                className={`input-gp w-full px-3.5 py-3 text-base text-gp-text-1 box-border ${
+                  error ? 'input-gp-error' : 'bg-white'
+                }`}
               />
             </div>
 
             {/* Contraseña */}
-            <div style={{ marginBottom: 20 }}>
+            <div className="mb-5">
               <label
                 htmlFor="login-password"
-                style={{
-                  display: 'block', fontSize: 11, fontWeight: 600,
-                  color: 'var(--color-text-3)', textTransform: 'uppercase',
-                  letterSpacing: '0.08em', marginBottom: 8,
-                }}
+                className="block text-[11px] font-semibold text-gp-text-3 uppercase tracking-[0.08em] mb-2"
               >
                 Contraseña
               </label>
-              <div style={{ position: 'relative' }}>
+              <div className="relative">
                 <input
                   type={showPass ? 'text' : 'password'}
+                  id="login-password"
                   value={password}
                   onChange={e => { setPassword(e.target.value); setError('') }}
-                  id="login-password"
                   placeholder="••••••••"
                   aria-required="true"
                   autoComplete="current-password"
-                  style={{
-                    width: '100%', borderRadius: 'var(--radius-md)',
-                    border: `1.5px solid ${error ? '#FCA5A5' : 'var(--color-border)'}`,
-                    padding: '12px 44px 12px 14px', fontSize: 14, outline: 'none',
-                    fontFamily: 'var(--font-body)', boxSizing: 'border-box',
-                    background: error ? '#FFF5F5' : 'white',
-                    transition: 'border-color 0.15s, box-shadow 0.15s',
-                    color: 'var(--color-text-1)',
-                  }}
-                  onFocus={e => {
-                    e.target.style.borderColor = 'var(--gp-orange)'
-                    e.target.style.boxShadow   = '0 0 0 3px var(--gp-orange-subtle)'
-                  }}
-                  onBlur={e => {
-                    e.target.style.borderColor = error ? '#FCA5A5' : 'var(--color-border)'
-                    e.target.style.boxShadow   = 'none'
-                  }}
+                  className={`input-gp w-full pl-3.5 pr-11 py-3 text-sm text-gp-text-1 box-border ${
+                    error ? 'input-gp-error' : 'bg-white'
+                  }`}
                 />
                 <button
                   type="button"
                   aria-label={showPass ? 'Ocultar contraseña' : 'Mostrar contraseña'}
                   onClick={() => setShowPass(!showPass)}
-                  style={{
-                    position: 'absolute', right: 12, top: '50%',
-                    transform: 'translateY(-50%)',
-                    background: 'none', border: 'none', cursor: 'pointer',
-                    color: 'var(--color-text-4)', padding: 4,
-                  }}
+                  className="touch-xs absolute right-3 top-1/2 -translate-y-1/2
+                             bg-transparent border-none cursor-pointer text-gp-text-4 p-1"
                 >
                   {showPass ? <EyeOff size={16} /> : <Eye size={16} />}
                 </button>
@@ -195,42 +141,25 @@ export default function LoginPage() {
             {/* Error */}
             {error && (
               <div
+                id="login-error"
                 role="alert"
                 aria-live="polite"
                 aria-atomic="true"
-                style={{
-                  background: '#FEF2F2', border: '1px solid #FECACA',
-                  borderRadius: 'var(--radius-md)', padding: '10px 14px',
-                  marginBottom: 16, fontSize: 13, color: '#B91C1C',
-                  display: 'flex', alignItems: 'flex-start', gap: 8,
-                }}
+                className="flex items-start gap-2 bg-red-50 border border-red-200
+                           rounded-gp-md px-3.5 py-2.5 mb-4 text-[13px] text-red-700"
               >
-                <span aria-hidden="true" style={{ flexShrink: 0 }}>⚠️</span>
+                <span aria-hidden="true" className="shrink-0">⚠️</span>
                 <span>{error}</span>
               </div>
             )}
 
-            {/* Botón */}
+            {/* Botón de submit */}
+            {/* btn-primary maneja hover/active/disabled via CSS — no necesita handlers JS */}
             <button
               type="submit"
               disabled={loading}
-              style={{
-                width: '100%',
-                background: loading ? 'var(--gp-orange-light)' : 'var(--gp-orange)',
-                color: 'white', border: 'none', cursor: loading ? 'not-allowed' : 'pointer',
-                borderRadius: 'var(--radius-md)', padding: '14px',
-                fontSize: 15, fontWeight: 700,
-                fontFamily: 'var(--font-body)',
-                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-                transition: 'all 0.15s',
-                boxShadow: 'var(--shadow-gp)',
-              }}
-              onMouseEnter={e => {
-                if (!loading) (e.currentTarget as HTMLButtonElement).style.background = 'var(--gp-orange-hover)'
-              }}
-              onMouseLeave={e => {
-                if (!loading) (e.currentTarget as HTMLButtonElement).style.background = 'var(--gp-orange)'
-              }}
+              className="btn-primary w-full flex items-center justify-center gap-2 py-3.5
+                         text-[15px] font-bold"
             >
               {loading && <Loader2 size={16} className="animate-spin" />}
               {loading ? 'Ingresando...' : 'Ingresar'}
@@ -238,14 +167,14 @@ export default function LoginPage() {
           </form>
 
           {/* Footer */}
-          <div style={{ padding: '0 32px 24px', textAlign: 'center' }}>
-            <p style={{ fontSize: 12, color: 'var(--color-text-4)', margin: 0 }}>
+          <div className="px-8 pb-6 text-center">
+            <p className="text-xs text-gp-text-4 m-0">
               ¿Problemas para ingresar?{' '}
               <a
                 href="https://wa.me/5491158591881"
                 target="_blank"
                 rel="noopener noreferrer"
-                style={{ color: 'var(--gp-orange)', fontWeight: 600 }}
+                className="text-gp-orange font-semibold"
               >
                 Contactá al administrador
               </a>
@@ -254,15 +183,9 @@ export default function LoginPage() {
         </div>
 
         {/* Firma JAH-NISSI */}
-        <p style={{
-          textAlign: 'center', fontSize: 11,
-          color: 'rgba(255,255,255,0.3)', marginTop: 20,
-          fontFamily: 'var(--font-body)',
-        }}>
+        <p className="text-center text-[11px] text-white/30 mt-5 font-gp-body">
           Desarrollado por{' '}
-          <span style={{ color: 'rgba(255,255,255,0.5)', fontWeight: 600 }}>
-            JAH-NISSI Digital Studio
-          </span>
+          <span className="text-white/50 font-semibold">JAH-NISSI Digital Studio</span>
         </p>
       </div>
     </div>

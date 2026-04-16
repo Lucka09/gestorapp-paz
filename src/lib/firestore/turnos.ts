@@ -10,64 +10,80 @@ import {
 } from './notificaciones'
 import type { Turno, EstadoTurno, TipoTramite } from '@/types'
 import { format } from 'date-fns'
-import { es } from 'date-fns/locale'
+import { es }     from 'date-fns/locale'
 
 // ─── READ ─────────────────────────────────────────────────────────────────────
 
-export function subscribeTurnos(callback: (turnos: Turno[]) => void): Unsubscribe {
-  const q = query(turnosCol, orderBy('fecha', 'desc'))
+export function subscribeTurnos(
+  gestoriaId: string,
+  callback:   (turnos: Turno[]) => void
+): Unsubscribe {
+  const q = query(
+    turnosCol,
+    where('gestoriaId', '==', gestoriaId),
+    orderBy('fecha', 'desc')
+  )
   return onSnapshot(q, snap =>
-    callback(snap.docs.map(d => ({ ...d.data(), id: d.id })))
+    callback(snap.docs.map(d => ({ ...d.data(), id: d.id }) as Turno))
   )
 }
 
 export function subscribeTurnosPorFecha(
-  fecha:    Date,
-  callback: (turnos: Turno[]) => void
+  fecha:      Date,
+  gestoriaId: string,
+  callback:   (turnos: Turno[]) => void
 ): Unsubscribe {
   const inicio = new Date(fecha); inicio.setHours(0, 0, 0, 0)
   const fin    = new Date(fecha); fin.setHours(23, 59, 59, 999)
   const q = query(
     turnosCol,
+    where('gestoriaId', '==', gestoriaId),
     where('fecha', '>=', Timestamp.fromDate(inicio)),
     where('fecha', '<=', Timestamp.fromDate(fin)),
     orderBy('fecha')
   )
   return onSnapshot(q, snap =>
-    callback(snap.docs.map(d => ({ ...d.data(), id: d.id })))
+    callback(snap.docs.map(d => ({ ...d.data(), id: d.id }) as Turno))
   )
 }
 
 export function subscribeTurnosPorCliente(
-  clienteId: string,
-  callback:  (turnos: Turno[]) => void
+  clienteId:  string,
+  gestoriaId: string,
+  callback:   (turnos: Turno[]) => void
 ): Unsubscribe {
   const q = query(
     turnosCol,
-    where('clienteId', '==', clienteId),
+    where('gestoriaId', '==', gestoriaId),
+    where('clienteId',  '==', clienteId),
     orderBy('fecha', 'desc')
   )
   return onSnapshot(q, snap =>
-    callback(snap.docs.map(d => ({ ...d.data(), id: d.id })))
+    callback(snap.docs.map(d => ({ ...d.data(), id: d.id }) as Turno))
   )
 }
 
-export function subscribeTurnosProximos(callback: (turnos: Turno[]) => void): Unsubscribe {
+export function subscribeTurnosProximos(
+  gestoriaId: string,
+  callback:   (turnos: Turno[]) => void
+): Unsubscribe {
   const hoy = new Date(); hoy.setHours(0, 0, 0, 0)
   const q = query(
     turnosCol,
-    where('fecha', '>=', Timestamp.fromDate(hoy)),
-    where('estado', 'in', ['reservado', 'confirmado']),
+    where('gestoriaId', '==', gestoriaId),
+    where('fecha',   '>=', Timestamp.fromDate(hoy)),
+    where('estado',  'in', ['reservado', 'confirmado']),
     orderBy('fecha')
   )
   return onSnapshot(q, snap =>
-    callback(snap.docs.map(d => ({ ...d.data(), id: d.id })))
+    callback(snap.docs.map(d => ({ ...d.data(), id: d.id }) as Turno))
   )
 }
 
 // ─── WRITE ────────────────────────────────────────────────────────────────────
 
 export type TurnoInput = {
+  gestoriaId:  string   // requerido — tenant scope
   clienteId:   string
   tramiteId:   string | null
   tipoTramite: TipoTramite
@@ -81,14 +97,14 @@ export async function crearTurno(data: TurnoInput): Promise<string> {
   const ref = await addDoc(turnosCol, {
     ...data,
     fecha:             Timestamp.fromDate(data.fecha),
-    estado:            'reservado',
+    estado:            'reservado' as EstadoTurno,
     motivoCancelacion: '',
     creadoEn:          serverTimestamp(),
-  } as any)
+  })
   return ref.id
 }
 
-// Helper para obtener userId del cliente
+// Helper interno — obtener userId del cliente para notificaciones
 async function getDestinatario(clienteId: string): Promise<string | null> {
   const snap = await getDoc(clienteDoc(clienteId))
   return snap.exists() ? (snap.data().userId ?? null) : null
@@ -97,10 +113,10 @@ async function getDestinatario(clienteId: string): Promise<string | null> {
 export async function confirmarTurno(id: string): Promise<void> {
   await updateDoc(turnoDoc(id), { estado: 'confirmado' })
 
-  // Notificar al cliente
   const tSnap = await getDoc(turnoDoc(id))
   if (!tSnap.exists()) return
-  const turno = tSnap.data() as Turno
+  const turno = { ...tSnap.data(), id: tSnap.id } as Turno
+
   const destinatarioId = await getDestinatario(turno.clienteId)
   if (!destinatarioId) return
 
@@ -111,6 +127,7 @@ export async function confirmarTurno(id: string): Promise<void> {
   await notificarTurnoConfirmado({
     destinatarioId,
     turnoId:     id,
+    gestoriaId:  turno.gestoriaId,
     fecha:       fechaStr,
     hora:        turno.horaInicio,
     tipoTramite: turno.tipoTramite,
@@ -123,10 +140,10 @@ export async function cancelarTurno(id: string, motivo: string): Promise<void> {
     motivoCancelacion: motivo,
   })
 
-  // Notificar al cliente
   const tSnap = await getDoc(turnoDoc(id))
   if (!tSnap.exists()) return
-  const turno = tSnap.data() as Turno
+  const turno = { ...tSnap.data(), id: tSnap.id } as Turno
+
   const destinatarioId = await getDestinatario(turno.clienteId)
   if (!destinatarioId) return
 
@@ -136,8 +153,9 @@ export async function cancelarTurno(id: string, motivo: string): Promise<void> {
 
   await notificarTurnoCancelado({
     destinatarioId,
-    turnoId: id,
-    fecha:   fechaStr,
+    turnoId:    id,
+    gestoriaId: turno.gestoriaId,
+    fecha:      fechaStr,
     motivo,
   })
 }

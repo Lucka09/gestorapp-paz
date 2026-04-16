@@ -18,10 +18,16 @@ import { useAuth } from '@/hooks/useAuth'
 import { useProspectos } from '@/hooks/usePipeline'
 import {
   getIngresosPorMes, getTiposTramiteFrecuentes,
-  getAlertas, getTopClientes,
-  type IngresoMes, type TipoCount,
-  type AlertaDashboard, type TopCliente,
+  getTopClientes,
+  type IngresoMes, type TipoCount, type TopCliente,
 } from '@/lib/firestore/dashboard'
+import { ejecutarMotorAlertas }  from '@/lib/firestore/alertas'
+import { BannerPushNotifications } from '@/components/shared/PushNotifications'
+import { WidgetTareasHoy }          from '@/features/tareas/WidgetTareasHoy'
+import { programarRecordatorio } from '@/lib/firestore/push'
+import { TIPO_TRAMITE_LABELS as TTL } from '@/types'
+import { useAlertas }             from '@/hooks/useAlertas'
+import { NIVEL_CONFIG }            from '@/lib/firestore/alertas'
 import { Card, Spinner } from '@/components/ui'
 import { EstadoBadge } from '@/features/tramites/EstadoBadge'
 import { TIPO_TRAMITE_LABELS } from '@/types'
@@ -57,12 +63,10 @@ function KpiCard({ label, value, icon: Icon, color = '#D4621A', sub, onClick }: 
   )
 }
 
-function AlertaCard({ alerta, onClick }: { alerta: AlertaDashboard; onClick?: () => void }) {
-  const s = {
-    urgente:     { bg: 'bg-red-50',   border: 'border-red-200',   dot: 'bg-red-500',   text: 'text-red-700'   },
-    advertencia: { bg: 'bg-amber-50', border: 'border-amber-200', dot: 'bg-amber-400', text: 'text-amber-700' },
-    info:        { bg: 'bg-blue-50',  border: 'border-blue-200',  dot: 'bg-blue-400',  text: 'text-blue-700'  },
-  }[alerta.tipo]
+function AlertaCard({ alerta, onClick }: { alerta: any; onClick?: () => void }) {
+  const nivel = alerta.nivel ?? alerta.tipo
+  const base  = NIVEL_CONFIG[nivel as keyof typeof NIVEL_CONFIG] ?? NIVEL_CONFIG.info
+  const s     = { bg: base.bg, border: base.border, dot: base.dot, text: base.color }
   return (
     <button onClick={onClick}
       className={`w-full text-left ${s.bg} border ${s.border} rounded-xl p-3.5 hover:brightness-95 transition-all`}>
@@ -101,23 +105,40 @@ export default function DashboardPage() {
   const { turnos: turnosHoy }        = useTurnosHoy()
   const { data: distribucion }       = useDistribucionEstados()
   const { metricas: metPipeline }    = useProspectos()
+  const { alertas, noLeidas: alertasCount, nivelMax } = useAlertas()
 
   const [ingresosMes,   setIngresosMes]   = useState<IngresoMes[]>([])
   const [tiposTramite,  setTiposTramite]  = useState<TipoCount[]>([])
-  const [alertas,       setAlertas]       = useState<AlertaDashboard[]>([])
   const [topClientes,   setTopClientes]   = useState<TopCliente[]>([])
   const [loadAnalytics, setLoadAnalytics] = useState(true)
 
+  // Programar recordatorios para turnos del día
   useEffect(() => {
+    if (!turnosHoy.length) return
+    turnosHoy.forEach(t => {
+      const fecha = t.fecha?.toDate?.()
+      if (!fecha) return
+      const enMs = fecha.getTime() - Date.now() - 15 * 60 * 1000  // 15 min antes
+      if (enMs < 0) return
+      programarRecordatorio(`turno-${t.id}`, enMs, {
+        titulo:  `⏰ Turno en 15 minutos`,
+        cuerpo:  `${TTL[t.tipoTramite]} a las ${t.horaInicio} hs`,
+        url:     '/admin/turnos',
+        tag:     `turno-${t.id}`,
+      })
+    })
+  }, [turnosHoy])
+
+  useEffect(() => {
+    // Ejecutar motor de alertas en background
+    ejecutarMotorAlertas().catch(() => {})
     Promise.all([
       getIngresosPorMes(6),
       getTiposTramiteFrecuentes(),
-      getAlertas(),
       getTopClientes(5),
-    ]).then(([ing, tipos, alts, top]) => {
+    ]).then(([ing, tipos, top]) => {
       setIngresosMes(ing); setTiposTramite(tipos)
-      setAlertas(alts);    setTopClientes(top)
-      setLoadAnalytics(false)
+      setTopClientes(top); setLoadAnalytics(false)
     })
   }, [])
 
@@ -145,11 +166,14 @@ export default function DashboardPage() {
         )}
       </div>
 
+      {/* Banner push notifications */}
+      <BannerPushNotifications />
+
       {/* Alertas inteligentes */}
       {alertas.length > 0 && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           {alertas.map(a => (
-            <AlertaCard key={a.id} alerta={a} onClick={() => a.link && navigate(a.link)} />
+            <AlertaCard key={a.id} alerta={a} onClick={() => (a.link ?? a.link) && navigate(a.link ?? a.link)} />
           ))}
         </div>
       )}
@@ -329,8 +353,8 @@ export default function DashboardPage() {
         </Card>
       </div>
 
-      {/* Agenda + Últimos trámites */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+      {/* Agenda + Últimos trámites + Tareas */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
         <Card className="p-5">
           <div className="flex items-center justify-between mb-4">
             <p className="text-xs font-bold text-gray-400 uppercase tracking-wider">Agenda de hoy</p>
@@ -400,7 +424,8 @@ export default function DashboardPage() {
             </div>
           )}
         </Card>
-      </div>
+          <WidgetTareasHoy />
+    </div>
 
     </div>
   )

@@ -10,29 +10,33 @@ import { TIPO_TRAMITE_LABELS, ESTADO_TRAMITE_LABELS } from '@/types'
 // ─── READ ─────────────────────────────────────────────────────────────────────
 
 export function subscribeNotificaciones(
-  uid: string,
-  callback: (notifs: Notificacion[]) => void,
+  uid:        string,
+  gestoriaId: string,
+  callback:   (notifs: Notificacion[]) => void,
   maxItems = 30
 ): Unsubscribe {
   const q = query(
     notificacionesCol,
+    where('gestoriaId',     '==', gestoriaId),
     where('destinatarioId', '==', uid),
     orderBy('creadoEn', 'desc'),
     limit(maxItems)
   )
   return onSnapshot(q, snap =>
-    callback(snap.docs.map(d => ({ ...d.data(), id: d.id })))
+    callback(snap.docs.map(d => ({ ...d.data(), id: d.id }) as Notificacion))
   )
 }
 
 export function subscribeNoLeidas(
-  uid: string,
-  callback: (count: number) => void
+  uid:        string,
+  gestoriaId: string,
+  callback:   (count: number) => void
 ): Unsubscribe {
   const q = query(
     notificacionesCol,
+    where('gestoriaId',     '==', gestoriaId),
     where('destinatarioId', '==', uid),
-    where('leida', '==', false)
+    where('leida',          '==', false)
   )
   return onSnapshot(q, snap => callback(snap.size))
 }
@@ -40,6 +44,7 @@ export function subscribeNoLeidas(
 // ─── WRITE ────────────────────────────────────────────────────────────────────
 
 export async function crearNotificacion(data: {
+  gestoriaId:     string   // requerido — tenant scope
   destinatarioId: string
   titulo:         string
   mensaje:        string
@@ -53,54 +58,60 @@ export async function crearNotificacion(data: {
     turnoId:   data.turnoId   ?? null,
     leida:     false,
     creadoEn:  serverTimestamp(),
-  } as any)
+  })
 }
 
 export async function marcarLeida(id: string): Promise<void> {
   await updateDoc(notificacionDoc(id), { leida: true })
 }
 
-export async function marcarTodasLeidas(uid: string): Promise<void> {
+export async function marcarTodasLeidas(
+  uid:        string,
+  gestoriaId: string
+): Promise<void> {
   const q = query(
     notificacionesCol,
+    where('gestoriaId',     '==', gestoriaId),
     where('destinatarioId', '==', uid),
-    where('leida', '==', false)
+    where('leida',          '==', false)
   )
   const snap = await getDocs(q)
   await Promise.all(snap.docs.map(d => updateDoc(d.ref, { leida: true })))
 }
 
 // ─── NOTIFICACIONES AUTOMÁTICAS ───────────────────────────────────────────────
-// Estas funciones se llaman desde los módulos de trámites y turnos
+// Llamadas desde los módulos de trámites y turnos al ocurrir eventos
 
 export async function notificarCambioEstado(params: {
   destinatarioId: string
   tramiteId:      string
+  gestoriaId:     string
   numero:         string
   tipo:           TipoTramite
   patente:        string
   estadoNuevo:    EstadoTramite
   nota?:          string
 }): Promise<void> {
-  const { destinatarioId, tramiteId, numero, tipo, patente, estadoNuevo, nota } = params
+  const { destinatarioId, tramiteId, gestoriaId, numero, tipo, patente, estadoNuevo, nota } = params
 
   const mensajes: Partial<Record<EstadoTramite, string>> = {
-    en_proceso:              `Tu trámite está siendo procesado.`,
-    documentacion_requerida: `Se requiere documentación adicional. Contactá a Gestoría Paz.`,
-    en_organismo:            `Tu trámite está siendo gestionado en el organismo correspondiente.`,
-    listo_para_retirar:      `¡Tu trámite está listo! Ya podés pasar a retirarlo.`,
-    entregado:               `Trámite entregado correctamente. ¡Gracias por confiar en nosotros!`,
-    cancelado:               `Tu trámite fue cancelado. Contactá a Gestoría Paz para más información.`,
+    en_proceso:              'Tu trámite está siendo procesado.',
+    documentacion_requerida: 'Se requiere documentación adicional. Contactá a Gestoría Paz.',
+    en_organismo:            'Tu trámite está siendo gestionado en el organismo correspondiente.',
+    listo_para_retirar:      '¡Tu trámite está listo! Ya podés pasar a retirarlo.',
+    entregado:               '¡Trámite entregado correctamente! Gracias por confiar en nosotros.',
+    cancelado:               'Tu trámite fue cancelado. Contactá a Gestoría Paz para más información.',
   }
 
   const mensaje = mensajes[estadoNuevo]
-  if (!mensaje) return   // No notificar todos los cambios (ej: 'pendiente' al crear)
+  if (!mensaje) return   // no notificar todos los cambios (ej: 'pendiente' al crear)
 
   await crearNotificacion({
+    gestoriaId,
     destinatarioId,
-    titulo:    `${TIPO_TRAMITE_LABELS[tipo]} · ${patente}`,
-    mensaje:   nota ? `${mensaje} Nota: "${nota}"` : mensaje,
-    tipo:      'estado_tramite',
+    titulo:   `${TIPO_TRAMITE_LABELS[tipo]} · ${patente}`,
+    mensaje:  nota ? `${mensaje} Nota: "${nota}"` : mensaje,
+    tipo:     'estado_tramite',
     tramiteId,
   })
 }
@@ -108,11 +119,13 @@ export async function notificarCambioEstado(params: {
 export async function notificarTurnoConfirmado(params: {
   destinatarioId: string
   turnoId:        string
+  gestoriaId:     string
   fecha:          string
   hora:           string
   tipoTramite:    TipoTramite
 }): Promise<void> {
   await crearNotificacion({
+    gestoriaId:     params.gestoriaId,
     destinatarioId: params.destinatarioId,
     titulo:  '✅ Turno confirmado',
     mensaje: `Tu turno del ${params.fecha} a las ${params.hora} hs para ${TIPO_TRAMITE_LABELS[params.tipoTramite]} fue confirmado.`,
@@ -124,10 +137,12 @@ export async function notificarTurnoConfirmado(params: {
 export async function notificarTurnoCancelado(params: {
   destinatarioId: string
   turnoId:        string
+  gestoriaId:     string
   fecha:          string
   motivo?:        string
 }): Promise<void> {
   await crearNotificacion({
+    gestoriaId:     params.gestoriaId,
     destinatarioId: params.destinatarioId,
     titulo:  '❌ Turno cancelado',
     mensaje: params.motivo
@@ -141,13 +156,15 @@ export async function notificarTurnoCancelado(params: {
 export async function notificarRecordatorioTurno(params: {
   destinatarioId: string
   turnoId:        string
+  gestoriaId:     string
   fecha:          string
   hora:           string
 }): Promise<void> {
   await crearNotificacion({
+    gestoriaId:     params.gestoriaId,
     destinatarioId: params.destinatarioId,
     titulo:  '🔔 Recordatorio de turno',
-    mensaje: `Mañana tenés turno a las ${params.hora} hs en Gestoría Paz. ¡No te olvides traer la documentación!`,
+    mensaje: `Mañana tenés turno a las ${params.hora} hs. ¡No te olvides traer la documentación!`,
     tipo:    'turno',
     turnoId: params.turnoId,
   })
@@ -156,13 +173,15 @@ export async function notificarRecordatorioTurno(params: {
 export async function notificarDocumentacionFaltante(params: {
   destinatarioId: string
   tramiteId:      string
+  gestoriaId:     string
   tipo:           TipoTramite
   patente:        string
   detalle?:       string
 }): Promise<void> {
   await crearNotificacion({
+    gestoriaId:     params.gestoriaId,
     destinatarioId: params.destinatarioId,
-    titulo:  `⚠️ Documentación requerida`,
+    titulo:  '⚠️ Documentación requerida',
     mensaje: params.detalle
       ? `Para continuar con tu ${TIPO_TRAMITE_LABELS[params.tipo]} (${params.patente}) necesitamos: ${params.detalle}`
       : `Necesitamos documentación adicional para continuar con tu ${TIPO_TRAMITE_LABELS[params.tipo]} (${params.patente}). Contactá a Gestoría Paz.`,

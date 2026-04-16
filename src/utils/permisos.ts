@@ -103,6 +103,16 @@ const PERMISOS: Record<Rol, Permisos> = {
   },
 
   // ── CLIENTE — solo su portal ───────────────────────────────────────────────
+  superadmin: {
+    verClientes: true, crearClientes: true, editarClientes: true, eliminarClientes: true,
+    darAccesoPortal: true, verVehiculos: true, crearVehiculos: true, editarVehiculos: true,
+    verTramites: true, crearTramites: true, cambiarEstadoTramite: true,
+    verHonorariosDetalle: true, marcarPagado: true, verObsInternas: true,
+    verTurnos: true, crearTurnos: true, confirmarTurnos: true, cancelarTurnos: true,
+    exportarDatos: true, verDashboard: true, verCRM: true, editarConfiguracion: true,
+    verMetricasFinancieras: true, verSeguimiento: true, crearSeguimiento: true,
+    verConfiguracion: true,
+  },
   cliente: {
     verClientes: false, crearClientes: false, editarClientes: false,
     eliminarClientes: false, darAccesoPortal: false,
@@ -131,6 +141,7 @@ export const ROL_LABELS: Record<Rol, string> = {
   admin:       'Administrador',
   vendedor:    'Vendedor / Closer',
   operador:    'Operador',
+  superadmin:  'Super Admin',
   cliente:     'Cliente',
 }
 
@@ -139,6 +150,7 @@ export const ROL_COLORS: Record<Rol, string> = {
   admin:       'bg-[#D4621A]/10 text-[#D4621A]',
   vendedor:    'bg-blue-100 text-blue-700',
   operador:    'bg-emerald-100 text-emerald-700',
+  superadmin:  'bg-purple-200 text-purple-800',
   cliente:     'bg-gray-100 text-gray-600',
 }
 

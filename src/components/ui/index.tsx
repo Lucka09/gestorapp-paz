@@ -35,7 +35,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
       aria-busy={loading}
       className={`
         inline-flex items-center justify-center gap-2 transition-all duration-150
-        focus-visible:outline-[2.5px] focus-visible:outline-[var(--gp-orange)]
+        focus-visible:outline-[2.5px] focus-visible:outline-gp-orange
         focus-visible:outline-offset-3
         disabled:opacity-50 disabled:cursor-not-allowed
         ${variantClass[variant]} ${sizeClass[size]} ${className}
@@ -71,7 +71,7 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
         {label && (
           <label
             htmlFor={id}
-            className={`text-xs font-semibold text-[var(--color-text-3)] uppercase tracking-wider
+            className={`text-xs font-semibold text-gp-text-3 uppercase tracking-wider
                         ${hideLabel ? 'sr-only' : ''}`}
           >
             {label}
@@ -84,20 +84,20 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
           aria-invalid={!!error}
           className={`
             w-full border-[1.5px] rounded-xl px-3 py-2.5
-            text-[var(--color-text-1)] placeholder-[var(--color-text-3)]
+            text-gp-text-1 placeholder-gp-text-3
             outline-none transition-all duration-150
-            focus:border-[var(--gp-orange)] focus:shadow-[0_0_0_3px_var(--focus-ring)]
+            focus:border-gp-orange focus:shadow-[0_0_0_3px_var(--focus-ring)]
             hover:border-gray-300
             ${error
               ? 'border-red-400 bg-red-50 focus:border-red-500'
-              : 'border-[var(--color-border)] bg-white'
+              : 'border-gp-border bg-white'
             }
             ${className}
           `}
           {...props}
         />
         {hint && !error && (
-          <p id={hintId} className="text-xs text-[var(--color-text-3)]">{hint}</p>
+          <p id={hintId} className="text-xs text-gp-text-3">{hint}</p>
         )}
         {error && (
           <p id={errorId} role="alert" className="text-xs text-red-600 font-medium flex items-center gap-1">
@@ -129,7 +129,7 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(
         {label && (
           <label
             htmlFor={id}
-            className={`text-xs font-semibold text-[var(--color-text-3)] uppercase tracking-wider
+            className={`text-xs font-semibold text-gp-text-3 uppercase tracking-wider
                         ${hideLabel ? 'sr-only' : ''}`}
           >
             {label}
@@ -142,10 +142,10 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(
           aria-invalid={!!error}
           className={`
             w-full border-[1.5px] rounded-xl px-3 py-2.5
-            text-[var(--color-text-1)] outline-none transition-all duration-150 bg-white
-            focus:border-[var(--gp-orange)] focus:shadow-[0_0_0_3px_var(--focus-ring)]
+            text-gp-text-1 outline-none transition-all duration-150 bg-white
+            focus:border-gp-orange focus:shadow-[0_0_0_3px_var(--focus-ring)]
             hover:border-gray-300 cursor-pointer
-            ${error ? 'border-red-400' : 'border-[var(--color-border)]'}
+            ${error ? 'border-red-400' : 'border-gp-border'}
             ${className}
           `}
           {...props}
@@ -184,7 +184,7 @@ export const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(
         {label && (
           <label
             htmlFor={id}
-            className={`text-xs font-semibold text-[var(--color-text-3)] uppercase tracking-wider
+            className={`text-xs font-semibold text-gp-text-3 uppercase tracking-wider
                         ${hideLabel ? 'sr-only' : ''}`}
           >
             {label}
@@ -198,20 +198,20 @@ export const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(
           rows={3}
           className={`
             w-full border-[1.5px] rounded-xl px-3 py-2.5
-            text-[var(--color-text-1)] placeholder-[var(--color-text-3)]
+            text-gp-text-1 placeholder-gp-text-3
             outline-none transition-all duration-150 resize-none
-            focus:border-[var(--gp-orange)] focus:shadow-[0_0_0_3px_var(--focus-ring)]
+            focus:border-gp-orange focus:shadow-[0_0_0_3px_var(--focus-ring)]
             hover:border-gray-300
             ${error
               ? 'border-red-400 bg-red-50'
-              : 'border-[var(--color-border)] bg-white'
+              : 'border-gp-border bg-white'
             }
             ${className}
           `}
           {...props}
         />
         {hint && !error && (
-          <p id={hintId} className="text-xs text-[var(--color-text-3)]">{hint}</p>
+          <p id={hintId} className="text-xs text-gp-text-3">{hint}</p>
         )}
         {error && (
           <p id={errorId} role="alert" className="text-xs text-red-600 font-medium">
@@ -261,10 +261,10 @@ export function Card({ children, className = '', onClick, as: Tag = 'div' }: Car
         if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick() }
       } : undefined}
       className={`
-        bg-white rounded-[var(--radius-lg)] border border-[var(--color-border)]
-        shadow-[var(--shadow-sm)]
+        bg-white rounded-lg border border-gp-border
+        shadow-gp-sm
         ${onClick
-          ? 'card-interactive focus-visible:outline-[2.5px] focus-visible:outline-[var(--gp-orange)] focus-visible:outline-offset-2'
+          ? 'card-interactive focus-visible:outline-[2.5px] focus-visible:outline-gp-orange focus-visible:outline-offset-2'
           : ''
         }
         ${className}
@@ -282,7 +282,7 @@ export function Spinner({ size = 24, label = 'Cargando...' }: { size?: number; l
     <div className="flex items-center justify-center p-8" role="status" aria-label={label}>
       <Loader2
         size={size}
-        className="animate-spin text-[var(--gp-orange)]"
+        className="animate-spin text-gp-orange"
         aria-hidden="true"
       />
       <span className="sr-only">{label}</span>
@@ -302,9 +302,9 @@ export function PageHeader({ title, subtitle, action }: PageHeaderProps) {
   return (
     <header className="flex items-start justify-between mb-6 gap-4">
       <div>
-        <h1 className="text-xl font-bold text-[var(--color-text-1)]">{title}</h1>
+        <h1 className="text-xl font-bold text-gp-text-1">{title}</h1>
         {subtitle && (
-          <p className="text-sm text-[var(--color-text-3)] mt-0.5">{subtitle}</p>
+          <p className="text-sm text-gp-text-3 mt-0.5">{subtitle}</p>
         )}
       </div>
       {action && <div className="shrink-0">{action}</div>}
@@ -329,15 +329,15 @@ export function EmptyState({ icon, title, description, action }: EmptyStateProps
       aria-label={title}
     >
       {icon && (
-        <div className="text-[var(--color-text-4)] mb-4 opacity-40" aria-hidden="true">
+        <div className="text-gp-text-4 mb-4 opacity-40" aria-hidden="true">
           {icon}
         </div>
       )}
-      <h2 className="text-[var(--color-text-2)] font-semibold text-base mb-1">
+      <h2 className="text-gp-text-2 font-semibold text-base mb-1">
         {title}
       </h2>
       {description && (
-        <p className="text-[var(--color-text-3)] text-sm mb-5 max-w-xs leading-relaxed">
+        <p className="text-gp-text-3 text-sm mb-5 max-w-xs leading-relaxed">
           {description}
         </p>
       )}
@@ -362,8 +362,8 @@ export const IconButton = forwardRef<HTMLButtonElement, IconButtonProps>(
       title={label}
       className={`
         inline-flex items-center justify-center rounded-xl transition-all duration-150
-        text-[var(--color-text-3)] hover:text-[var(--color-text-1)] hover:bg-gray-100
-        focus-visible:outline-[2.5px] focus-visible:outline-[var(--gp-orange)]
+        text-gp-text-3 hover:text-gp-text-1 hover:bg-gray-100
+        focus-visible:outline-[2.5px] focus-visible:outline-gp-orange
         focus-visible:outline-offset-2
         ${size === 'sm' ? 'w-8 h-8' : 'w-10 h-10'}
         ${className}

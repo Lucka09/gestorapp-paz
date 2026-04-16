@@ -1,4 +1,5 @@
-import { RouterProvider } from 'react-router-dom'
+import { RouterProvider }      from 'react-router-dom'
+import { GestoriaProvider } from '@/context/GestoriaContext'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { Toaster } from 'react-hot-toast'
 import { router } from '@/router'
@@ -19,8 +20,9 @@ export default function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
-        <RouterProvider router={router} />
-        <Toaster
+        <GestoriaProvider>
+          <RouterProvider router={router} />
+          <Toaster
           position="top-right"
           toastOptions={{
             duration: 3500,
@@ -39,6 +41,7 @@ export default function App() {
             },
           }}
         />
+        </GestoriaProvider>
       </AuthProvider>
     </QueryClientProvider>
   )
