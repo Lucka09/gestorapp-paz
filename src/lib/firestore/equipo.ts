@@ -3,13 +3,15 @@ import {
   sendPasswordResetEmail,
   fetchSignInMethodsForEmail,
   signOut,
+  deleteUser,
 } from 'firebase/auth'
 import {
   setDoc, updateDoc, query,
   where, orderBy, onSnapshot, serverTimestamp,
+  doc, collection,
   type Unsubscribe,
 } from 'firebase/firestore'
-import { auth, secondaryAuth } from '../firebase'
+import { auth, secondaryAuth, secondaryDb } from '../firebase'
 import { userDoc, usersCol } from './collections'
 import { verificarLimiteUsuarios } from './planlimits'
 import type { Usuario, Rol, PlanGestoria } from '@/types'
@@ -95,34 +97,40 @@ export async function crearMiembro(
       limites.maxUsuarios,
       limites.plan
     )
-    // ^^ lanza LimitePlanError si el límite fue alcanzado
   }
 
   // 2. Verificar email disponible
   const methods = await fetchSignInMethodsForEmail(auth, data.email)
   if (methods.length > 0) throw new Error('EMAIL_EN_USO')
 
-  // 3. Crear en Firebase Auth
+  // 3. Crear en Firebase Auth (usando instancia secundaria para no cerrar la sesión del propietario)
   const cred = await createUserWithEmailAndPassword(secondaryAuth, data.email, data.password)
   const uid  = cred.user.uid
 
-  // 4. Crear perfil en Firestore
-  //    gestoriaId se almacena aquí para que el usuario quede asociado al tenant
-  await setDoc(userDoc(uid), {
-    uid,
-    email:        data.email,
-    nombre:       data.nombre,
-    apellido:     data.apellido,
-    telefono:     data.telefono,
-    rol:          data.rol,
-    gestoriaId:   data.gestoriaId,   // ← asignación de tenant
-    clienteId:    null,
-    activo:       true,
-    creadoEn:     serverTimestamp(),
-    ultimoAcceso: serverTimestamp(),
-  })
+  // 4. Crear perfil en Firestore usando el secondaryDb
+  //    → request.auth.uid == uid pasa directamente sin necesitar get() anidado en las reglas
+  try {
+    const docRef = doc(collection(secondaryDb, 'users'), uid)
+    await setDoc(docRef, {
+      uid,
+      email:        data.email,
+      nombre:       data.nombre,
+      apellido:     data.apellido,
+      telefono:     data.telefono,
+      rol:          data.rol,
+      gestoriaId:   data.gestoriaId,
+      clienteId:    null,
+      activo:       true,
+      creadoEn:     serverTimestamp(),
+      ultimoAcceso: serverTimestamp(),
+    })
+  } catch (firestoreError) {
+    // Si falla el Firestore, eliminar el usuario de Auth para evitar cuentas huérfanas
+    await deleteUser(cred.user).catch(() => {})
+    throw firestoreError
+  }
 
-  // Limpiar sesión secundaria para no acumular estado entre altas.
+  // 5. Cerrar sesión secundaria
   await signOut(secondaryAuth)
 
   return uid
