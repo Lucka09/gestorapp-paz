@@ -1,6 +1,6 @@
 import {
   addDoc, updateDoc, query, where,
-  orderBy, onSnapshot,
+  orderBy, onSnapshot, limit,
   type Unsubscribe, Timestamp, getDoc,
   type FieldValue,
 } from 'firebase/firestore'
@@ -22,7 +22,8 @@ export function subscribeTurnos(
   const q = query(
     turnosCol,
     where('gestoriaId', '==', gestoriaId),
-    orderBy('fecha', 'desc')
+    orderBy('fecha', 'desc'),
+    limit(200)  // ⚡
   )
   return onSnapshot(q, snap =>
     callback(snap.docs.map(d => ({ ...d.data(), id: d.id }) as Turno))

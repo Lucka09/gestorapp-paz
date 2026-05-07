@@ -4,116 +4,91 @@ import {
   type Unsubscribe,
 } from 'firebase/firestore'
 import { tramitesCol, turnosCol, clientesCol, vehiculosCol } from './collections'
-import type { Tramite, Turno, Cliente } from '@/types'
+import type { Tramite, Turno } from '@/types'
 
 // ─── MÉTRICAS GENERALES ───────────────────────────────────────────────────────
+// ⚡ OPTIMIZADO: lectura única en vez de onSnapshot de colección completa.
 
 export interface MetricasDashboard {
-  tramitesHoy:       number
+  tramitesHoy:        number
   tramitesPendientes: number
-  tramitesActivos:   number
-  turnosHoy:         number
-  turnosProximos:    number
-  sinPagar:          number
-  totalClientes:     number
-  totalVehiculos:    number
-  ingresosMes:       number
-  ingresosHoy:       number
+  tramitesActivos:    number
+  turnosHoy:          number
+  turnosProximos:     number
+  sinPagar:           number
+  totalClientes:      number
+  totalVehiculos:     number
+  ingresosMes:        number
+  ingresosHoy:        number
 }
 
+export async function getMetricas(gestoriaId: string): Promise<MetricasDashboard> {
+  const hoyInicio = new Date(); hoyInicio.setHours(0, 0, 0, 0)
+  const hoyFin    = new Date(); hoyFin.setHours(23, 59, 59, 999)
+  const mesInicio = new Date(); mesInicio.setDate(1); mesInicio.setHours(0, 0, 0, 0)
+  const en7dias   = new Date(); en7dias.setDate(en7dias.getDate() + 7)
+
+  const hoyTs    = Timestamp.fromDate(hoyInicio)
+  const hoyFinTs = Timestamp.fromDate(hoyFin)
+  const mesTs    = Timestamp.fromDate(mesInicio)
+  const en7Ts    = Timestamp.fromDate(en7dias)
+
+  const estadosActivos = ['pendiente', 'en_proceso', 'documentacion_requerida', 'en_organismo']
+
+  const [
+    snapActivos, snapHoy, snapPagados,
+    snapTurnosHoy, snapTurnosProx,
+    snapClientes, snapVehiculos,
+  ] = await Promise.all([
+    getDocs(query(tramitesCol, where('gestoriaId','==',gestoriaId), where('estado','in',estadosActivos), limit(500))),
+    getDocs(query(tramitesCol, where('gestoriaId','==',gestoriaId), where('creadoEn','>=',hoyTs), where('creadoEn','<=',hoyFinTs), limit(200))),
+    getDocs(query(tramitesCol, where('gestoriaId','==',gestoriaId), where('pagado','==',true), where('fechaPago','>=',mesTs), limit(500))),
+    getDocs(query(turnosCol,   where('gestoriaId','==',gestoriaId), where('fecha','>=',hoyTs), where('fecha','<=',hoyFinTs), limit(100))),
+    getDocs(query(turnosCol,   where('gestoriaId','==',gestoriaId), where('fecha','>',hoyFinTs), where('fecha','<=',en7Ts), limit(100))),
+    getDocs(query(clientesCol,  where('gestoriaId','==',gestoriaId), limit(2000))),
+    getDocs(query(vehiculosCol, where('gestoriaId','==',gestoriaId), limit(2000))),
+  ])
+
+  const tramitesActivos    = snapActivos.size
+  const tramitesPendientes = snapActivos.docs.filter(d => d.data().estado === 'pendiente').length
+  const sinPagar           = snapActivos.docs.filter(d => !d.data().pagado && (d.data().honorarios ?? 0) > 0).length
+  const tramitesHoy        = snapHoy.size
+  const turnosHoy          = snapTurnosHoy.docs.filter(d => d.data().estado !== 'cancelado').length
+  const turnosProximos     = snapTurnosProx.size
+  const ingresosMes        = snapPagados.docs.reduce((a, d) => a + (d.data().honorarios ?? 0), 0)
+  const ingresosHoy        = snapPagados.docs
+    .filter(d => { const fp = d.data().fechaPago?.toDate?.(); return fp && fp >= hoyInicio && fp <= hoyFin })
+    .reduce((a, d) => a + (d.data().honorarios ?? 0), 0)
+
+  return {
+    tramitesHoy, tramitesPendientes, tramitesActivos,
+    turnosHoy, turnosProximos, sinPagar,
+    totalClientes: snapClientes.size, totalVehiculos: snapVehiculos.size,
+    ingresosMes, ingresosHoy,
+  }
+}
+
+// Wrapper para compatibilidad con AsistenteIA (no rompe nada)
 export function subscribeMetricas(
   gestoriaId: string,
   callback:   (m: MetricasDashboard) => void
 ): Unsubscribe {
-  const hoyInicio = new Date(); hoyInicio.setHours(0, 0, 0, 0)
-  const hoyFin    = new Date(); hoyFin.setHours(23, 59, 59, 999)
-  const mesInicio = new Date(); mesInicio.setDate(1); mesInicio.setHours(0,0,0,0)
-
-  // Suscripción principal a trámites
-  return onSnapshot(
-    query(tramitesCol, where('gestoriaId', '==', gestoriaId), orderBy('creadoEn', 'desc')),
-    async (snapTramites) => {
-      const tramites = snapTramites.docs.map(d => ({ ...d.data(), id: d.id })) as Tramite[]
-
-      const [snapTurnos, snapClientes, snapVehiculos] = await Promise.all([
-        getDocs(query(turnosCol,   where('gestoriaId', '==', gestoriaId), orderBy('fecha', 'desc'))),
-        getDocs(query(clientesCol,  where('gestoriaId', '==', gestoriaId))),
-        getDocs(query(vehiculosCol, where('gestoriaId', '==', gestoriaId))),
-      ])
-      const turnos   = snapTurnos.docs.map(d => ({ ...d.data(), id: d.id })) as Turno[]
-      const clientes = snapClientes.size
-      const vehiculos = snapVehiculos.size
-
-      // Trámites de hoy
-      const tramitesHoy = tramites.filter(t => {
-        const d = t.creadoEn?.toDate?.()
-        return d && d >= hoyInicio && d <= hoyFin
-      }).length
-
-      // Estados activos
-      const estadosActivos = ['pendiente', 'en_proceso', 'documentacion_requerida', 'en_organismo']
-      const tramitesPendientes = tramites.filter(t => (t.estado as string) === 'pendiente').length
-      const tramitesActivos    = tramites.filter(t => estadosActivos.includes(t.estado)).length
-
-      // Sin pagar (activos con honorarios > 0)
-      const sinPagar = tramites.filter(t =>
-        !t.pagado && t.honorarios > 0 && t.estado !== 'cancelado'
-      ).length
-
-      // Turnos hoy
-      const turnosHoy = turnos.filter(t => {
-        const d = t.fecha?.toDate?.()
-        return d && d >= hoyInicio && d <= hoyFin && t.estado !== 'cancelado'
-      }).length
-
-      // Turnos próximos (los próximos 7 días, sin hoy)
-      const en7dias = new Date(); en7dias.setDate(en7dias.getDate() + 7)
-      const turnosProximos = turnos.filter(t => {
-        const d = t.fecha?.toDate?.()
-        return d && d > hoyFin && d <= en7dias && t.estado !== 'cancelado'
-      }).length
-
-      // Ingresos del mes
-      const ingresosMes = tramites
-        .filter(t => {
-          const d = t.fechaPago?.toDate?.()
-          return t.pagado && d && d >= mesInicio
-        })
-        .reduce((acc, t) => acc + (t.honorarios ?? 0), 0)
-
-      // Ingresos de hoy
-      const ingresosHoy = tramites
-        .filter(t => {
-          const d = t.fechaPago?.toDate?.()
-          return t.pagado && d && d >= hoyInicio && d <= hoyFin
-        })
-        .reduce((acc, t) => acc + (t.honorarios ?? 0), 0)
-
-      callback({
-        tramitesHoy, tramitesPendientes, tramitesActivos,
-        turnosHoy, turnosProximos, sinPagar,
-        totalClientes: clientes, totalVehiculos: vehiculos,
-        ingresosMes, ingresosHoy,
-      })
-    }
-  )
+  let cancelled = false
+  getMetricas(gestoriaId).then(m => { if (!cancelled) callback(m) }).catch(() => {})
+  return () => { cancelled = true }
 }
 
-// ─── ÚLTIMOS TRÁMITES ─────────────────────────────────────────────────────────
-
+// ─── ÚLTIMOS TRÁMITES (onSnapshot acotado a 8 docs) ──────────────────────────
 export function subscribeUltimosTramites(
   gestoriaId: string,
   callback:   (tramites: Tramite[]) => void,
   cantidad = 8
 ): Unsubscribe {
-  const q = query(tramitesCol, where('gestoriaId', '==', gestoriaId), orderBy('actualizadoEn', 'desc'), limit(cantidad))
-  return onSnapshot(q, snap =>
-    callback(snap.docs.map(d => ({ ...d.data(), id: d.id })))
-  )
+  const q = query(tramitesCol, where('gestoriaId','==',gestoriaId), orderBy('actualizadoEn','desc'), limit(cantidad))
+  return onSnapshot(q, snap => callback(snap.docs.map(d => ({ ...d.data(), id: d.id }))))
 }
 
-// ─── TURNOS DE HOY ────────────────────────────────────────────────────────────
-
+// ─── TURNOS HOY (onSnapshot acotado por fecha) ───────────────────────────────
 export function subscribeTurnosHoy(
   gestoriaId: string,
   callback:   (turnos: Turno[]) => void
@@ -122,245 +97,52 @@ export function subscribeTurnosHoy(
   const hoyFin    = new Date(); hoyFin.setHours(23, 59, 59, 999)
   const q = query(
     turnosCol,
-    where('gestoriaId', '==', gestoriaId),
-    where('fecha', '>=', Timestamp.fromDate(hoyInicio)),
-    where('fecha', '<=', Timestamp.fromDate(hoyFin)),
-    orderBy('fecha')
+    where('gestoriaId','==',gestoriaId),
+    where('fecha','>=',Timestamp.fromDate(hoyInicio)),
+    where('fecha','<=',Timestamp.fromDate(hoyFin)),
+    orderBy('fecha'), limit(50),
   )
-  return onSnapshot(q, snap =>
-    callback(snap.docs.map(d => ({ ...d.data(), id: d.id })))
-  )
+  return onSnapshot(q, snap => callback(snap.docs.map(d => ({ ...d.data(), id: d.id }))))
 }
 
-// ─── TRÁMITES POR ESTADO (para gráfico) ──────────────────────────────────────
-
+// ─── DISTRIBUCIÓN ESTADOS (getDocs, no listener permanente) ──────────────────
 export interface EstadoCount { estado: string; cantidad: number; label: string }
+
+export async function getDistribucionEstados(gestoriaId: string): Promise<EstadoCount[]> {
+  const snap = await getDocs(query(tramitesCol, where('gestoriaId','==',gestoriaId), limit(500)))
+  const conteo: Record<string, number> = {}
+  snap.docs.forEach(d => { const e = d.data().estado as string; conteo[e] = (conteo[e] ?? 0) + 1 })
+  const labels: Record<string, string> = {
+    pendiente:'Pendiente', en_proceso:'En Proceso', documentacion_requerida:'Docs. Req.',
+    en_organismo:'En Organismo', listo_para_retirar:'Para Retirar', entregado:'Entregado', cancelado:'Cancelado',
+  }
+  return Object.entries(conteo).map(([estado, cantidad]) => ({ estado, cantidad, label: labels[estado] ?? estado }))
+}
 
 export function subscribeDistribucionEstados(
   gestoriaId: string,
   callback:   (data: EstadoCount[]) => void
 ): Unsubscribe {
-  const _q = query(tramitesCol, where('gestoriaId', '==', gestoriaId))
-  return onSnapshot(_q, snap => {
-    const conteo: Record<string, number> = {}
-    snap.docs.forEach(d => {
-      const estado = d.data().estado as string
-      conteo[estado] = (conteo[estado] ?? 0) + 1
-    })
-    const labels: Record<string, string> = {
-      pendiente: 'Pendiente', en_proceso: 'En Proceso',
-      documentacion_requerida: 'Docs. Req.', en_organismo: 'En Organismo',
-      listo_para_retirar: 'Para Retirar', entregado: 'Entregado', cancelado: 'Cancelado',
-    }
-    callback(
-      Object.entries(conteo).map(([estado, cantidad]) => ({
-        estado, cantidad, label: labels[estado] ?? estado,
-      }))
-    )
-  })
+  let cancelled = false
+  getDistribucionEstados(gestoriaId).then(d => { if (!cancelled) callback(d) }).catch(() => {})
+  return () => { cancelled = true }
 }
 
-// ─── INGRESOS POR MES (últimos 6 meses) ──────────────────────────────────────
+// ─── INGRESOS POR MES ─────────────────────────────────────────────────────────
+export interface IngresoMes { mes: string; ingresos: number; tramites: number }
 
-export interface IngresoMes {
-  mes:      string   // 'Ene', 'Feb', etc.
-  ingresos: number
-  tramites: number
-}
-
-export async function getIngresosPorMes(gestoriaId: string, meses = 6): Promise<IngresoMes[]> {
-  const snap = await getDocs(query(tramitesCol, where('gestoriaId', '==', gestoriaId), orderBy('creadoEn', 'desc')))
-  const tramites = snap.docs.map(d => d.data()) as Tramite[]
-
-  const resultado: IngresoMes[] = []
-  const nombres = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic']
-
-  for (let i = meses - 1; i >= 0; i--) {
-    const fecha = new Date()
-    fecha.setDate(1)
-    fecha.setMonth(fecha.getMonth() - i)
-    fecha.setHours(0, 0, 0, 0)
-    const fin = new Date(fecha)
-    fin.setMonth(fin.getMonth() + 1)
-    fin.setDate(0)
-    fin.setHours(23, 59, 59, 999)
-
-    const delMes = tramites.filter(t => {
-      const d = t.creadoEn?.toDate?.()
-      return d && d >= fecha && d <= fin
-    })
-    const ingresosMes = delMes
-      .filter(t => t.pagado)
-      .reduce((a, t) => a + (t.honorarios ?? 0), 0)
-
-    resultado.push({
-      mes:      `${nombres[fecha.getMonth()]} ${fecha.getFullYear().toString().slice(2)}`,
-      ingresos: ingresosMes,
-      tramites: delMes.length,
-    })
-  }
-  return resultado
-}
-
-// ─── TIPOS DE TRÁMITE MÁS FRECUENTES ─────────────────────────────────────────
-
-export interface TipoCount { tipo: string; label: string; cantidad: number; ingresos: number }
-
-export async function getTiposTramiteFrecuentes(gestoriaId: string): Promise<TipoCount[]> {
-  const snap = await getDocs(query(tramitesCol, where('gestoriaId', '==', gestoriaId)))
-  const conteo: Record<string, { cantidad: number; ingresos: number }> = {}
-
+export async function getIngresosPorMes(gestoriaId: string): Promise<IngresoMes[]> {
+  const hace6Meses = new Date(); hace6Meses.setMonth(hace6Meses.getMonth() - 6); hace6Meses.setDate(1); hace6Meses.setHours(0,0,0,0)
+  const snap = await getDocs(query(tramitesCol, where('gestoriaId','==',gestoriaId), where('pagado','==',true), where('fechaPago','>=',Timestamp.fromDate(hace6Meses)), limit(500)))
+  const meses: Record<string, IngresoMes> = {}
+  const nm = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic']
   snap.docs.forEach(d => {
-    const t = d.data() as Tramite
-    if (!conteo[t.tipo]) conteo[t.tipo] = { cantidad: 0, ingresos: 0 }
-    conteo[t.tipo].cantidad++
-    if (t.pagado) conteo[t.tipo].ingresos += (t.honorarios ?? 0)
+    const fp = d.data().fechaPago?.toDate?.()
+    if (!fp) return
+    const key = `${fp.getFullYear()}-${String(fp.getMonth()).padStart(2,'0')}`
+    if (!meses[key]) meses[key] = { mes: nm[fp.getMonth()], ingresos: 0, tramites: 0 }
+    meses[key].ingresos += d.data().honorarios ?? 0
+    meses[key].tramites += 1
   })
-
-  const { TIPO_TRAMITE_LABELS } = await import('@/types')
-
-  return Object.entries(conteo)
-    .map(([tipo, data]) => ({
-      tipo,
-      label: TIPO_TRAMITE_LABELS[tipo as keyof typeof TIPO_TRAMITE_LABELS] ?? tipo,
-      ...data,
-    }))
-    .sort((a, b) => b.cantidad - a.cantidad)
-    .slice(0, 6)
-}
-
-// ─── ALERTAS INTELIGENTES ─────────────────────────────────────────────────────
-
-export interface AlertaDashboard {
-  id:      string
-  tipo:    'urgente' | 'advertencia' | 'info'
-  titulo:  string
-  detalle: string
-  link?:   string
-}
-
-export async function getAlertas(gestoriaId: string): Promise<AlertaDashboard[]> {
-  const alertas: AlertaDashboard[] = []
-
-  const [snapTramites, snapTurnos] = await Promise.all([
-    getDocs(query(tramitesCol, where('gestoriaId', '==', gestoriaId), orderBy('actualizadoEn', 'desc'))),
-    getDocs(query(turnosCol,   where('gestoriaId', '==', gestoriaId), orderBy('fecha', 'asc'))),
-  ])
-
-  const tramites = snapTramites.docs.map(d => ({ ...d.data(), id: d.id })) as Tramite[]
-  const turnos   = snapTurnos.docs.map(d => ({ ...d.data(), id: d.id })) as Turno[]
-  const ahora    = new Date()
-
-  // Trámites con documentación requerida hace más de 5 días
-  const tramitesDocVencida = tramites.filter(t => {
-    if (t.estado !== 'documentacion_requerida') return false
-    const d = t.actualizadoEn?.toDate?.()
-    if (!d) return false
-    const dias = (ahora.getTime() - d.getTime()) / (1000 * 60 * 60 * 24)
-    return dias > 5
-  })
-  if (tramitesDocVencida.length > 0) {
-    alertas.push({
-      id: 'docs-vencida',
-      tipo: 'urgente',
-      titulo: `${tramitesDocVencida.length} trámite${tramitesDocVencida.length > 1 ? 's' : ''} esperando documentación`,
-      detalle: `Llevan más de 5 días sin recibir los documentos del cliente.`,
-      link: '/admin/tramites',
-    })
-  }
-
-  // Turnos de mañana sin confirmar
-  const manana = new Date(ahora)
-  manana.setDate(manana.getDate() + 1)
-  manana.setHours(0, 0, 0, 0)
-  const mananaFin = new Date(manana)
-  mananaFin.setHours(23, 59, 59, 999)
-
-  const turnosMananaSinConfirmar = turnos.filter(t => {
-    const d = t.fecha?.toDate?.()
-    return d && d >= manana && d <= mananaFin && (t.estado as string) === 'pendiente'
-  })
-  if (turnosMananaSinConfirmar.length > 0) {
-    alertas.push({
-      id: 'turnos-sin-confirmar',
-      tipo: 'advertencia',
-      titulo: `${turnosMananaSinConfirmar.length} turno${turnosMananaSinConfirmar.length > 1 ? 's' : ''} mañana sin confirmar`,
-      detalle: 'Confirmá los turnos de mañana para que los clientes reciban la notificación.',
-      link: '/admin/turnos',
-    })
-  }
-
-  // Trámites en organismo hace más de 10 días
-  const tramitesOrganismoLargo = tramites.filter(t => {
-    if (t.estado !== 'en_organismo') return false
-    const d = t.actualizadoEn?.toDate?.()
-    if (!d) return false
-    const dias = (ahora.getTime() - d.getTime()) / (1000 * 60 * 60 * 24)
-    return dias > 10
-  })
-  if (tramitesOrganismoLargo.length > 0) {
-    alertas.push({
-      id: 'organismo-largo',
-      tipo: 'advertencia',
-      titulo: `${tramitesOrganismoLargo.length} trámite${tramitesOrganismoLargo.length > 1 ? 's' : ''} hace más de 10 días en organismo`,
-      detalle: 'Considerá contactar al cliente para actualizar el estado.',
-      link: '/admin/tramites',
-    })
-  }
-
-  // Trámites sin cobrar con honorarios altos
-  const sinCobrar = tramites.filter(t =>
-    !t.pagado && t.honorarios > 0 &&
-    ['entregado', 'listo_para_retirar'].includes(t.estado)
-  )
-  const totalSinCobrar = sinCobrar.reduce((a, t) => a + (t.honorarios ?? 0), 0)
-  if (sinCobrar.length > 0) {
-    alertas.push({
-      id: 'sin-cobrar',
-      tipo: 'info',
-      titulo: `$${totalSinCobrar.toLocaleString('es-AR')} pendiente de cobro`,
-      detalle: `${sinCobrar.length} trámite${sinCobrar.length > 1 ? 's' : ''} entregado${sinCobrar.length > 1 ? 's' : ''} sin marcar como pagado.`,
-      link: '/admin/tramites',
-    })
-  }
-
-  return alertas
-}
-
-// ─── TOP CLIENTES POR VOLUMEN ─────────────────────────────────────────────────
-
-export interface TopCliente {
-  clienteId: string
-  nombre:    string
-  tramites:  number
-  ingresos:  number
-}
-
-export async function getTopClientes(gestoriaId: string, n = 5): Promise<TopCliente[]> {
-  const [snapTramites, snapClientes] = await Promise.all([
-    getDocs(query(tramitesCol, where('gestoriaId', '==', gestoriaId))),
-    getDocs(query(clientesCol, where('gestoriaId', '==', gestoriaId))),
-  ])
-  const clientes = Object.fromEntries(
-    snapClientes.docs.map(d => [d.id, d.data()])
-  )
-  const conteo: Record<string, { tramites: number; ingresos: number }> = {}
-
-  snapTramites.docs.forEach(d => {
-    const t = d.data() as Tramite
-    if (!conteo[t.clienteId]) conteo[t.clienteId] = { tramites: 0, ingresos: 0 }
-    conteo[t.clienteId].tramites++
-    if (t.pagado) conteo[t.clienteId].ingresos += (t.honorarios ?? 0)
-  })
-
-  return Object.entries(conteo)
-    .map(([clienteId, data]) => ({
-      clienteId,
-      nombre: clientes[clienteId]
-        ? `${clientes[clienteId].apellido}, ${clientes[clienteId].nombre}`
-        : 'Cliente eliminado',
-      ...data,
-    }))
-    .sort((a, b) => b.ingresos - a.ingresos)
-    .slice(0, n)
+  return Object.entries(meses).sort(([a],[b]) => a.localeCompare(b)).map(([,v]) => v)
 }

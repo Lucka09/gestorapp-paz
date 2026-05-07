@@ -18,12 +18,25 @@ export function subscribeTramites(
   const q = query(
     tramitesCol,
     where('gestoriaId', '==', gestoriaId),
-    orderBy('creadoEn', 'desc')
+    orderBy('creadoEn', 'desc'),
+    limit(300)  // ⚡ evita lecturas ilimitadas
   )
   return onSnapshot(q, snap =>
     callback(snap.docs.map(d => ({ ...d.data(), id: d.id }) as Tramite))
   )
 }
+
+// ⚡ getDocs version para TanStack Query (no mantiene listener permanente)
+export async function getTramites(gestoriaId: string, cantidad = 300): Promise<Tramite[]> {
+  const snap = await getDocs(query(
+    tramitesCol,
+    where('gestoriaId', '==', gestoriaId),
+    orderBy('creadoEn', 'desc'),
+    limit(cantidad),
+  ))
+  return snap.docs.map(d => ({ ...d.data(), id: d.id }) as Tramite)
+}
+
 
 // Trámites propios de un gestor (asignados o creados por su usuario)
 export function subscribeTramitesPropios(

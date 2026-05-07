@@ -1,6 +1,6 @@
 import {
   getDocs, getDoc, addDoc, updateDoc, deleteDoc,
-  query, where, orderBy, serverTimestamp,
+  query, where, orderBy, serverTimestamp, limit,
   onSnapshot, type Unsubscribe,
 } from 'firebase/firestore'
 import { vehiculosCol, vehiculoDoc, clienteDoc } from './collections'
@@ -15,12 +15,25 @@ export function subscribeVehiculos(
   const q = query(
     vehiculosCol,
     where('gestoriaId', '==', gestoriaId),
-    orderBy('patente')
+    orderBy('patente'),
+    limit(500)  // ⚡
   )
   return onSnapshot(q, snap =>
     callback(snap.docs.map(d => ({ ...d.data(), id: d.id }) as Vehiculo))
   )
 }
+
+// ⚡ getDocs version para TanStack Query
+export async function getVehiculos(gestoriaId: string): Promise<Vehiculo[]> {
+  const snap = await getDocs(query(
+    vehiculosCol,
+    where('gestoriaId', '==', gestoriaId),
+    orderBy('patente'),
+    limit(500),
+  ))
+  return snap.docs.map(d => ({ ...d.data(), id: d.id }) as Vehiculo)
+}
+
 
 export function subscribeVehiculosPorCliente(
   clienteId:  string,

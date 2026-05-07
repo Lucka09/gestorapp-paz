@@ -25,6 +25,7 @@ export function subscribeClientes(
     clientesCol,
     where('gestoriaId', '==', gestoriaId),
     orderBy('apellido'),
+    limit(500),  // ⚡
   )
   return onSnapshot(q, snap =>
     callback(snap.docs.map(d => ({ ...d.data(), id: d.id })))
