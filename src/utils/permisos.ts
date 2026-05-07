@@ -45,9 +45,13 @@ export interface Permisos {
   verConfiguracion:     boolean
   editarConfiguracion:  boolean
 
-  // Equipo ← nuevos
+  // Equipo
   verEquipo:            boolean
   gestionarEquipo:      boolean
+
+  // Finanzas — solo propietario y superadmin
+  verCobranzas:         boolean   // página de cobranzas completa
+  verReportes:          boolean   // reportes contables / financieros
 }
 
 // ─── PERMISOS POR ROL ─────────────────────────────────────────────────────────
@@ -65,21 +69,23 @@ const PERMISOS: Record<Rol, Permisos> = {
     verDashboard: true, verMetricasFinancieras: true, verCRM: true,
     exportarDatos: true, verSeguimiento: true, crearSeguimiento: true,
     verConfiguracion: true, editarConfiguracion: true,
-    verEquipo: true, gestionarEquipo: true,   // ← propietario: acceso total
+    verEquipo: true, gestionarEquipo: true,
+    verCobranzas: true, verReportes: true,  // ← acceso financiero total
   },
 
-  // ── ADMIN — igual a propietario ───────────────────────────────────────────
+  // ── ADMIN — igual a propietario EXCEPTO finanzas ─────────────────────────
   admin: {
     verClientes: true, crearClientes: true, editarClientes: true,
     eliminarClientes: true, darAccesoPortal: true,
     verVehiculos: true, crearVehiculos: true, editarVehiculos: true,
     verTramites: true, crearTramites: true, cambiarEstadoTramite: true,
-    verHonorariosDetalle: true, marcarPagado: true, verObsInternas: true,
+    verHonorariosDetalle: false, marcarPagado: false, verObsInternas: true,
     verTurnos: true, crearTurnos: true, confirmarTurnos: true, cancelarTurnos: true,
-    verDashboard: true, verMetricasFinancieras: true, verCRM: true,
-    exportarDatos: true, verSeguimiento: true, crearSeguimiento: true,
+    verDashboard: true, verMetricasFinancieras: false, verCRM: true,
+    exportarDatos: false, verSeguimiento: true, crearSeguimiento: true,
     verConfiguracion: true, editarConfiguracion: true,
-    verEquipo: true, gestionarEquipo: true,   // ← admin: acceso total
+    verEquipo: true, gestionarEquipo: true,
+    verCobranzas: false, verReportes: false,  // ← sin acceso financiero
   },
 
   // ── VENDEDOR — NO gestiona equipo ─────────────────────────────────────────
@@ -94,6 +100,7 @@ const PERMISOS: Record<Rol, Permisos> = {
     exportarDatos: false, verSeguimiento: true, crearSeguimiento: true,
     verConfiguracion: false, editarConfiguracion: false,
     verEquipo: false, gestionarEquipo: false,
+    verCobranzas: false, verReportes: false,
   },
 
   // ── OPERADOR — NO gestiona equipo ─────────────────────────────────────────
@@ -108,6 +115,7 @@ const PERMISOS: Record<Rol, Permisos> = {
     exportarDatos: false, verSeguimiento: false, crearSeguimiento: false,
     verConfiguracion: false, editarConfiguracion: false,
     verEquipo: false, gestionarEquipo: false,
+    verCobranzas: false, verReportes: false,
   },
 
   // ── SUPERADMIN — acceso total ─────────────────────────────────────────────
@@ -119,11 +127,11 @@ const PERMISOS: Record<Rol, Permisos> = {
     verTurnos: true, crearTurnos: true, confirmarTurnos: true, cancelarTurnos: true,
     exportarDatos: true, verDashboard: true, verCRM: true, editarConfiguracion: true,
     verMetricasFinancieras: true, verSeguimiento: true, crearSeguimiento: true,
-    verConfiguracion: true,
-    verEquipo: true, gestionarEquipo: true,
+    verConfiguracion: true, verEquipo: true, gestionarEquipo: true,
+    verCobranzas: true, verReportes: true,
   },
 
-  // ── GESTOR (mandatario) — solo su portal de trámites ───────────────────────
+  // ── GESTOR (mandatario) — solo su portal de trámites ──────────────────────
   gestor: {
     verClientes: false, crearClientes: false, editarClientes: false,
     eliminarClientes: false, darAccesoPortal: false,
@@ -135,9 +143,10 @@ const PERMISOS: Record<Rol, Permisos> = {
     exportarDatos: false, verSeguimiento: false, crearSeguimiento: false,
     verConfiguracion: false, editarConfiguracion: false,
     verEquipo: false, gestionarEquipo: false,
+    verCobranzas: false, verReportes: false,
   },
 
-  // ── CLIENTE — solo su portal ───────────────────────────────────────────────
+  // ── CLIENTE — solo su portal ──────────────────────────────────────────────
   cliente: {
     verClientes: false, crearClientes: false, editarClientes: false,
     eliminarClientes: false, darAccesoPortal: false,
@@ -149,6 +158,7 @@ const PERMISOS: Record<Rol, Permisos> = {
     exportarDatos: false, verSeguimiento: false, crearSeguimiento: false,
     verConfiguracion: false, editarConfiguracion: false,
     verEquipo: false, gestionarEquipo: false,
+    verCobranzas: false, verReportes: false,
   },
 }
 

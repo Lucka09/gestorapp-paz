@@ -16,6 +16,8 @@ export function usePermisos() {
     esVendedor:    rol === 'vendedor',
     esOperador:    rol === 'operador',
     esCliente:     rol === 'cliente',
+    // Financiero — true solo para propietario y superadmin
+    verFinanzas:   rol === 'propietario' || rol === 'superadmin',
   }
 }
 

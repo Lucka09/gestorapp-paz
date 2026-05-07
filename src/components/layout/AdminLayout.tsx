@@ -2,8 +2,8 @@ import { NavLink, Outlet } from 'react-router-dom'
 import {
   LayoutDashboard, Users, Car, FileText,
   CalendarDays, LogOut, Radar, Menu, X,
-  AlertTriangle, Ban, WifiOff,TrendingUp, CheckSquare, UserCog,
-  Calculator, Upload, Settings,
+  AlertTriangle, Ban, WifiOff, TrendingUp, CheckSquare, UserCog,
+  Calculator, Upload, Settings, DollarSign, BarChart2,
 } from 'lucide-react'
 import { useState } from 'react'
 import { signOut }     from 'firebase/auth'
@@ -38,17 +38,19 @@ const PREFETCH_MAP: Record<string, () => Promise<unknown>> = {
 }
 
 const NAV_ITEMS_ALL = [
-  { to: '/admin/dashboard',        icon: LayoutDashboard, label: 'Dashboard',        permiso: 'verDashboard'  },
-  { to: '/admin/clientes',         icon: Users,           label: 'Clientes',         permiso: 'verClientes'   },
-  { to: '/admin/vehiculos',        icon: Car,             label: 'Vehículos',        permiso: 'verVehiculos'  },
-  { to: '/admin/tramites',         icon: FileText,        label: 'Trámites',         permiso: 'verTramites'   },
-  { to: '/admin/torre-de-control', icon: Radar,           label: 'Torre de Control', permiso: 'verTramites'   },
-  { to: '/admin/turnos',           icon: CalendarDays,    label: 'Turnos',           permiso: 'verTurnos'     },
-  { to: '/admin/pipeline',         icon: TrendingUp,      label: 'Pipeline',         permiso: 'verPipeline'   },
-  { to: '/admin/tareas',           icon: CheckSquare,     label: 'Tareas',           permiso: 'verTramites'   },
-  { to: '/admin/equipo',           icon: UserCog,         label: 'Equipo',           permiso: 'verEquipo'     },
-  { to: '/admin/calculadora',      icon: Calculator,      label: 'Calculadora',      permiso: 'verDashboard'  },
-  { to: '/admin/importar',         icon: Upload,          label: 'Importar',         permiso: 'verClientes'   },
+  { to: '/admin/dashboard',        icon: LayoutDashboard, label: 'Dashboard',        permiso: 'verDashboard'   },
+  { to: '/admin/clientes',         icon: Users,           label: 'Clientes',         permiso: 'verClientes'    },
+  { to: '/admin/vehiculos',        icon: Car,             label: 'Vehículos',        permiso: 'verVehiculos'   },
+  { to: '/admin/tramites',         icon: FileText,        label: 'Trámites',         permiso: 'verTramites'    },
+  { to: '/admin/torre-de-control', icon: Radar,           label: 'Torre de Control', permiso: 'verTramites'    },
+  { to: '/admin/turnos',           icon: CalendarDays,    label: 'Turnos',           permiso: 'verTurnos'      },
+  { to: '/admin/pipeline',         icon: TrendingUp,      label: 'Pipeline',         permiso: 'verCRM'         },
+  { to: '/admin/cobranzas',        icon: DollarSign,      label: 'Cobranzas',        permiso: 'verCobranzas'   },
+  { to: '/admin/reportes',         icon: BarChart2,       label: 'Reportes',         permiso: 'verReportes'    },
+  { to: '/admin/tareas',           icon: CheckSquare,     label: 'Tareas',           permiso: 'verTramites'    },
+  { to: '/admin/equipo',           icon: UserCog,         label: 'Equipo',           permiso: 'verEquipo'      },
+  { to: '/admin/calculadora',      icon: Calculator,      label: 'Calculadora',      permiso: 'verDashboard'   },
+  { to: '/admin/importar',         icon: Upload,          label: 'Importar',         permiso: 'verClientes'    },
   { to: '/admin/configuracion',    icon: Settings,        label: 'Configuración',    permiso: 'verConfiguracion' },
 ] as const
 
