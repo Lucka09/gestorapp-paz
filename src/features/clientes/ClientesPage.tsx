@@ -3,7 +3,7 @@ import { Search, Plus, Phone, Mail, ChevronRight, Download, ChevronLeft, Loader2
 import { useGestoria, useGestoriaId } from '@/context/GestoriaContext'
 import { useClientesPaginados } from '@/hooks/useClientes'
 import { crearCliente } from '@/lib/firestore/clientes'
-import { verificarLimiteClientes, LimitePlanError } from '@/lib/firestore/planLimits'
+import { verificarLimiteClientes, LimitePlanError } from '@/lib/firestore/planlimits'
 import { usePlanLimites } from '@/hooks/usePlanLimites'
 import { useAuth } from '@/hooks/useAuth'
 import { Button, Card, PageHeader, EmptyState, Spinner } from '@/components/ui'

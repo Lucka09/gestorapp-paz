@@ -16,7 +16,7 @@ import {
   enviarResetPassword, generarPasswordTemporal,
   PERMISOS_POR_ROL, type MiembroEquipo,
 } from '@/lib/firestore/equipo'
-import { LimitePlanError } from '@/lib/firestore/planLimits'
+import { LimitePlanError } from '@/lib/firestore/planlimits'
 import { PageHeader, Button, Input, Select, Spinner } from '@/components/ui'
 import Modal        from '@/components/shared/Modal'
 import ConfirmDialog from '@/components/shared/ConfirmDialog'

@@ -11,7 +11,7 @@ import {
 } from 'firebase/firestore'
 import { auth, secondaryAuth } from '../firebase'
 import { userDoc, usersCol } from './collections'
-import { verificarLimiteUsuarios } from './planLimits'
+import { verificarLimiteUsuarios } from './planlimits'
 import type { Usuario, Rol, PlanGestoria } from '@/types'
 
 // ─── TIPOS ────────────────────────────────────────────────────────────────────

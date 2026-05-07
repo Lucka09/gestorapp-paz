@@ -6,7 +6,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { useGestoria } from '@/context/GestoriaContext'
-import { contarClientes, contarUsuariosActivos } from '@/lib/firestore/planLimits'
+import { contarClientes, contarUsuariosActivos } from '@/lib/firestore/planlimits'
 import { PLAN_CONFIG } from '@/types'
 
 export interface PlanLimitesState {
