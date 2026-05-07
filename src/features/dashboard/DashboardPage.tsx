@@ -35,6 +35,7 @@ import { formatPesos } from '@/utils'
 import { format } from 'date-fns/format'
 import { es } from 'date-fns/locale/es'
 import { usePageTitle } from '@/hooks/usePageTitle'
+import { usePermisos } from '@/hooks/usePermisos'
 
 interface Alerta {
   id: string
@@ -116,6 +117,7 @@ function CustomTooltip({ active, payload, label }: CustomTooltipProps) {
 export default function DashboardPage() {
   const navigate = useNavigate()
   const { user } = useAuth()
+  const { verFinanzas } = usePermisos()
   usePageTitle('Dashboard')
   const { metricas, loading: loadM } = useMetricas()
   const { tramites }                 = useUltimosTramites()
@@ -202,11 +204,14 @@ export default function DashboardPage() {
           <KpiCard label="Trámites hoy"  value={metricas?.tramitesHoy ?? 0}     icon={FileText}    color="#D4621A" onClick={() => navigate('/admin/tramites')} />
           <KpiCard label="Activos"        value={metricas?.tramitesActivos ?? 0}  icon={Clock}       color="#3B82F6" sub={`${metricas?.tramitesPendientes ?? 0} pendientes`} onClick={() => navigate('/admin/tramites')} />
           <KpiCard label="Turnos hoy"     value={metricas?.turnosHoy ?? 0}        icon={CalendarDays} color="#10B981" sub={`${metricas?.turnosProximos ?? 0} próx. 7 días`} onClick={() => navigate('/admin/turnos')} />
-          <KpiCard label="Sin cobrar"     value={metricas?.sinPagar ?? 0}          icon={DollarSign}  color="#EF4444" sub="trámites con saldo" onClick={() => navigate('/admin/tramites')} />
+          {verFinanzas && (
+            <KpiCard label="Sin cobrar" value={metricas?.sinPagar ?? 0} icon={DollarSign} color="#EF4444" sub="trámites con saldo" onClick={() => navigate('/admin/tramites')} />
+          )}
         </div>
       </div>
 
-      {/* KPIs — Financiero */}
+      {/* KPIs — Financiero — solo propietario */}
+      {verFinanzas && (
       <div>
         <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3">Financiero</p>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -216,8 +221,10 @@ export default function DashboardPage() {
           <KpiCard label="Pipeline"         value={`${metPipeline.conversion}%`}              icon={Target}     color="#F97316" sub={`${metPipeline.cerrados} cerrados`} onClick={() => navigate('/admin/pipeline')} />
         </div>
       </div>
+      )}
 
-      {/* Gráficos fila 1 */}
+      {/* Gráficos financieros — solo propietario */}
+      {verFinanzas && (
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
 
         {/* Ingresos por mes */}
@@ -372,6 +379,7 @@ export default function DashboardPage() {
           )}
         </Card>
       </div>
+      )} {/* fin verFinanzas */}
 
       {/* Agenda + Últimos trámites + Tareas */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
