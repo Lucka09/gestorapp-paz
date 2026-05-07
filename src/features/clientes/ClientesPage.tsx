@@ -129,7 +129,7 @@ export default function ClientesPage() {
       refetch()
       setModal(false)
       navigate(`/admin/clientes/${id}`)
-    } catch (err) {
+    } catch (err: unknown) {
       if (err instanceof LimitePlanError) {
         toast.error(err.mensajeUpgrade, { duration: 6000, icon: '🔒' })
       } else {
