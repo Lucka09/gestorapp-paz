@@ -63,7 +63,7 @@ export default function BusquedaGlobal() {
     if (!acc[r.tipo]) acc[r.tipo] = []
     acc[r.tipo].push(r)
     return acc
-  }, {} as any)
+  }, {} as Record<TipoResultado, typeof resultados>)
 
   const tiposOrden: TipoResultado[] = ['cliente', 'vehiculo', 'tramite', 'turno']
   const tiposEnResultados = tiposOrden.filter(t => grupos[t]?.length > 0)
@@ -79,7 +79,7 @@ export default function BusquedaGlobal() {
       <div className={`flex items-center gap-2 rounded-xl border transition-all duration-150
                        bg-white px-3 py-2
                        ${abierto
-                         ? 'border-[var(--gp-orange)] shadow-[0_0_0_3px_var(--gp-orange-subtle)]'
+                         ? 'border-gp-orange shadow-[0_0_0_3px_var(--gp-orange-subtle)]'
                          : 'border-[var(--color-border)] hover:border-gray-300'
                        }`}>
         {cargando
@@ -106,8 +106,8 @@ export default function BusquedaGlobal() {
             }
           }}
           placeholder="Buscar cliente, patente, trámite..."
-          className="flex-1 bg-transparent outline-none text-sm text-[var(--color-text-1)]
-                     placeholder-[var(--color-text-4)] min-w-0"
+          className="flex-1 bg-transparent outline-none text-sm text-gp-text-1
+                     placeholder-gp-text-4 min-w-0"
           autoComplete="off"
           spellCheck={false}
         />
@@ -140,7 +140,7 @@ export default function BusquedaGlobal() {
           role="listbox"
           aria-label="Resultados de búsqueda"
           className="absolute top-full left-0 right-0 mt-2 bg-white rounded-2xl
-                     border border-[var(--color-border)] shadow-2xl z-[9999]
+                     border border-gp-border shadow-2xl z-[9999]
                      max-h-[70vh] overflow-y-auto"
           style={{
             animation: 'modal-panel-in 0.15s cubic-bezier(0.34,1.56,0.64,1)',
@@ -191,7 +191,7 @@ export default function BusquedaGlobal() {
                           className={`w-full text-left flex items-center gap-3 px-4 py-2.5
                                       transition-colors
                                       ${isSelected
-                                        ? 'bg-[var(--gp-orange-pale)]'
+                                        ? 'bg-gp-orange-pale'
                                         : 'hover:bg-gray-50'
                                       }`}
                         >

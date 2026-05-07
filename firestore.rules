@@ -22,6 +22,15 @@ service cloud.firestore {
         userDoc().rol in ['propietario','admin','vendedor','operador'] &&
         userDoc().gestoriaId != null;
     }
+    function isGestor() {
+      return isAuth() && userDoc().rol == 'gestor' && userDoc().gestoriaId != null;
+    }
+    function tramiteEsPropio() {
+      return resource.data.asignadoA == request.auth.uid || resource.data.creadoPor == request.auth.uid;
+    }
+    function tareaEsPropia() {
+      return resource.data.asignadoA == request.auth.uid || resource.data.creadoPor == request.auth.uid;
+    }
     function isOwnerOrAdmin() {
       return isAuth() && userDoc().rol in ['propietario','admin'];
     }
@@ -82,13 +91,15 @@ service cloud.firestore {
 
     match /tramites/{tramiteId} {
       allow read: if isSuperAdmin() || (isStaff() && docDeMiGestoria()) ||
+        (isGestor() && docDeMiGestoria() && tramiteEsPropio()) ||
         (isAuth() && userDoc().rol == 'cliente' &&
          resource.data.clienteId == userDoc().clienteId && docDeMiGestoria()) ||
         resource.data.tokenPublico != null;
       allow create: if isSuperAdmin() || (isStaff() && nuevaDocDeMiGestoria());
       allow update: if isSuperAdmin() ||
         (isOwnerOrAdmin() && docDeMiGestoria()) ||
-        (isAuth() && userDoc().rol == 'operador' && docDeMiGestoria() && noFinancialFields());
+        (isAuth() && userDoc().rol == 'operador' && docDeMiGestoria() && noFinancialFields()) ||
+        (isGestor() && docDeMiGestoria() && tramiteEsPropio() && noFinancialFields());
       allow delete: if isSuperAdmin() || (isOwnerOrAdmin() && docDeMiGestoria());
     }
 
@@ -138,9 +149,12 @@ service cloud.firestore {
     }
 
     match /tareas/{tareaId} {
-      allow read: if isSuperAdmin() || (isStaff() && docDeMiGestoria());
-      allow create: if isSuperAdmin() || (isStaff() && nuevaDocDeMiGestoria());
-      allow update, delete: if isSuperAdmin() || (isStaff() && docDeMiGestoria());
+      allow read: if isSuperAdmin() || (isStaff() && docDeMiGestoria()) ||
+        (isGestor() && docDeMiGestoria() && tareaEsPropia());
+      allow create: if isSuperAdmin() || (isStaff() && nuevaDocDeMiGestoria()) ||
+        (isGestor() && nuevaDocDeMiGestoria());
+      allow update, delete: if isSuperAdmin() || (isStaff() && docDeMiGestoria()) ||
+        (isGestor() && docDeMiGestoria() && tareaEsPropia());
     }
 
     match /vencimientos/{vencimientoId} {
@@ -155,7 +169,7 @@ service cloud.firestore {
 
     match /audit_log/{entradaId} {
       allow read: if isSuperAdmin() || (isOwnerOrAdmin() && docDeMiGestoria());
-      allow create: if isSuperAdmin() || isStaff();
+      allow create: if isSuperAdmin() || isStaff() || isGestor();
       allow update, delete: if isSuperAdmin();
     }
 

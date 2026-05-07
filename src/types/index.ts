@@ -1,12 +1,55 @@
-import { Timestamp } from 'firebase/firestore'
+import { Timestamp, } from 'firebase/firestore'
+
+// ─── GESTORÍAS (TENANTS) ──────────────────────────────────────────────────────
+
+export type EstadoGestoria = 'activa' | 'trial' | 'suspendida' | 'cancelada'
+export type PlanGestoria = 'starter' | 'profesional' | 'enterprise'
+
+export interface BrandingGestoria {
+  logoUrl?: string         // Cambié 'logo' por 'logoUrl'
+  colorPrimario?: string
+  colorSecundario?: string
+  nombreComercial?: string // Agregado
+  slogan?: string          // Agregado
+}
+
+export interface Gestoria {
+  id: string
+  nombre: string
+  slug: string // para la URL: gestoria-paz
+   plan: 'starter' | 'profesional' | 'enterprise';
+  maxClientes: number;
+  maxUsuarios: number;
+  responsable: string;
+  email: string;
+  telefono: string;
+  direccion: string;
+  localidad: string;
+  provincia: string;
+  estado: EstadoGestoria
+  branding?: BrandingGestoria
+  configuracionId: string
+  creadoEn: Timestamp
+  venceEn: Timestamp | null
+}
+
+export const PLAN_CONFIG: Record<PlanGestoria, { 
+  maxUsuarios: number, 
+  maxClientes: number, 
+  label: string, 
+  precio: number // Agregamos precio aquí para corregir [cite: 9, 10, 11]
+}> = {
+  starter: { maxUsuarios: 2, maxClientes: 100, label: 'Starter', precio: 50000 },
+  profesional: { maxUsuarios: 10, maxClientes: 1000, label: 'Profesional', precio: 120000 },
+  enterprise: { maxUsuarios: 50, maxClientes: 9999, label: 'Enterprise', precio: 150000 },
+};
 
 // ─── ENUMS ────────────────────────────────────────────────────────────────────
 
-export type Rol = 'admin' | 'propietario' | 'vendedor' | 'operador' | 'cliente' | 'superadmin'
+export type Rol = 'admin' | 'propietario' | 'vendedor' | 'operador' | 'cliente' | 'superadmin' | 'gestor'
 
 export type TipoVehiculo = 'auto' | 'moto' | 'camion' | 'utilitario' | 'otro'
 
-// Servicios reales de Gestoría Paz
 export type TipoTramite =
   | 'transferencia'
   | 'alta'
@@ -50,145 +93,138 @@ export type TipoNotificacion =
   | 'estado_tramite'
   | 'turno'
   | 'documentacion'
+  | 'vencimiento'
   | 'general'
-
-// ─── BASE MULTI-TENANT ────────────────────────────────────────────────────────
-//
-// Todos los documentos que pertenecen a una gestoría específica deben extender
-// DocTenant. Esto obliga a TypeScript a exigir gestoriaId en cada creación,
-// lo que hace imposible crear un documento sin tenant por error.
-//
-// Excepción: Usuario usa gestoriaId?: string (opcional) porque el superadmin
-// JAH-NISSI no pertenece a ninguna gestoría.
-
-export interface DocTenant {
-  /** ID de la gestoría propietaria. Requerido en todos los documentos tenant. */
-  gestoriaId: string
-}
 
 // ─── MODELOS ──────────────────────────────────────────────────────────────────
 
 export interface Usuario {
-  uid:          string
-  email:        string
-  nombre:       string
-  apellido:     string
-  telefono:     string
-  rol:          Rol
-  clienteId:    string | null
-  activo:       boolean
-  gestoriaId?:  string    // undefined solo para superadmin JAH-NISSI
-  creadoEn:     Timestamp
+  uid: string
+  email: string
+  nombre: string
+  apellido: string
+  telefono: string
+  rol: Rol
+  gestoriaId: string // Requerido para multi-tenancy
+  clienteId: string | null
+  activo: boolean
+  creadoEn: Timestamp
   ultimoAcceso: Timestamp
 }
 
-export interface Cliente extends DocTenant {
-  id:            string
-  nombre:        string
-  apellido:      string
-  dni:           string
-  cuit:          string
-  telefono:      string
-  email:         string
-  direccion:     string
-  localidad:     string
-  userId:        string | null
-  vehiculosIds:  string[]
-  observaciones: string
-  creadoEn:      Timestamp
-  creadoPor:     string
+export interface Cliente {
+  id:           string
+  gestoriaId:   string
+  nombre:       string
+  apellido:     string
+  dni:          string
+  cuit:         string
+  telefono:     string
+  email:        string
+  direccion:    string
+  localidad:    string
+  userId:       string | null
+  vehiculosIds: string[]
+  observaciones:string
+  creadoEn:     Timestamp
+  creadoPor:    string
 }
 
 export interface TitularHistorial {
   clienteId: string
-  desde:     Timestamp
-  hasta:     Timestamp | null
+  desde: Timestamp
+  hasta: Timestamp | null
 }
 
-export interface Vehiculo extends DocTenant {
-  id:                 string
-  patente:            string
-  tipo:               TipoVehiculo
-  marca:              string
-  modelo:             string
-  anio:               number
-  color:              string
-  nroMotor:           string
-  nroChasis:          string
-  clienteId:          string
+export interface Vehiculo {
+  id:           string
+  gestoriaId:   string
+  patente:      string
+  tipo:         TipoVehiculo
+  marca:        string
+  modelo:       string
+  anio:         number
+  color:        string
+  nroMotor:     string
+  nroChasis:    string
+  clienteId:    string
   historialTitulares: TitularHistorial[]
-  tramitesIds:        string[]
-  creadoEn:           Timestamp
+  tramitesIds:  string[]
+  creadoEn:     Timestamp
 }
 
 export interface DocumentoTramite {
-  nombre:      string
-  url:         string
-  tipo:        TipoDocumento
-  subidoPor:   string
+  nombre: string
+  url: string
+  tipo: TipoDocumento
+  subidoPor: string
   fechaSubida: Timestamp
 }
 
 export interface HistorialEstado {
   estadoAnterior: EstadoTramite
-  estadoNuevo:    EstadoTramite
-  cambiadoPor:    string
-  fecha:          Timestamp
-  nota:           string
+  estadoNuevo: EstadoTramite
+  cambiadoPor: string
+  fecha: Timestamp
+  nota: string
 }
 
-export interface Tramite extends DocTenant {
-  id:                    string
-  numero:                string
-  tipo:                  TipoTramite
-  estado:                EstadoTramite
-  clienteId:             string
-  vehiculoId:            string
-  patente:               string
-  descripcion:           string
+export interface Tramite {
+  id: string
+  gestoriaId: string // Agregado para resolver TS2339
+  numero: string
+  tipo: TipoTramite
+  estado: EstadoTramite
+  clienteId: string
+  vehiculoId: string
+  patente: string
+  descripcion: string
   observacionesInternas: string
-  documentos:            DocumentoTramite[]
-  historialEstados:      HistorialEstado[]
-  honorarios:            number
-  pagado:                boolean
-  fechaPago:             Timestamp | null
-  formaPago?:            string
-  notasPago?:            string
-  turnoId:               string | null
-  asignadoA:             string | null
-  tokenPublico?:         string      // token único para el QR público
-  creadoEn:              Timestamp
-  creadoPor:             string
-  actualizadoEn:         Timestamp
+  documentos: DocumentoTramite[]
+  historialEstados: HistorialEstado[]
+  honorarios: number
+  pagado: boolean
+  fechaPago: Timestamp | null
+  formaPago?: string
+  notasPago?: string
+  turnoId: string | null
+  asignadoA: string | null
+  tokenPublico?: string
+  creadoEn: Timestamp
+  creadoPor: string
+  actualizadoEn: Timestamp
 }
 
-export interface Turno extends DocTenant {
-  id:                string
-  clienteId:         string
-  tramiteId:         string | null
-  tipoTramite:       TipoTramite
-  fecha:             Timestamp
-  horaInicio:        string
-  horaFin:           string
-  estado:            EstadoTurno
+export interface Turno {
+  id:          string
+  gestoriaId:  string
+  clienteId:   string
+  clienteNombre: string;
+  tramiteId:   string | null
+  tipoTramite: TipoTramite
+  fecha:       Timestamp
+  horaInicio:  string
+  horaFin:     string
+  estado:      EstadoTurno
   motivoCancelacion: string
-  notas:             string
-  creadoEn:          Timestamp
+  notas:       string
+  creadoEn:    Timestamp
 }
 
-export interface Notificacion extends DocTenant {
-  id:             string
+export interface Notificacion {
+  id: string
+  gestoriaId: string // Agregado
   destinatarioId: string
-  titulo:         string
-  mensaje:        string
-  tipo:           TipoNotificacion
-  tramiteId:      string | null
-  turnoId:        string | null
-  leida:          boolean
-  creadoEn:       Timestamp
+  titulo: string
+  mensaje: string
+  tipo: TipoNotificacion
+  tramiteId: string | null
+  turnoId: string | null
+  leida: boolean
+  creadoEn: Timestamp
 }
 
-// ─── HISTORIAL DE ACTIVIDAD (AUDIT TRAIL) ────────────────────────────────────
+// ─── AUDIT TRAIL ──────────────────────────────────────────────────────────────
 
 export type AccionAudit =
   | 'crear'
@@ -202,7 +238,7 @@ export type AccionAudit =
   | 'cancelar_turno'
   | 'importar'
   | 'login'
-  | 'acceso_denegado'  // intento de acceso a ruta sin permisos
+  | 'acceso_denegado' // Requerido por router/index.tsx
 
 export type EntidadAudit =
   | 'cliente'
@@ -212,28 +248,28 @@ export type EntidadAudit =
   | 'usuario'
   | 'configuracion'
   | 'presupuesto'
-  | 'sistema'          // eventos del sistema (ej: acceso_denegado, errores)
+  | 'sistema' // Requerido por router/index.tsx
 
 export interface EntradaAudit {
-  id:            string
-  accion:        AccionAudit
-  entidad:       EntidadAudit
-  entidadId:     string
-  entidadLabel:  string          // ej: "AB123CD — Transferencia" o "García, Juan"
-  usuarioId:     string
-  usuarioNombre: string
-  usuarioRol:    Rol
-  gestoriaId?:   string          // opcional: superadmin no tiene gestoriaId
-  antes?:        Record<string, unknown>   // snapshot del valor anterior
-  despues?:      Record<string, unknown>   // snapshot del valor nuevo
-  nota?:         string                // descripción legible del cambio
-  ip?:           string
-  timestamp:     Timestamp               // serverTimestamp
+  id:              string
+  gestoriaId?:     string // Opcional para logs de sistema global
+  accion:          AccionAudit
+  entidad:         EntidadAudit
+  entidadId:       string
+  entidadLabel:    string
+  usuarioId:       string
+  usuarioNombre:   string
+  usuarioRol:      Rol
+  antes?:          Record<string, unknown>
+  despues?:        Record<string, unknown>
+  nota?:           string
+  ip?:             string
+  timestamp:       Timestamp | number
 }
 
 export interface HorarioDia {
   inicio: string
-  fin:    string
+  fin: string
   activo: boolean
 }
 
@@ -245,11 +281,11 @@ export interface Tarifa {
 }
 
 export interface ConfiguracionBancaria {
-  titular: string
-  banco:   string
-  cbu:     string
-  alias:   string
-  cuit:    string
+  titular:   string
+  banco:     string
+  cbu:       string
+  alias:     string
+  cuit:      string
 }
 
 export interface ConfiguracionRRSS {
@@ -278,40 +314,40 @@ export interface Configuracion {
   turnosMaxDia:     number
   diasAnticipacion: number   // con cuántos días de anticipación se puede reservar
   // Trámites
-  tramitesActivos: TipoTramite[]
-  tarifas:         Tarifa[]
+  tramitesActivos:  TipoTramite[]
+  tarifas:          Tarifa[]
   // Financiero
-  datosBancarios: ConfiguracionBancaria
+  datosBancarios:   ConfiguracionBancaria
   // Contacto y RRSS
-  redesSociales: ConfiguracionRRSS
+  redesSociales:    ConfiguracionRRSS
   // Mensajes automáticos
-  mensajeBienvenida:   string
-  mensajeTurnoConfirm: string
-  mensajeListoRetirar: string
+  mensajeBienvenida:    string
+  mensajeTurnoConfirm:  string
+  mensajeListoRetirar:  string
   // Meta
-  actualizadoEn:  Timestamp
-  actualizadoPor: string
+  actualizadoEn:    Timestamp
+  actualizadoPor:   string
 }
 
 // ─── LABELS ───────────────────────────────────────────────────────────────────
 
 export const TIPO_TRAMITE_LABELS: Record<TipoTramite, string> = {
-  transferencia:            'Transferencia',
-  alta:                     'Alta de Vehículo',
-  baja:                     'Baja de Vehículo',
-  tramite_08:               'Trámite 08',
-  duplicado_titulo:         'Duplicado de Título',
-  duplicado_cedula:         'Duplicado de Cédula',
-  cambio_radicacion:        'Cambio de Radicación',
-  informe_dominio:          'Informe de Dominio',
-  certificado_dominio:      'Certificado de Dominio',
-  inscripcion_inicial:      'Inscripción Inicial',
-  prenda:                   'Prenda',
-  descargo_multa:           'Descargo de Multa PBA',
-  inhibicion:               'Inhibición',
-  levantamiento_inhibicion: 'Levantamiento de Inhibición',
-  vtv:                      'VTV',
-  otro:                     'Otro',
+  transferencia:           'Transferencia',
+  alta:                    'Alta de Vehículo',
+  baja:                    'Baja de Vehículo',
+  tramite_08:              'Trámite 08',
+  duplicado_titulo:        'Duplicado de Título',
+  duplicado_cedula:        'Duplicado de Cédula',
+  cambio_radicacion:       'Cambio de Radicación',
+  informe_dominio:         'Informe de Dominio',
+  certificado_dominio:     'Certificado de Dominio',
+  inscripcion_inicial:     'Inscripción Inicial',
+  prenda:                  'Prenda',
+  descargo_multa:          'Descargo de Multa PBA',
+  inhibicion:              'Inhibición',
+  levantamiento_inhibicion:'Levantamiento de Inhibición',
+  vtv:                     'VTV',
+  otro:                    'Otro',
 }
 
 export const ESTADO_TRAMITE_LABELS: Record<EstadoTramite, string> = {
@@ -371,8 +407,9 @@ export const ESTADO_TRAMITE_EMOJI: Record<EstadoTramite, string> = {
 export type PrioridadTarea = 'baja' | 'normal' | 'alta' | 'urgente'
 export type EstadoTarea    = 'pendiente' | 'en_progreso' | 'completada' | 'cancelada'
 
-export interface Tarea extends DocTenant {
+export interface Tarea {
   id:              string
+  gestoriaId:      string
   titulo:          string
   descripcion?:    string
   prioridad:       PrioridadTarea
@@ -388,8 +425,8 @@ export interface Tarea extends DocTenant {
   creadoPor:       string
   creadoPorNombre: string
   // Fechas
-  vencimiento?:    Timestamp  // Timestamp
-  recordatorio?:   Timestamp  // Timestamp — cuándo avisar
+  vencimiento?:    Timestamp
+  recordatorio?:   Timestamp
   completadaEn?:   Timestamp
   creadoEn:        Timestamp
   actualizadoEn:   Timestamp
@@ -427,7 +464,7 @@ export type EstadoVencimiento =
   | 'vencido'      // pasado
   | 'sin_datos'    // no cargado
 
-export interface Vencimiento extends DocTenant {
+export interface Vencimiento {
   id:              string
   vehiculoId:      string
   clienteId:       string
@@ -474,18 +511,18 @@ export type TipoNota =
   | 'advertencia'   // alerta sobre el cliente/trámite
   | 'seguimiento'   // acción de seguimiento
 
-export interface NotaInterna extends DocTenant {
-  id:          string
-  contenido:   string
-  tipo:        TipoNota
-  entidad:     'cliente' | 'tramite'
-  entidadId:   string
-  autorId:     string
-  autorNombre: string
-  autorRol:    string
-  importante:  boolean      // pinned
-  creadoEn:    Timestamp
-  editadoEn?:  Timestamp
+export interface NotaInterna {
+  id:            string
+  contenido:     string
+  tipo:          TipoNota
+  entidad:       'cliente' | 'tramite'
+  entidadId:     string
+  autorId:       string
+  autorNombre:   string
+  autorRol:      string
+  importante:    boolean      // pinned
+  creadoEn:      Timestamp
+  editadoEn?:    Timestamp
 }
 
 export const NOTA_TIPO_CONFIG: Record<TipoNota, {
@@ -494,80 +531,10 @@ export const NOTA_TIPO_CONFIG: Record<TipoNota, {
   color:  string
   bg:     string
 }> = {
-  general:     { label: 'Nota',        emoji: '📝', color: 'text-gray-700',   bg: 'bg-gray-100'   },
-  llamada:     { label: 'Llamada',     emoji: '📞', color: 'text-blue-700',   bg: 'bg-blue-100'   },
-  reunion:     { label: 'Reunión',     emoji: '🤝', color: 'text-purple-700', bg: 'bg-purple-100' },
-  importante:  { label: 'Importante',  emoji: '⭐', color: 'text-amber-700',  bg: 'bg-amber-100'  },
-  advertencia: { label: 'Advertencia', emoji: '⚠️', color: 'text-red-700',    bg: 'bg-red-100'    },
-  seguimiento: { label: 'Seguimiento', emoji: '🎯', color: 'text-emerald-700',bg: 'bg-emerald-100'},
-}
-
-// ─── MULTI-GESTORÍA ───────────────────────────────────────────────────────────
-
-export type PlanGestoria    = 'starter' | 'profesional' | 'enterprise'
-export type EstadoGestoria  = 'activa' | 'suspendida' | 'trial' | 'cancelada'
-
-export interface BrandingGestoria {
-  colorPrimario:   string      // hex — ej: '#D4621A'
-  colorSecundario: string      // hex — ej: '#1A1A1A'
-  logoUrl?:        string      // URL en Firebase Storage
-  logoBase64?:     string      // base64 para PDF
-  nombreComercial: string
-  slogan?:         string
-}
-
-export interface Gestoria {
-  id:          string
-  nombre:      string
-  nombreLegal: string
-  cuit:        string
-  responsable: string
-  email:       string
-  telefono1:   string
-  telefono2?:  string
-  direccion:   string
-  localidad:   string
-  provincia:   string
-  // Branding
-  branding:    BrandingGestoria
-  // Plan y estado
-  plan:        PlanGestoria
-  estado:      EstadoGestoria
-  // Límites por plan
-  maxUsuarios: number
-  maxClientes: number
-  // Meta
-  creadoEn:    Timestamp
-  vencePlan?:  Timestamp     // cuando vence el plan
-  notas?:      string  // notas internas JAH-NISSI sobre el cliente
-}
-
-export const PLAN_CONFIG: Record<PlanGestoria, {
-  label:       string
-  maxUsuarios: number
-  maxClientes: number
-  precio:      number      // ARS mensual
-  features:    string[]
-}> = {
-  starter: {
-    label:       'Starter',
-    maxUsuarios: 2,
-    maxClientes: 100,
-    precio:      25_000,
-    features:    ['Clientes y trámites', 'Turnos', 'Dashboard básico'],
-  },
-  profesional: {
-    label:       'Profesional',
-    maxUsuarios: 5,
-    maxClientes: 500,
-    precio:      55_000,
-    features:    ['Todo Starter', 'Pipeline CRM', 'Reportes PDF', 'Analytics', 'Backup'],
-  },
-  enterprise: {
-    label:       'Enterprise',
-    maxUsuarios: 20,
-    maxClientes: 9999,
-    precio:      110_000,
-    features:    ['Todo Profesional', 'Equipo ilimitado', 'Soporte prioritario', 'Onboarding'],
-  },
+  general:     { label: 'Nota',       emoji: '📝', color: 'text-gray-700',   bg: 'bg-gray-100'   },
+  llamada:     { label: 'Llamada',    emoji: '📞', color: 'text-blue-700',   bg: 'bg-blue-100'   },
+  reunion:     { label: 'Reunión',    emoji: '🤝', color: 'text-purple-700', bg: 'bg-purple-100' },
+  importante:  { label: 'Importante', emoji: '⭐', color: 'text-amber-700',  bg: 'bg-amber-100'  },
+  advertencia: { label: 'Advertencia',emoji: '⚠️', color: 'text-red-700',    bg: 'bg-red-100'    },
+  seguimiento: { label: 'Seguimiento',emoji: '🎯', color: 'text-emerald-700',bg: 'bg-emerald-100'},
 }

@@ -1,7 +1,8 @@
 import {
   addDoc, updateDoc, query, where,
-  orderBy, serverTimestamp, onSnapshot,
+  orderBy, onSnapshot,
   type Unsubscribe, Timestamp, getDoc,
+  type FieldValue,
 } from 'firebase/firestore'
 import { turnosCol, turnoDoc, clienteDoc } from './collections'
 import {
@@ -93,14 +94,21 @@ export type TurnoInput = {
   notas:       string
 }
 
+type TurnoFirestore = Omit<Turno, 'id'> & { creadoEn: Timestamp | FieldValue }
+
 export async function crearTurno(data: TurnoInput): Promise<string> {
-  const ref = await addDoc(turnosCol, {
+  const clienteSnap = await getDoc(clienteDoc(data.clienteId))
+  const clienteNombre = clienteSnap.exists() ? (clienteSnap.data().nombre ?? '') : ''
+
+  const turnoData: TurnoFirestore = {
     ...data,
+    clienteNombre,
     fecha:             Timestamp.fromDate(data.fecha),
     estado:            'reservado' as EstadoTurno,
     motivoCancelacion: '',
-    creadoEn:          serverTimestamp(),
-  })
+    creadoEn:   Timestamp.now(),
+  }
+  const ref = await addDoc(turnosCol, turnoData)
   return ref.id
 }
 

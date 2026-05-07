@@ -9,9 +9,9 @@ import { Spinner } from '@/components/ui'
 
 // ─── HELPERS ──────────────────────────────────────────────────────────────────
 
-function formatTimestamp(ts: any): string {
+function formatTimestamp(ts: { toDate(): Date } | Date | number | null | undefined): string {
   if (!ts) return '—'
-  const d = ts.toDate?.() ?? new Date(ts)
+  const d = typeof ts === 'object' && 'toDate' in ts ? ts.toDate() : new Date(ts)
   const ahora = new Date()
   const diff  = Math.floor((ahora.getTime() - d.getTime()) / 1000)
 
@@ -26,9 +26,9 @@ function formatTimestamp(ts: any): string {
   })
 }
 
-function formatTimestampCompleto(ts: any): string {
+function formatTimestampCompleto(ts: { toDate(): Date } | Date | number | null | undefined): string {
   if (!ts) return '—'
-  const d = ts.toDate?.() ?? new Date(ts)
+  const d = typeof ts === 'object' && 'toDate' in ts ? ts.toDate() : new Date(ts)
   return d.toLocaleDateString('es-AR', {
     weekday: 'short',
     day: 'numeric', month: 'long', year: 'numeric',
@@ -52,8 +52,8 @@ function DiffCambios({
   antes,
   despues,
 }: {
-  antes?:   Record<string, any>
-  despues?: Record<string, any>
+  antes?:   Record<string, unknown>
+  despues?: Record<string, unknown>
 }) {
   if (!antes || !despues) return null
 
@@ -81,11 +81,11 @@ function DiffCambios({
           <span className="font-semibold text-gray-500 shrink-0 w-24">
             {LABEL_CAMPO[campo] ?? campo}
           </span>
-          <span className="text-red-500 line-through truncate max-w-[100px]">
+          <span className="text-red-500 line-through truncate max-w-25">
             {String(antes[campo] ?? '—')}
           </span>
           <span className="text-gray-400">→</span>
-          <span className="text-emerald-600 font-medium truncate max-w-[100px]">
+          <span className="text-emerald-600 font-medium truncate max-w-25">
             {String(despues[campo] ?? '—')}
           </span>
         </div>
@@ -120,8 +120,8 @@ function EntradaItem({
   const LINK_MAP: Partial<Record<EntidadAudit, (id: string) => string>> = {
     cliente:  id => `/admin/clientes/${id}`,
     tramite:  id => `/admin/tramites/${id}`,
-    vehiculo: id => `/admin/vehiculos`,
-    turno:    id => `/admin/turnos`,
+    vehiculo: () => `/admin/vehiculos`,
+    turno:    () => `/admin/turnos`,
   }
   const link = LINK_MAP[entrada.entidad]?.(entrada.entidadId)
 
@@ -167,7 +167,7 @@ function EntradaItem({
               <button
                 onClick={() => navigate(link)}
                 aria-label={`Ver ${entidadCfg.label}`}
-                className="text-gray-400 hover:text-[var(--gp-orange)] transition-colors shrink-0"
+                className="text-gray-400 hover:text-gp-orange transition-colors shrink-0"
               >
                 <ExternalLink size={12} />
               </button>
@@ -301,7 +301,7 @@ export function FeedActividad({
         <button
           onClick={() => setVerTodos(true)}
           className="w-full text-sm font-medium py-2.5 text-gray-400
-                     hover:text-[var(--gp-orange)] transition-colors flex items-center
+                     hover:text-gp-orange transition-colors flex items-center
                      justify-center gap-1.5"
         >
           <ChevronDown size={15} />

@@ -44,6 +44,10 @@ export interface Permisos {
   // Config
   verConfiguracion:     boolean
   editarConfiguracion:  boolean
+
+  // Equipo ← nuevos
+  verEquipo:            boolean
+  gestionarEquipo:      boolean
 }
 
 // ─── PERMISOS POR ROL ─────────────────────────────────────────────────────────
@@ -61,6 +65,7 @@ const PERMISOS: Record<Rol, Permisos> = {
     verDashboard: true, verMetricasFinancieras: true, verCRM: true,
     exportarDatos: true, verSeguimiento: true, crearSeguimiento: true,
     verConfiguracion: true, editarConfiguracion: true,
+    verEquipo: true, gestionarEquipo: true,   // ← propietario: acceso total
   },
 
   // ── ADMIN — igual a propietario ───────────────────────────────────────────
@@ -74,9 +79,10 @@ const PERMISOS: Record<Rol, Permisos> = {
     verDashboard: true, verMetricasFinancieras: true, verCRM: true,
     exportarDatos: true, verSeguimiento: true, crearSeguimiento: true,
     verConfiguracion: true, editarConfiguracion: true,
+    verEquipo: true, gestionarEquipo: true,   // ← admin: acceso total
   },
 
-  // ── VENDEDOR/CLOSER — ve clientes, seguimiento y turnos. NO ve financiero ─
+  // ── VENDEDOR — NO gestiona equipo ─────────────────────────────────────────
   vendedor: {
     verClientes: true, crearClientes: true, editarClientes: false,
     eliminarClientes: false, darAccesoPortal: false,
@@ -87,9 +93,10 @@ const PERMISOS: Record<Rol, Permisos> = {
     verDashboard: true, verMetricasFinancieras: false, verCRM: true,
     exportarDatos: false, verSeguimiento: true, crearSeguimiento: true,
     verConfiguracion: false, editarConfiguracion: false,
+    verEquipo: false, gestionarEquipo: false,
   },
 
-  // ── OPERADOR — gestiona trámites y turnos. NO ve CRM ni financiero ─────────
+  // ── OPERADOR — NO gestiona equipo ─────────────────────────────────────────
   operador: {
     verClientes: true, crearClientes: true, editarClientes: true,
     eliminarClientes: false, darAccesoPortal: false,
@@ -100,9 +107,10 @@ const PERMISOS: Record<Rol, Permisos> = {
     verDashboard: true, verMetricasFinancieras: false, verCRM: false,
     exportarDatos: false, verSeguimiento: false, crearSeguimiento: false,
     verConfiguracion: false, editarConfiguracion: false,
+    verEquipo: false, gestionarEquipo: false,
   },
 
-  // ── CLIENTE — solo su portal ───────────────────────────────────────────────
+  // ── SUPERADMIN — acceso total ─────────────────────────────────────────────
   superadmin: {
     verClientes: true, crearClientes: true, editarClientes: true, eliminarClientes: true,
     darAccesoPortal: true, verVehiculos: true, crearVehiculos: true, editarVehiculos: true,
@@ -112,7 +120,24 @@ const PERMISOS: Record<Rol, Permisos> = {
     exportarDatos: true, verDashboard: true, verCRM: true, editarConfiguracion: true,
     verMetricasFinancieras: true, verSeguimiento: true, crearSeguimiento: true,
     verConfiguracion: true,
+    verEquipo: true, gestionarEquipo: true,
   },
+
+  // ── GESTOR (mandatario) — solo su portal de trámites ───────────────────────
+  gestor: {
+    verClientes: false, crearClientes: false, editarClientes: false,
+    eliminarClientes: false, darAccesoPortal: false,
+    verVehiculos: false, crearVehiculos: false, editarVehiculos: false,
+    verTramites: true,  crearTramites: false, cambiarEstadoTramite: true,
+    verHonorariosDetalle: false, marcarPagado: false, verObsInternas: false,
+    verTurnos: false, crearTurnos: false, confirmarTurnos: false, cancelarTurnos: false,
+    verDashboard: false, verMetricasFinancieras: false, verCRM: false,
+    exportarDatos: false, verSeguimiento: false, crearSeguimiento: false,
+    verConfiguracion: false, editarConfiguracion: false,
+    verEquipo: false, gestionarEquipo: false,
+  },
+
+  // ── CLIENTE — solo su portal ───────────────────────────────────────────────
   cliente: {
     verClientes: false, crearClientes: false, editarClientes: false,
     eliminarClientes: false, darAccesoPortal: false,
@@ -123,6 +148,7 @@ const PERMISOS: Record<Rol, Permisos> = {
     verDashboard: false, verMetricasFinancieras: false, verCRM: false,
     exportarDatos: false, verSeguimiento: false, crearSeguimiento: false,
     verConfiguracion: false, editarConfiguracion: false,
+    verEquipo: false, gestionarEquipo: false,
   },
 }
 
@@ -143,6 +169,7 @@ export const ROL_LABELS: Record<Rol, string> = {
   operador:    'Operador',
   superadmin:  'Super Admin',
   cliente:     'Cliente',
+  gestor:      'Gestor / Mandatario',
 }
 
 export const ROL_COLORS: Record<Rol, string> = {
@@ -152,7 +179,8 @@ export const ROL_COLORS: Record<Rol, string> = {
   operador:    'bg-emerald-100 text-emerald-700',
   superadmin:  'bg-purple-200 text-purple-800',
   cliente:     'bg-gray-100 text-gray-600',
+  gestor:      'bg-cyan-100 text-cyan-700',
 }
 
 // Roles que tienen acceso al panel admin
-export const ROLES_ADMIN: Rol[] = ['admin', 'propietario', 'vendedor', 'operador']
+export const ROLES_ADMIN: Rol[] = ['admin', 'propietario', 'vendedor', 'operador', 'gestor']

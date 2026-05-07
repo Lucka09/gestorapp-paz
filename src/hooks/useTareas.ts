@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from 'react'
 import { useGestoriaId } from '@/context/GestoriaContext'
+import { useAuthStore } from '@/store/authStore'
 import {
   subscribeTareas,
   subscribeTareasUsuario,
@@ -13,18 +14,25 @@ import type { Tarea } from '@/types'
 
 export function useTareas() {
   const gestoriaId = useGestoriaId()
+  const { user } = useAuthStore()
   const [tareas,  setTareas]  = useState<Tarea[]>([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     if (!gestoriaId) return
-    setLoading(true)
-    const unsub = subscribeTareas(gestoriaId, data => {
-      setTareas(data)
-      setLoading(false)
-    })
+    const esGestor = user?.rol === 'gestor' && !!user?.uid
+    const unsub = esGestor
+      ? subscribeTareasUsuario(user.uid, gestoriaId, data => {
+        setTareas(data)
+        setLoading(false)
+      })
+      : subscribeTareas(gestoriaId, data => {
+        setTareas(data)
+        setLoading(false)
+      })
+
     return () => unsub()
-  }, [gestoriaId])
+  }, [gestoriaId, user])
 
   const vencidas  = useMemo(() => tareas.filter(t => estaVencida(t)),         [tareas])
   const vencenHoy = useMemo(() => tareas.filter(t => venceHoy(t)),            [tareas])
@@ -42,7 +50,6 @@ export function useMisTareas(uid: string) {
 
   useEffect(() => {
     if (!uid || !gestoriaId) return
-    setLoading(true)
     const unsub = subscribeTareasUsuario(uid, gestoriaId, data => {
       setTareas(data)
       setLoading(false)
@@ -50,10 +57,10 @@ export function useMisTareas(uid: string) {
     return () => unsub()
   }, [uid, gestoriaId])
 
-  const hoy       = new Date()
-
-  const inicioHoy = useMemo(() =>
-    new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate()), [])
+  const inicioHoy = useMemo(() => {
+    const hoy = new Date()
+    return new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate())
+  }, [])
 
   const finHoy = useMemo(() =>
     new Date(inicioHoy.getTime() + 86_400_000), [inicioHoy])
@@ -94,7 +101,6 @@ export function useTareasEntidad(
 
   useEffect(() => {
     if (!id || !gestoriaId) return
-    setLoading(true)
     const unsub = subscribeTareasEntidad(campo, id, gestoriaId, data => {
       setTareas(data)
       setLoading(false)

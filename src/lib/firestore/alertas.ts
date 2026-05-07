@@ -319,7 +319,7 @@ export async function ejecutarMotorAlertas(): Promise<number> {
 
   // ── 13. VENCIMIENTOS PRÓXIMOS ─────────────────────────────────────────────
   try {
-    const vencProximos = await getVencimientosProximos(30)
+    const vencProximos = await getVencimientosProximos('')
     const vencidos30   = vencProximos.filter(v => calcularEstado(v) === 'vencido')
     const porVencer30  = vencProximos.filter(v => calcularEstado(v) === 'por_vencer')
 

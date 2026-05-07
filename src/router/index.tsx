@@ -35,9 +35,12 @@ const SuperAdminPage      = lazy(() => import('@/features/superadmin/SuperAdminP
 const PortalHomePage      = lazy(() => import('@/features/auth/PortalHomePage'))
 const PortalTramitesPage  = lazy(() => import('@/features/tramites/MisTramitesPage'))
 const PortalTurnosPage    = lazy(() => import('@/features/turnos/ReservarTurnoPage'))
+const PortalNotifPage     = lazy(() => import('@/features/notificaciones/PortalNotificacionesPage'))
 const LoginPage               = lazy(() => import('@/features/auth/LoginPage'))
 const SeguimientoPublicoPage  = lazy(() => import('@/features/tramites/SeguimientoPublicoPage'))
-
+const TorreDeControlPage = lazy(() => import('@/features/torre/TorreDeControlPage'))
+const GestorHomePage     = lazy(() => import('@/features/gestor/GestorHomePage'))
+const GestorTramitePage  = lazy(() => import('@/features/gestor/GestorTramitePage'))
 // ─── LOADING SCREENS ──────────────────────────────────────────────────────────
 
 function LoadingScreen() {
@@ -134,6 +137,7 @@ function RequireAuth({ roles }: { roles: Rol[] }) {
   if (roles.length > 0 && !roles.includes(user.rol as Rol)) {
     if (user.rol === 'superadmin') return <Navigate to="/superadmin" replace />
     if (user.rol === 'cliente')    return <Navigate to="/portal"     replace />
+    if (user.rol === 'gestor')     return <Navigate to="/admin/gestor" replace />
     return                                <Navigate to="/admin"       replace />
   }
 
@@ -146,12 +150,13 @@ function RedirectIfAuth() {
   if (!user)   return <Outlet />
   if (user.rol === 'superadmin') return <Navigate to="/superadmin" replace />
   if (user.rol === 'cliente')    return <Navigate to="/portal"     replace />
+  if (user.rol === 'gestor')     return <Navigate to="/admin/gestor" replace />
   return                                <Navigate to="/admin"       replace />
 }
 
 // ─── ROUTER ───────────────────────────────────────────────────────────────────
 
-const ROLES_ADMIN: Rol[] = ['admin', 'propietario', 'vendedor', 'operador']
+const ROLES_ADMIN: Rol[] = ['admin', 'propietario', 'vendedor', 'operador', 'gestor']
 
 export const router = createBrowserRouter([
 
@@ -195,6 +200,9 @@ export const router = createBrowserRouter([
         { path: 'backup',         element: <F name="Backup">       <BackupPage /></F>          },
         { path: 'calculadora',    element: <F name="Calculadora">  <CalculadoraPage /></F>     },
         { path: 'importar',       element: <F name="Importar">     <ImportarPage /></F>        },
+         { path: 'torre-de-control',          element: <F name="Torre de Control"><TorreDeControlPage /></F>  },
+  { path: 'gestor',         element: <F name="Gestor">          <GestorHomePage /></F>      },
+  { path: 'gestor/:id',     element: <F name="Trámite gestor">  <GestorTramitePage /></F>   },
       ],
     }],
   },
@@ -209,7 +217,8 @@ export const router = createBrowserRouter([
         { index: true,     element: <Navigate to="inicio" replace /> },
         { path: 'inicio',  element: <F name="Portal inicio"><PortalHomePage /></F>      },
         { path: 'tramites',element: <F name="Mis trámites"><PortalTramitesPage /></F>  },
-        { path: 'turnos',  element: <F name="Mis turnos">  <PortalTurnosPage /></F>    },
+        { path: 'turnos',        element: <F name="Mis turnos">       <PortalTurnosPage /></F>  },
+        { path: 'notificaciones', element: <F name="Notificaciones">  <PortalNotifPage /></F>   },
       ],
     }],
   },

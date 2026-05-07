@@ -89,7 +89,7 @@ export async function crearVehiculo(data: VehiculoInput): Promise<string> {
 
   const ref = await addDoc(vehiculosCol, {
     ...data,
-    patente:            data.patente.toUpperCase().trim(),
+    patente:data.patente.toUpperCase().trim(),
     historialTitulares: [{
       clienteId: data.clienteId,
       desde:     serverTimestamp(),
@@ -97,7 +97,7 @@ export async function crearVehiculo(data: VehiculoInput): Promise<string> {
     }],
     tramitesIds: [],
     creadoEn:    serverTimestamp(),
-  })
+  } as any)
 
   // Agregar referencia al cliente
   const cRef  = clienteDoc(data.clienteId)

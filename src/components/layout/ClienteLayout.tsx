@@ -1,4 +1,4 @@
-import { NavLink, Outlet } from 'react-router-dom'
+import { NavLink, Outlet, useNavigate } from 'react-router-dom'
 import { Home, FileText, CalendarDays, LogOut, Menu, X, Bell } from 'lucide-react'
 import { useState } from 'react'
 import { signOut } from 'firebase/auth'
@@ -8,13 +8,15 @@ import { useNotificacionesPortal } from '@/hooks/usePortal'
 import ConfirmDialog from '@/components/shared/ConfirmDialog'
 
 const navItems = [
-  { to: '/portal',          icon: Home,         label: 'Inicio',        end: true },
-  { to: '/portal/tramites', icon: FileText,      label: 'Mis Trámites'           },
-  { to: '/portal/turnos',   icon: CalendarDays,  label: 'Turnos'                 },
+  { to: '/portal',                icon: Home,         label: 'Inicio',        end: true },
+  { to: '/portal/tramites',       icon: FileText,      label: 'Mis Trámites'           },
+  { to: '/portal/turnos',         icon: CalendarDays,  label: 'Turnos'                 },
+  { to: '/portal/notificaciones', icon: Bell,          label: 'Avisos'                 },
 ]
 
 export default function ClienteLayout() {
   const { user }  = useAuth()
+  const navigate        = useNavigate()
   const [open, setOpen] = useState(false)
   const [logoutOpen, setLogoutOpen] = useState(false)
   const { noLeidas } = useNotificacionesPortal(user?.uid)
@@ -55,16 +57,20 @@ export default function ClienteLayout() {
         </nav>
 
         <div className="flex items-center gap-2">
-          {/* Notificaciones badge */}
-          {noLeidas > 0 && (
-            <div className="relative">
-              <Bell size={18} className="text-gray-400" />
-              <span className="absolute -top-1.5 -right-1.5 w-4 h-4 bg-[#D4621A] text-white
-                               text-xs rounded-full flex items-center justify-center font-bold">
+          {/* Notificaciones — navega a la página de avisos */}
+          <button
+            onClick={() => navigate('/portal/notificaciones')}
+            className="relative p-1.5 rounded-lg text-gray-400 hover:text-white hover:bg-white/10 transition-colors"
+            aria-label={`Notificaciones${noLeidas > 0 ? ` — ${noLeidas} sin leer` : ''}`}
+          >
+            <Bell size={18} />
+            {noLeidas > 0 && (
+              <span className="absolute -top-0.5 -right-0.5 w-4 h-4 bg-[#D4621A] text-white
+                               text-xs rounded-full flex items-center justify-center font-bold leading-none">
                 {noLeidas > 9 ? '9+' : noLeidas}
               </span>
-            </div>
-          )}
+            )}
+          </button>
           <div className="hidden md:flex items-center gap-2 ml-2">
             <div className="w-7 h-7 rounded-full bg-[#D4621A]/20 flex items-center justify-center
                             text-[#D4621A] font-bold text-xs">
@@ -87,7 +93,7 @@ export default function ClienteLayout() {
       {open && (
         <>
           <div className="fixed inset-0 z-20 bg-black/50 md:hidden" onClick={() => setOpen(false)} />
-          <nav className="fixed top-[56px] left-0 right-0 z-20 bg-[#1A1A1A] border-t border-white/10 md:hidden shadow-xl">
+          <nav className="fixed top-14 left-0 right-0 z-20 bg-[#1A1A1A] border-t border-white/10 md:hidden shadow-xl">
             {navItems.map(({ to, icon: Icon, label, end }) => (
               <NavLink key={to} to={to} end={end} onClick={() => setOpen(false)}
                 className={({ isActive }) =>

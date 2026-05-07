@@ -18,6 +18,11 @@ import {
 } from '@/types'
 import toast from 'react-hot-toast'
 
+const PLANES_CONFIG = {
+  starter: { maxUsuarios: 2,  maxClientes: 50,  label: 'Starter',    precio: 50000  },
+  pro:     { maxUsuarios: 10, maxClientes: 500,  label: 'Pro',        precio: 125000 },
+  enterprise: { maxUsuarios: 50, maxClientes: 9999, label: 'Enterprise', precio: 250000 },
+};
 // ─── ESTADO BADGE ─────────────────────────────────────────────────────────────
 
 function EstadoBadge({ estado }: { estado: EstadoGestoria }) {
@@ -230,7 +235,7 @@ function ModalNuevaGestoria({
               <button key={p} type="button" onClick={() => setPlan(p)}
                 className={`p-3 rounded-xl border-2 text-left transition-all
                              ${plan === p
-                               ? 'border-[var(--gp-orange)] bg-[var(--gp-orange-pale)]'
+                               ? 'border-gp-orange bg-gp-orange-pale'
                                : 'border-gray-100 bg-white hover:border-gray-200'
                              }`}>
                 <p className="text-sm font-bold text-gray-900">{cfg.label}</p>

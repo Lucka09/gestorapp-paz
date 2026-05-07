@@ -28,7 +28,7 @@ export function BannerPushNotifications() {
 
   if (estado === 'ios-sin-instalar') {
     return (
-      <div className="flex items-center gap-3 bg-[var(--gp-orange-pale)] border border-orange-100
+      <div className="flex items-center gap-3 bg-gp-orange-pale border border-orange-100
                       rounded-2xl px-4 py-3.5 mb-5">
         <Smartphone size={18} style={{ color: 'var(--gp-orange)', flexShrink: 0 }} />
         <div className="flex-1">
@@ -68,7 +68,7 @@ export function BannerPushNotifications() {
 
   // Estado pendiente — mostrar propuesta
   return (
-    <div className="flex items-center gap-3 bg-[var(--gp-orange-pale)] border border-orange-100
+    <div className="flex items-center gap-3 bg-gp-orange-pale border border-orange-100
                     rounded-2xl px-4 py-3.5 mb-5 animate-fadein">
       <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0"
            style={{ background: 'var(--gp-orange)' }}>
@@ -220,7 +220,7 @@ export function PanelConfigPush() {
                 onClick={() => togglePref(cfg.key)}
                 className={`relative w-10 h-6 rounded-full transition-colors cursor-pointer
                              ${prefs[cfg.key]
-                               ? 'bg-[var(--gp-orange)]'
+                               ? 'bg-gp-orange'
                                : 'bg-gray-200'
                              }`}
               >

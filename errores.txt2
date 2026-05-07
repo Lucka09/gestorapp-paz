@@ -1,0 +1,13 @@
+src/features/pipeline/PipelinePage.tsx(711,45): error TS2552: Cannot find name 'prospectos'. Did you mean 'useProspectos'?
+src/features/pipeline/PipelinePage.tsx(711,106): error TS2552: Cannot find name 'prospectos'. Did you mean 'useProspectos'?
+src/features/tareas/TareasPage.tsx(106,45): error TS2345: Argument of type '{ gestoriaId: string; titulo: string; descripcion: string | undefined; prioridad: PrioridadTarea; asignadoA: string; asignadoNombre: string; vencimiento: Date | undefined; recordatorio: Date | undefined; clienteId: string | undefined; clienteNombre: string | undefined; }' is not assignable to parameter of type 'Partial<Omit<Tarea, "id" | "creadoEn" | "creadoPor">>'.
+  Types of property 'vencimiento' are incompatible.
+    Type 'Date | undefined' is not assignable to type 'Timestamp | undefined'.
+      Type 'Date' is missing the following properties from type 'Timestamp': seconds, nanoseconds, toDate, toMillis, isEqual
+src/features/vehiculos/PanelVencimientos.tsx(93,11): error TS2740: Type 'Timestamp' is missing the following properties from type 'Date': toDateString, toTimeString, toLocaleDateString, toLocaleTimeString, and 36 more.
+src/lib/firestore/inscripcionworkflow.ts(368,5): error TS2322: Type 'string' is not assignable to type 'Rol'.
+src/lib/firestore/turnos.ts(100,9): error TS2322: Type '{ fecha: Timestamp; estado: EstadoTurno; motivoCancelacion: string; creadoEn: Timestamp; gestoriaId: string; clienteId: string; tramiteId: string | null; tipoTramite: TipoTramite; horaInicio: string; horaFin: string; notas: string; }' is not assignable to type 'TurnoFirestore'.
+  Property 'clienteNombre' is missing in type '{ fecha: Timestamp; estado: EstadoTurno; motivoCancelacion: string; creadoEn: Timestamp; gestoriaId: string; clienteId: string; tramiteId: string | null; tipoTramite: TipoTramite; horaInicio: string; horaFin: string; notas: string; }' but required in type 'Omit<Turno, "id">'.
+src/MotorAlertas.ts(5,30): error TS2304: Cannot find name 'getVencimientosProximos'.
+src/MotorAlertas.ts(6,39): error TS2304: Cannot find name 'getTramitesInactivos'.
+src/MotorAlertas.ts(7,9): error TS2304: Cannot find name 'procesarYGuardarAlertas'.

@@ -1,64 +1,44 @@
-import { useMemo } from 'react'
-import { useForm } from 'react-hook-form'
-import { zodResolver } from '@hookform/resolvers/zod'
-import { z } from 'zod'
-import { Input, Textarea, Button } from '@/components/ui'
-import { useGestoriaId } from '@/context/GestoriaContext'
-import { buscarClientePorDNI } from '@/lib/firestore/clientes'
+// src/features/clientes/ClienteForm.tsx
+import { useState } from 'react'
+import { z }        from 'zod'
+import { Input, Select, Textarea, Button } from '@/components/ui'
 import type { Cliente } from '@/types'
 
 // ─── SCHEMA ───────────────────────────────────────────────────────────────────
-// Factory: recibe gestoriaId para la validación async de DNI
-// y dniOriginal para saltear unicidad en modo edición (mismo DNI = sin consulta)
 
-function buildClienteSchema(gestoriaId: string, dniOriginal?: string) {
-  return z.object({
-    nombre:   z.string().min(1, 'Requerido').max(50, 'Máximo 50 caracteres'),
-    apellido: z.string().min(1, 'Requerido').max(50, 'Máximo 50 caracteres'),
+const clienteSchema = z.object({
+  nombre:       z.string().min(1, 'Requerido').max(80),
+  apellido:     z.string().min(1, 'Requerido').max(80),
+  dni:          z.string()
+                  .min(1, 'Requerido')
+                  .regex(/^\d{7,8}$/, 'DNI inválido — 7 u 8 dígitos sin puntos'),
+  cuit:         z.string()
+                  .max(20)
+                  .refine(v => v === '' || /^\d{2}-\d{6,8}-\d$/.test(v), {
+                    message: 'Formato: 20-12345678-3',
+                  }),
+  telefono:     z.string().min(1, 'Requerido').max(20),
+  email:        z.string()
+                  .max(100)
+                  .refine(v => v === '' || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v), {
+                    message: 'Email inválido',
+                  }),
+  direccion:    z.string().max(120),
+  localidad:    z.string().max(80),
+  userId:       z.string().nullable(),
+  observaciones:z.string().max(500),
+})
 
-    dni: z.string()
-      .min(1, 'Requerido')
-      .regex(/^\d{7,8}$/, 'DNI inválido — debe tener 7 u 8 dígitos')
-      .refine(async (dni) => {
-        // En edición: si el valor no cambió, omitir la consulta a Firestore
-        if (dniOriginal && dni === dniOriginal) return true
-        const existe = await buscarClientePorDNI(dni, gestoriaId)
-        return !existe
-      }, 'Este DNI ya está registrado en tu gestoría'),
+export type ClienteFormData = z.infer<typeof clienteSchema>
 
-    cuit: z.string().refine(
-      v => v === '' || /^(\d{11}|\d{2}-\d{8}-\d)$/.test(v),
-      'Formato inválido — ej: 20-12345678-9'
-    ),
+type Errors = Partial<Record<keyof ClienteFormData, string>>
 
-    telefono: z.string().min(6, 'Requerido').max(30),
+// ─── DATOS INICIALES ──────────────────────────────────────────────────────────
 
-    email: z.string().refine(
-      v => v === '' || z.string().email().safeParse(v).success,
-      'Email inválido'
-    ),
-
-    direccion:     z.string().max(100),
-    localidad:     z.string().max(60),
-    observaciones: z.string().max(500),
-    userId:        z.string().nullable(),
-  })
-}
-
-// ClienteFormData — tipo explícito compatible con lo que usan las páginas.
-// No se infiere del schema con async refine para mantener compatibilidad
-// (z.infer de un schema con refine asincrónica puede generar tipos complejos).
-export type ClienteFormData = {
-  nombre:        string
-  apellido:      string
-  dni:           string
-  cuit:          string
-  telefono:      string
-  email:         string
-  direccion:     string
-  localidad:     string
-  observaciones: string
-  userId:        string | null
+const EMPTY: ClienteFormData = {
+  nombre: '', apellido: '', dni: '', cuit: '',
+  telefono: '', email: '', direccion: '',
+  localidad: '', userId: null, observaciones: '',
 }
 
 // ─── PROPS ────────────────────────────────────────────────────────────────────
@@ -75,143 +55,116 @@ interface Props {
 export default function ClienteForm({
   initial, onSubmit, onCancel, submitLabel = 'Guardar',
 }: Props) {
-  const gestoriaId = useGestoriaId()
-
-  // useMemo evita reconstruir el schema en cada render.
-  // Solo se reconstruye si cambia el tenant o el DNI original del cliente.
-  const schema = useMemo(
-    () => buildClienteSchema(gestoriaId, initial?.dni),
-    [gestoriaId, initial?.dni]
-  )
-
-  const {
-    register,
-    handleSubmit,
-    formState: { errors, isSubmitting },
-  } = useForm<ClienteFormData>({
-    resolver: zodResolver(schema),
-    // onBlur: la validación asincrónica (1 lectura Firestore) se dispara
-    // solo cuando el usuario sale del campo — nunca en cada tecla.
-    // reValidateMode: onBlur mantiene ese comportamiento tras el primer error.
-    mode:           'onBlur',
-    reValidateMode: 'onBlur',
-    defaultValues: {
-      nombre:        initial?.nombre        ?? '',
-      apellido:      initial?.apellido      ?? '',
-      dni:           initial?.dni           ?? '',
-      cuit:          initial?.cuit          ?? '',
-      telefono:      initial?.telefono      ?? '',
-      email:         initial?.email         ?? '',
-      direccion:     initial?.direccion     ?? '',
-      localidad:     initial?.localidad     ?? '',
-      observaciones: initial?.observaciones ?? '',
-      userId:        initial?.userId        ?? null,
-    },
+  const [form, setForm]     = useState<ClienteFormData>({
+    ...EMPTY, ...(initial ?? {}), userId: initial?.userId ?? null,
   })
+  const [errors, setErrors] = useState<Errors>({})
+  const [loading, setLoading] = useState(false)
+
+  const set = (field: keyof ClienteFormData) =>
+    (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
+      setForm(prev => ({ ...prev, [field]: e.target.value }))
+      // Limpiar error del campo al editar
+      if (errors[field]) setErrors(prev => ({ ...prev, [field]: undefined }))
+    }
+
+  // Validación campo a campo on-blur para feedback inmediato
+  const validateField = (field: keyof ClienteFormData) => {
+    const result = clienteSchema.shape[field].safeParse(form[field])
+    if (!result.success) {
+      setErrors(prev => ({ ...prev, [field]: result.error.issues[0]?.message }))
+    }
+  }
+
+  const validate = (): boolean => {
+    const result = clienteSchema.safeParse(form)
+    if (result.success) { setErrors({}); return true }
+    const flat   = result.error.flatten().fieldErrors
+    const errs: Errors = {}
+    for (const [k, v] of Object.entries(flat)) {
+      if (v?.[0]) errs[k as keyof ClienteFormData] = v[0]
+    }
+    setErrors(errs)
+    return false
+  }
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!validate()) return
+    setLoading(true)
+    try { await onSubmit(form) }
+    finally { setLoading(false) }
+  }
 
   return (
-    <form onSubmit={handleSubmit(onSubmit)} className="space-y-5" noValidate>
+    <form onSubmit={handleSubmit} noValidate className="space-y-5">
 
       {/* Nombre y Apellido */}
       <div className="grid grid-cols-2 gap-4">
         <Input
-          label="Nombre *"
-          {...register('nombre')}
-          error={errors.nombre?.message}
-          placeholder="Juan"
-          autoComplete="given-name"
+          label="Nombre *" value={form.nombre} placeholder="Juan"
+          onChange={set('nombre')} onBlur={() => validateField('nombre')}
+          error={errors.nombre}
         />
         <Input
-          label="Apellido *"
-          {...register('apellido')}
-          error={errors.apellido?.message}
-          placeholder="García"
-          autoComplete="family-name"
+          label="Apellido *" value={form.apellido} placeholder="García"
+          onChange={set('apellido')} onBlur={() => validateField('apellido')}
+          error={errors.apellido}
         />
       </div>
 
       {/* DNI y CUIT */}
       <div className="grid grid-cols-2 gap-4">
         <Input
-          label="DNI *"
-          {...register('dni')}
-          error={errors.dni?.message}
-          placeholder="20123456"
-          maxLength={8}
-          inputMode="numeric"
+          label="DNI *" value={form.dni} placeholder="20123456"
+          maxLength={8} inputMode="numeric"
+          onChange={set('dni')} onBlur={() => validateField('dni')}
+          error={errors.dni}
         />
         <Input
-          label="CUIT / CUIL"
-          {...register('cuit')}
-          error={errors.cuit?.message}
-          placeholder="20-20123456-3"
-          inputMode="numeric"
+          label="CUIT / CUIL" value={form.cuit} placeholder="20-20123456-3"
+          onChange={set('cuit')} onBlur={() => validateField('cuit')}
+          error={errors.cuit}
         />
       </div>
 
       {/* Teléfono y Email */}
       <div className="grid grid-cols-2 gap-4">
         <Input
-          label="Teléfono *"
-          {...register('telefono')}
-          error={errors.telefono?.message}
-          placeholder="11 4123-4567"
-          inputMode="tel"
-          autoComplete="tel"
+          label="Teléfono *" value={form.telefono} placeholder="11 4123-4567"
+          onChange={set('telefono')} onBlur={() => validateField('telefono')}
+          error={errors.telefono}
         />
         <Input
-          label="Email"
-          type="email"
-          {...register('email')}
-          error={errors.email?.message}
-          placeholder="juan@mail.com"
-          autoComplete="email"
+          label="Email" type="email" value={form.email} placeholder="juan@mail.com"
+          onChange={set('email')} onBlur={() => validateField('email')}
+          error={errors.email}
         />
       </div>
 
       {/* Dirección y Localidad */}
       <div className="grid grid-cols-2 gap-4">
         <Input
-          label="Dirección"
-          {...register('direccion')}
-          error={errors.direccion?.message}
-          placeholder="Av. San Martín 1234"
-          autoComplete="street-address"
+          label="Dirección" value={form.direccion} placeholder="Av. San Martín 1234"
+          onChange={set('direccion')}
         />
         <Input
-          label="Localidad"
-          {...register('localidad')}
-          error={errors.localidad?.message}
-          placeholder="San Martín"
-          autoComplete="address-level2"
+          label="Localidad" value={form.localidad} placeholder="San Martín"
+          onChange={set('localidad')}
         />
       </div>
 
       {/* Observaciones */}
       <Textarea
-        label="Observaciones"
-        {...register('observaciones')}
-        error={errors.observaciones?.message}
+        label="Observaciones" value={form.observaciones}
+        onChange={set('observaciones')}
         placeholder="Notas internas sobre el cliente..."
         rows={3}
       />
 
-      {/* userId — campo técnico, no visible */}
-      <input type="hidden" {...register('userId')} />
-
-      {/* Acciones */}
       <div className="flex gap-3 pt-2 border-t border-gray-100">
-        <Button type="submit" loading={isSubmitting} className="flex-1">
-          {submitLabel}
-        </Button>
-        <Button
-          type="button"
-          variant="secondary"
-          onClick={onCancel}
-          disabled={isSubmitting}
-        >
-          Cancelar
-        </Button>
+        <Button type="submit" loading={loading} className="flex-1">{submitLabel}</Button>
+        <Button type="button" variant="secondary" onClick={onCancel}>Cancelar</Button>
       </div>
     </form>
   )

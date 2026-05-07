@@ -53,7 +53,7 @@ function SectionTitle({ children }: { children: React.ReactNode }) {
 
 function InfoBox({ children }: { children: React.ReactNode }) {
   return (
-    <div className="flex items-start gap-2.5 bg-[var(--gp-orange-pale)] border
+    <div className="flex items-start gap-2.5 bg-gp-orange-pale border
                     border-orange-100 rounded-xl p-3.5 mb-5">
       <AlertCircle size={15} style={{ color: 'var(--gp-orange)', flexShrink: 0, marginTop: 1 }} />
       <p className="text-xs text-gray-600 leading-relaxed">{children}</p>
@@ -86,7 +86,7 @@ function Toggle({
 
 function TabGestoria({
   form, set,
-}: { form: Partial<Configuracion>; set: (k: string, v: any) => void }) {
+}: { form: Partial<Configuracion>; set: (k: string, v: string | boolean | number | Record<string, any>) => void }) {
   return (
     <div className="space-y-6">
       <div>
@@ -133,7 +133,7 @@ function TabGestoria({
 
 function TabHorarios({
   form, set,
-}: { form: Partial<Configuracion>; set: (k: string, v: any) => void }) {
+}: { form: Partial<Configuracion>; set: (k: string, v: string | boolean | number | Record<string, any>) => void }) {
   const horarios = form.horarioAtencion ?? {}
 
   const setHorario = (dia: string, campo: string, valor: any) => {
@@ -247,7 +247,7 @@ function TabHorarios({
 
 function TabTarifas({
   form, set,
-}: { form: Partial<Configuracion>; set: (k: string, v: any) => void }) {
+}: { form: Partial<Configuracion>; set: (k: string, v: string | boolean | number | Record<string, any>) => void }) {
   const tarifas = form.tarifas ?? []
 
   const setTarifa = (tipo: string, campo: string, valor: any) => {
@@ -332,7 +332,7 @@ function TabTarifas({
 
 function TabBanco({
   form, set,
-}: { form: Partial<Configuracion>; set: (k: string, v: any) => void }) {
+}: { form: Partial<Configuracion>; set: (k: string, v: string | boolean | number | Record<string, any>) => void }) {
   const banco = form.datosBancarios ?? {
     titular: '', banco: '', cbu: '', alias: '', cuit: '',
   }
@@ -416,7 +416,7 @@ function TabBanco({
 
 function TabMensajes({
   form, set,
-}: { form: Partial<Configuracion>; set: (k: string, v: any) => void }) {
+}: { form: Partial<Configuracion>; set: (k: string, v: string | boolean | number | Record<string, any>) => void }) {
   return (
     <div className="space-y-5">
       <InfoBox>
@@ -475,7 +475,7 @@ export default function ConfiguracionPage() {
   // Sincronizar form cuando carga la config
   useEffect(() => {
     if (!loading) setForm(config)
-  }, [loading])
+  }, [loading, config])
 
   const set = (key: string, value: any) => {
     setForm(f => ({ ...f, [key]: value }))

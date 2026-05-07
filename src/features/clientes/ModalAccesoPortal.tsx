@@ -186,9 +186,14 @@ export default function ModalAccesoPortal({ cliente, open, onClose }: Props) {
           <div className="flex items-center gap-3 bg-emerald-50 border border-emerald-200
                           rounded-xl px-4 py-3">
             <CheckCircle size={20} className="text-emerald-500 shrink-0" />
-            <p className="text-sm text-emerald-700 font-medium">
-              Cuenta creada correctamente. Ahora enviá las credenciales al cliente.
-            </p>
+            <div>
+              <p className="text-sm text-emerald-700 font-medium">
+                Cuenta creada correctamente. Ahora enviá las credenciales al cliente.
+              </p>
+              <p className="text-xs text-emerald-600 mt-0.5">
+                📧 Se envió un email de verificación a {email} — el cliente puede ingresar al portal sin verificar.
+              </p>
+            </div>
           </div>
 
           {/* Credenciales */}

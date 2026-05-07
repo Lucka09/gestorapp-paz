@@ -1,6 +1,6 @@
-import { useState, useRef } from 'react'
+import { useState, useRef, useMemo } from 'react'
 import {
-  Plus, Phone, MessageCircle, FileText, Target,
+  Plus, Phone, MessageCircle, FileText,
   DollarSign, TrendingUp, AlertCircle,
   ChevronRight, X, Check, Trash2, Bell,
   MoreVertical, Users, ArrowRight,
@@ -12,6 +12,7 @@ import {
   eliminarProspecto, agregarTarea, completarTarea, eliminarTarea,
   ETAPAS, COLOR_PROSPECTO,
   type Prospecto, type EtapaPipeline, type ColorProspecto,
+  type ProspectoInput,
 } from '@/lib/firestore/pipeline'
 import { TIPO_TRAMITE_LABELS, type TipoTramite } from '@/types'
 import { Button, Spinner } from '@/components/ui'
@@ -19,6 +20,7 @@ import Modal from '@/components/shared/Modal'
 import { formatPesos } from '@/utils'
 import toast from 'react-hot-toast'
 import ModalPresupuesto from '@/features/presupuestos/ModalPresupuesto'
+import { usePageTitle } from '@/hooks/usePageTitle'
 
 // ─── HELPERS ──────────────────────────────────────────────────────────────────
 
@@ -108,7 +110,6 @@ function ProspectoCard({
       {/* Footer */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-          {/* Teléfono rápido */}
           <a
             href={`https://wa.me/${num}`}
             target="_blank"
@@ -130,13 +131,11 @@ function ProspectoCard({
         </div>
 
         <div className="flex items-center gap-2">
-          {/* Monto si está cerrado */}
           {prospecto.etapa === 'cerrado' && prospecto.montoCierre > 0 && (
             <span className="text-xs font-bold text-green-600">
               {formatPesos(prospecto.montoCierre)}
             </span>
           )}
-          {/* Tareas vencidas */}
           {tareasVencidas > 0 && (
             <span className="flex items-center gap-0.5 text-xs font-bold text-red-600
                              bg-red-50 px-1.5 py-0.5 rounded-full">
@@ -144,7 +143,9 @@ function ProspectoCard({
             </span>
           )}
           {tareasPendientes > 0 && tareasVencidas === 0 && (
-            <span className="text-xs text-gray-400">{tareasPendientes} tarea{tareasPendientes !== 1 ? 's' : ''}</span>
+            <span className="text-xs text-gray-400">
+              {tareasPendientes} tarea{tareasPendientes !== 1 ? 's' : ''}
+            </span>
           )}
         </div>
       </div>
@@ -152,10 +153,15 @@ function ProspectoCard({
       {/* Menú mover etapa */}
       {menuOpen && (
         <>
-          <div className="fixed inset-0 z-10" onClick={e => { e.stopPropagation(); setMenuOpen(false) }} />
-          <div className="absolute right-0 mt-1 z-20 bg-white border border-gray-100
-                          rounded-xl shadow-xl py-1.5 w-44"
-               onClick={e => e.stopPropagation()}>
+          <div
+            className="fixed inset-0 z-10"
+            onClick={e => { e.stopPropagation(); setMenuOpen(false) }}
+          />
+          <div
+            className="absolute right-0 mt-1 z-20 bg-white border border-gray-100
+                        rounded-xl shadow-xl py-1.5 w-44"
+            onClick={e => e.stopPropagation()}
+          >
             <p className="text-xs text-gray-400 px-3 py-1.5 font-semibold uppercase tracking-wide">
               Mover a
             </p>
@@ -225,7 +231,7 @@ function KanbanColumna({
       </div>
 
       {/* Cards */}
-      <div className="flex flex-col gap-2 min-h-[120px]">
+      <div className="flex flex-col gap-2 min-h-30">
         {prospectos.map(p => (
           <ProspectoCard
             key={p.id}
@@ -258,28 +264,30 @@ function ProspectoForm({
 }: {
   initial?:     Partial<Prospecto>
   etapaInicial: EtapaPipeline
-  onSave:       (data: any) => Promise<void>
+  onSave:       (data: Partial<Prospecto>) => Promise<void>
   onCancel:     () => void
 }) {
   const [form, setForm] = useState({
-    nombre:       initial?.nombre      ?? '',
-    apellido:     initial?.apellido    ?? '',
-    telefono:     initial?.telefono    ?? '',
-    email:        initial?.email       ?? '',
-    localidad:    initial?.localidad   ?? '',
-    tipoTramite:  initial?.tipoTramite ?? 'transferencia' as TipoTramite,
-    patente:      initial?.patente     ?? '',
-    descripcion:  initial?.descripcion ?? '',
-    color:        initial?.color       ?? 'azul' as ColorProspecto,
-    etapa:        initial?.etapa       ?? etapaInicial,
-    montoCierre:  initial?.montoCierre ?? 0,
-    formaPago:    initial?.formaPago   ?? '',
-    fechaCierre:  initial?.fechaCierre ?? '',
-    asignadoA:    initial?.asignadoA   ?? '',
+    nombre:      initial?.nombre      ?? '',
+    apellido:    initial?.apellido    ?? '',
+    telefono:    initial?.telefono    ?? '',
+    email:       initial?.email       ?? '',
+    localidad:   initial?.localidad   ?? '',
+    tipoTramite: initial?.tipoTramite ?? 'transferencia' as TipoTramite,
+    patente:     initial?.patente     ?? '',
+    descripcion: initial?.descripcion ?? '',
+    color:       initial?.color       ?? 'azul' as ColorProspecto,
+    etapa:       initial?.etapa       ?? etapaInicial,
+    montoCierre: initial?.montoCierre ?? 0,
+    formaPago:   initial?.formaPago   ?? '',
+    fechaCierre: initial?.fechaCierre ?? '',
+    asignadoA:   initial?.asignadoA   ?? '',
   })
   const [saving, setSaving] = useState(false)
-  const set = (k: string) => (e: React.ChangeEvent<any>) =>
-    setForm(f => ({ ...f, [k]: e.target.value }))
+
+  const set = (k: string) =>
+    (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) =>
+      setForm(f => ({ ...f, [k]: e.target.value }))
 
   const handleSave = async () => {
     if (!form.nombre || !form.apellido || !form.telefono) {
@@ -298,39 +306,59 @@ function ProspectoForm({
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-2 gap-3">
-        <div><label className={labelCls}>Nombre *</label>
-          <input className={inputCls} value={form.nombre} onChange={set('nombre')} placeholder="Juan" /></div>
-        <div><label className={labelCls}>Apellido *</label>
-          <input className={inputCls} value={form.apellido} onChange={set('apellido')} placeholder="García" /></div>
+        <div>
+          <label className={labelCls}>Nombre *</label>
+          <input className={inputCls} value={form.nombre} onChange={set('nombre')} placeholder="Juan" />
+        </div>
+        <div>
+          <label className={labelCls}>Apellido *</label>
+          <input className={inputCls} value={form.apellido} onChange={set('apellido')} placeholder="García" />
+        </div>
       </div>
       <div className="grid grid-cols-2 gap-3">
-        <div><label className={labelCls}>Teléfono *</label>
-          <input className={inputCls} value={form.telefono} onChange={set('telefono')} placeholder="1145678901" /></div>
-        <div><label className={labelCls}>Email</label>
-          <input className={inputCls} type="email" value={form.email} onChange={set('email')} placeholder="juan@mail.com" /></div>
+        <div>
+          <label className={labelCls}>Teléfono *</label>
+          <input className={inputCls} value={form.telefono} onChange={set('telefono')} placeholder="1145678901" />
+        </div>
+        <div>
+          <label className={labelCls}>Email</label>
+          <input className={inputCls} type="email" value={form.email} onChange={set('email')} placeholder="juan@mail.com" />
+        </div>
       </div>
       <div className="grid grid-cols-2 gap-3">
-        <div><label className={labelCls}>Tipo de trámite</label>
+        <div>
+          <label className={labelCls}>Tipo de trámite</label>
           <select className={inputCls} value={form.tipoTramite} onChange={set('tipoTramite')}>
-            {(Object.entries(TIPO_TRAMITE_LABELS) as [TipoTramite,string][]).map(([v,l]) => (
+            {(Object.entries(TIPO_TRAMITE_LABELS) as [TipoTramite, string][]).map(([v, l]) => (
               <option key={v} value={v}>{l}</option>
             ))}
           </select>
         </div>
-        <div><label className={labelCls}>Patente</label>
-          <input className={`${inputCls} uppercase`} value={form.patente} onChange={set('patente')} placeholder="AB123CD" /></div>
+        <div>
+          <label className={labelCls}>Patente</label>
+          <input className={`${inputCls} uppercase`} value={form.patente} onChange={set('patente')} placeholder="AB123CD" />
+        </div>
       </div>
-      <div><label className={labelCls}>Localidad</label>
-        <input className={inputCls} value={form.localidad} onChange={set('localidad')} placeholder="San Martín" /></div>
-      <div><label className={labelCls}>Descripción / Nota</label>
-        <textarea className={`${inputCls} resize-none`} rows={2} value={form.descripcion}
-          onChange={set('descripcion')} placeholder="¿Qué necesita? ¿Cómo llegó?" /></div>
+      <div>
+        <label className={labelCls}>Localidad</label>
+        <input className={inputCls} value={form.localidad} onChange={set('localidad')} placeholder="San Martín" />
+      </div>
+      <div>
+        <label className={labelCls}>Descripción / Nota</label>
+        <textarea
+          className={`${inputCls} resize-none`}
+          rows={2}
+          value={form.descripcion}
+          onChange={set('descripcion')}
+          placeholder="¿Qué necesita? ¿Cómo llegó?"
+        />
+      </div>
 
       <div className="grid grid-cols-2 gap-3">
         <div>
           <label className={labelCls}>Color / Estado</label>
           <select className={inputCls} value={form.color} onChange={set('color')}>
-            {(Object.entries(COLOR_PROSPECTO) as [ColorProspecto, any][]).map(([k,v]) => (
+            {(Object.entries(COLOR_PROSPECTO) as Array<[ColorProspecto, { label: string; dot: string }]>).map(([k, v]) => (
               <option key={k} value={k}>{v.label}</option>
             ))}
           </select>
@@ -348,9 +376,13 @@ function ProspectoForm({
         <div className="bg-green-50 border border-green-200 rounded-xl p-4 space-y-3">
           <p className="text-xs font-bold text-green-700 uppercase tracking-wide">Datos del cierre</p>
           <div className="grid grid-cols-2 gap-3">
-            <div><label className={labelCls}>Monto ($)</label>
-              <input className={inputCls} type="number" min={0} value={form.montoCierre}
-                onChange={set('montoCierre')} placeholder="45000" /></div>
+            <div>
+              <label className={labelCls}>Monto ($)</label>
+              <input
+                className={inputCls} type="number" min={0}
+                value={form.montoCierre} onChange={set('montoCierre')} placeholder="45000"
+              />
+            </div>
             <div>
               <label className={labelCls}>Forma de pago</label>
               <select className={inputCls} value={form.formaPago} onChange={set('formaPago')}>
@@ -362,8 +394,10 @@ function ProspectoForm({
               </select>
             </div>
           </div>
-          <div><label className={labelCls}>Fecha de cierre</label>
-            <input className={inputCls} type="date" value={form.fechaCierre} onChange={set('fechaCierre')} /></div>
+          <div>
+            <label className={labelCls}>Fecha de cierre</label>
+            <input className={inputCls} type="date" value={form.fechaCierre} onChange={set('fechaCierre')} />
+          </div>
         </div>
       )}
 
@@ -384,11 +418,11 @@ function ModalDetalle({
   prospecto: Prospecto
   onClose:   () => void
 }) {
-  const [editando, setEditando]   = useState(false)
-  const [presupOpen, setPresupOpen] = useState(false)
-  const [nuevaTarea, setNuevaTarea] = useState('')
-  const [fechaTarea, setFechaTarea] = useState('')
-  const [loadingT, setLoadingT]   = useState(false)
+  const [editando,    setEditando]    = useState(false)
+  const [presupOpen,  setPresupOpen]  = useState(false)
+  const [nuevaTarea,  setNuevaTarea]  = useState('')
+  const [fechaTarea,  setFechaTarea]  = useState('')
+  const [loadingT,    setLoadingT]    = useState(false)
 
   const tel = prospecto.telefono.replace(/\D/g, '')
   const num = tel.startsWith('54') ? tel : `549${tel}`
@@ -407,7 +441,7 @@ function ModalDetalle({
     } finally { setLoadingT(false) }
   }
 
-  const handleSaveEdit = async (data: any) => {
+  const handleSaveEdit = async (data: Partial<Prospecto>) => {
     await actualizarProspecto(prospecto.id, data)
     toast.success('Prospecto actualizado')
     setEditando(false)
@@ -461,12 +495,16 @@ function ModalDetalle({
           </div>
         </div>
         <div className="flex gap-2 shrink-0">
-          <button onClick={() => setEditando(true)}
-            className="text-xs bg-gray-100 hover:bg-gray-200 text-gray-600 px-3 py-1.5 rounded-lg font-medium transition-colors">
+          <button
+            onClick={() => setEditando(true)}
+            className="text-xs bg-gray-100 hover:bg-gray-200 text-gray-600 px-3 py-1.5 rounded-lg font-medium transition-colors"
+          >
             Editar
           </button>
-          <button onClick={handleEliminar}
-            className="text-xs bg-red-50 hover:bg-red-100 text-red-500 px-3 py-1.5 rounded-lg font-medium transition-colors">
+          <button
+            onClick={handleEliminar}
+            className="text-xs bg-red-50 hover:bg-red-100 text-red-500 px-3 py-1.5 rounded-lg font-medium transition-colors"
+          >
             Eliminar
           </button>
         </div>
@@ -484,22 +522,24 @@ function ModalDetalle({
                      rounded-xl py-2.5 text-sm font-semibold hover:bg-blue-600 transition-colors">
           <Phone size={16} /> Llamar
         </a>
-        <button onClick={() => setPresupOpen(true)}
+        <button
+          onClick={() => setPresupOpen(true)}
           className="flex-1 flex items-center justify-center gap-2 rounded-xl py-2.5 text-sm font-semibold transition-colors"
-          style={{ background:'var(--gp-orange-pale)',color:'var(--gp-orange)',border:'1px solid rgba(212,98,26,0.2)' }}>
+          style={{ background: 'var(--gp-orange-pale)', color: 'var(--gp-orange)', border: '1px solid rgba(212,98,26,0.2)' }}
+        >
           <FileText size={16} /> Presupuesto
         </button>
       </div>
 
       {/* Datos */}
       <div className="bg-gray-50 rounded-xl p-4 space-y-2 text-sm">
-        {prospecto.email    && <div className="flex gap-2"><span className="text-gray-400 w-20 shrink-0">Email</span><span className="text-gray-700">{prospecto.email}</span></div>}
+        {prospecto.email     && <div className="flex gap-2"><span className="text-gray-400 w-20 shrink-0">Email</span><span className="text-gray-700">{prospecto.email}</span></div>}
         {prospecto.localidad && <div className="flex gap-2"><span className="text-gray-400 w-20 shrink-0">Localidad</span><span className="text-gray-700">{prospecto.localidad}</span></div>}
         {prospecto.descripcion && <div className="flex gap-2"><span className="text-gray-400 w-20 shrink-0">Nota</span><span className="text-gray-700">{prospecto.descripcion}</span></div>}
         {prospecto.etapa === 'cerrado' && prospecto.montoCierre > 0 && (
           <>
             <div className="flex gap-2"><span className="text-gray-400 w-20 shrink-0">Monto</span><span className="font-bold text-green-600">{formatPesos(prospecto.montoCierre)}</span></div>
-            {prospecto.formaPago && <div className="flex gap-2"><span className="text-gray-400 w-20 shrink-0">Forma pago</span><span className="text-gray-700 capitalize">{prospecto.formaPago}</span></div>}
+            {prospecto.formaPago  && <div className="flex gap-2"><span className="text-gray-400 w-20 shrink-0">Forma pago</span><span className="text-gray-700 capitalize">{prospecto.formaPago}</span></div>}
             {prospecto.fechaCierre && <div className="flex gap-2"><span className="text-gray-400 w-20 shrink-0">Fecha cierre</span><span className="text-gray-700">{formatFechaCorta(prospecto.fechaCierre)}</span></div>}
           </>
         )}
@@ -511,13 +551,13 @@ function ModalDetalle({
           Tareas / Alertas
         </p>
 
-        {/* Lista de tareas */}
         <div className="space-y-2 mb-3">
           {prospecto.tareas.length === 0 && (
             <p className="text-xs text-gray-400 text-center py-2">Sin tareas programadas.</p>
           )}
           {prospecto.tareas.map(tarea => (
-            <div key={tarea.id}
+            <div
+              key={tarea.id}
               className={`flex items-center gap-3 p-3 rounded-xl border
                           ${tarea.completada
                             ? 'bg-gray-50 border-gray-100 opacity-60'
@@ -585,13 +625,14 @@ function ModalDetalle({
           </button>
         </div>
       </div>
+
       <ModalPresupuesto
         open={presupOpen}
         onClose={() => setPresupOpen(false)}
         cliente={{
           id: '', nombre: prospecto.nombre, apellido: prospecto.apellido,
           dni: '', telefono: prospecto.telefono, email: prospecto.email,
-          creadoEn: null, actualizadoEn: null,
+          creadoEn: new Date(), actualizadoEn: new Date(),
         } as any}
         tipoInicial={prospecto.tipoTramite}
       />
@@ -602,13 +643,15 @@ function ModalDetalle({
 // ─── PÁGINA PRINCIPAL ─────────────────────────────────────────────────────────
 
 export default function PipelinePage() {
-  const { user }      = useAuth()
+  const { user } = useAuth()
+  usePageTitle('Pipeline CRM')
   const { porEtapa, metricas, tareasUrgentes, loading } = useProspectos()
 
-  const [modalNuevo, setModalNuevo]       = useState(false)
-  const [etapaInicial, setEtapaInicial]   = useState<EtapaPipeline>('nuevo')
-  const [prospectoAbierto, setAbierto]    = useState<Prospecto | null>(null)
-  const [alertasOpen, setAlertasOpen]     = useState(false)
+  const [modalNuevo,       setModalNuevo]    = useState(false)
+  const [search,           setSearch]        = useState('')
+  const [etapaInicial,     setEtapaInicial]  = useState<EtapaPipeline>('nuevo')
+  const [prospectoAbierto, setAbierto]       = useState<Prospecto | null>(null)
+  const [alertasOpen,      setAlertasOpen]   = useState(false)
 
   const handleMover = async (id: string, etapa: EtapaPipeline) => {
     try {
@@ -622,14 +665,34 @@ export default function PipelinePage() {
     setModalNuevo(true)
   }
 
-  const handleCrear = async (data: any) => {
-    if (!user) return
-    await crearProspecto(data, user.uid)
-    toast.success('Prospecto creado')
-    setModalNuevo(false)
-  }
+  const handleCrear = async (data: Partial<Prospecto>) => {
+  if (!user) return
+  await crearProspecto(
+    data as Omit<ProspectoInput, 'tareas' | 'creadoPor' | 'orden' | 'etiquetas'>,
+    user.uid
+  )
+  toast.success('Prospecto creado')
+  setModalNuevo(false)
+}
 
-  if (loading) return <Spinner />
+  // Total de prospectos para el contador de búsqueda
+  const totalProspectos = useMemo(
+    () => Object.values(porEtapa).flat().length,
+    [porEtapa]
+  )
+
+  // Filtrado por búsqueda global
+  const prospectosFiltrados = useMemo(() => {
+    if (!search.trim()) return null
+    const q = search.toLowerCase()
+    return Object.values(porEtapa).flat().filter(p =>
+      `${p.apellido} ${p.nombre}`.toLowerCase().includes(q) ||
+      p.telefono?.toLowerCase().includes(q) ||
+      p.email?.toLowerCase().includes(q)
+    )
+  }, [porEtapa, search])
+
+  if (loading) return <SkeletonPipeline />
 
   return (
     <div className="flex flex-col h-full">
@@ -643,7 +706,6 @@ export default function PipelinePage() {
           </p>
         </div>
         <div className="flex gap-2">
-          {/* Alertas de tareas */}
           {tareasUrgentes.length > 0 && (
             <button
               onClick={() => setAlertasOpen(true)}
@@ -663,10 +725,10 @@ export default function PipelinePage() {
       {/* Métricas rápidas */}
       <div className="grid grid-cols-4 gap-3 mb-5">
         {[
-          { label: 'Total', value: metricas.total, color: 'text-gray-900' },
-          { label: 'Activos', value: metricas.activos, color: 'text-blue-600' },
-          { label: 'Cerrados', value: metricas.cerrados, color: 'text-green-600' },
-          { label: 'Conversión', value: `${metricas.conversion}%`, color: 'text-[#D4621A]' },
+          { label: 'Total',      value: metricas.total,           color: 'text-gray-900'    },
+          { label: 'Activos',    value: metricas.activos,         color: 'text-blue-600'    },
+          { label: 'Cerrados',   value: metricas.cerrados,        color: 'text-green-600'   },
+          { label: 'Conversión', value: `${metricas.conversion}%`,color: 'text-[#D4621A]'  },
         ].map(m => (
           <div key={m.label} className="bg-white border border-gray-100 rounded-xl p-3 text-center shadow-sm">
             <p className={`text-2xl font-bold ${m.color}`}>{m.value}</p>
@@ -675,8 +737,37 @@ export default function PipelinePage() {
         ))}
       </div>
 
+      {/* Búsqueda global */}
+      <div className="relative mb-4">
+        <svg className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4"
+             fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+        </svg>
+        <input
+          type="search"
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          placeholder="Buscar prospecto por nombre, teléfono o email..."
+          className="w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-xl text-sm
+                     outline-none focus:border-[#D4621A] focus:ring-2 focus:ring-[#D4621A]/10 bg-white"
+        />
+        {search && (
+          <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full">
+            {prospectosFiltrados?.length ?? totalProspectos} resultado{(prospectosFiltrados?.length ?? totalProspectos) !== 1 ? 's' : ''}
+          </span>
+        )}
+      </div>
+
+      {/* Sin resultados */}
+      {prospectosFiltrados && prospectosFiltrados.length === 0 && (
+        <div className="flex flex-col items-center justify-center py-16 text-gray-300">
+          <p className="text-base font-semibold text-gray-400">Sin resultados para "{search}"</p>
+        </div>
+      )}
+
       {/* Tablero Kanban */}
-      <div className="flex gap-4 overflow-x-auto pb-4 flex-1">
+      <div className={`flex gap-4 overflow-x-auto pb-4 flex-1 ${prospectosFiltrados ? 'hidden' : ''}`}>
         {ETAPAS.map(etapaConf => (
           <KanbanColumna
             key={etapaConf.key}
@@ -688,6 +779,34 @@ export default function PipelinePage() {
           />
         ))}
       </div>
+
+      {/* Vista lista — resultados de búsqueda */}
+      {prospectosFiltrados && prospectosFiltrados.length > 0 && (
+        <div className="space-y-2">
+          {prospectosFiltrados.map(p => (
+            <button
+              key={p.id}
+              onClick={() => setAbierto(p)}
+              className="w-full flex items-center gap-3 bg-white border border-gray-100 rounded-xl
+                         px-4 py-3 text-left hover:border-[#D4621A]/30 hover:shadow-sm transition-all"
+            >
+              <div className="w-9 h-9 rounded-lg bg-[#D4621A]/10 flex items-center justify-center
+                              text-[#D4621A] font-bold text-xs shrink-0">
+                {p.apellido[0]?.toUpperCase()}{p.nombre[0]?.toUpperCase()}
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="font-semibold text-gray-900 text-sm">{p.apellido}, {p.nombre}</p>
+                <p className="text-xs text-gray-400">
+                  {TIPO_TRAMITE_LABELS[p.tipoTramite]} · {ETAPAS.find(e => e.key === p.etapa)?.label ?? p.etapa}
+                </p>
+              </div>
+              <div className="text-xs font-semibold shrink-0" style={{ color: '#D4621A' }}>
+                {p.montoCierre > 0 ? formatPesos(p.montoCierre) : ''}
+              </div>
+            </button>
+          ))}
+        </div>
+      )}
 
       {/* Modal nuevo prospecto */}
       <Modal
@@ -748,6 +867,61 @@ export default function PipelinePage() {
           ))}
         </div>
       </Modal>
+    </div>
+  )
+}
+
+// ─── SKELETON ─────────────────────────────────────────────────────────────────
+
+function SkeletonPipeline() {
+  const ETAPA_COLORS = ['bg-gray-100', 'bg-blue-50', 'bg-indigo-50', 'bg-amber-50', 'bg-emerald-50', 'bg-red-50']
+  return (
+    <div className="flex flex-col h-full animate-fadein">
+      <div className="flex items-start justify-between mb-5 flex-wrap gap-3">
+        <div className="space-y-2">
+          <div className="h-6 w-32 bg-gray-200 rounded-full animate-pulse" />
+          <div className="h-3.5 w-52 bg-gray-100 rounded-full animate-pulse" />
+        </div>
+        <div className="h-9 w-36 bg-gray-100 rounded-xl animate-pulse" />
+      </div>
+
+      <div className="grid grid-cols-4 gap-3 mb-5">
+        {Array.from({ length: 4 }).map((_, i) => (
+          <div key={i} className="bg-white border border-gray-100 rounded-xl p-3 text-center shadow-sm">
+            <div className="h-7 w-10 bg-gray-200 rounded-full animate-pulse mx-auto mb-1" />
+            <div className="h-3 w-14 bg-gray-100 rounded-full animate-pulse mx-auto" />
+          </div>
+        ))}
+      </div>
+
+      <div className="h-10 bg-gray-100 rounded-xl animate-pulse mb-4" />
+
+      <div className="flex gap-4 overflow-x-auto pb-4 flex-1">
+        {ETAPA_COLORS.map((bg, col) => (
+          <div key={col} className="shrink-0 w-64">
+            <div className={`${bg} rounded-xl p-3 mb-3 flex items-center justify-between`}>
+              <div className="h-3.5 w-20 bg-white/60 rounded-full animate-pulse" />
+              <div className="h-5 w-6 bg-white/60 rounded-full animate-pulse" />
+            </div>
+            <div className="space-y-2">
+              {Array.from({ length: col === 0 ? 3 : col === 2 ? 2 : 1 }).map((_, i) => (
+                <div key={i} className="bg-white rounded-xl border border-gray-100 shadow-sm p-3 space-y-2.5">
+                  <div className="flex items-center justify-between">
+                    <div className="h-3.5 w-28 bg-gray-200 rounded-full animate-pulse" />
+                    <div className="h-4 w-4 rounded-full bg-gray-100 animate-pulse" />
+                  </div>
+                  <div className="h-3 w-20 bg-gray-100 rounded-full animate-pulse" />
+                  <div className="h-3 w-32 bg-gray-100 rounded-full animate-pulse" />
+                  <div className="flex items-center justify-between pt-1">
+                    <div className="h-4 w-16 bg-gray-100 rounded-full animate-pulse" />
+                    <div className="h-3 w-12 bg-gray-100 rounded-full animate-pulse" />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
     </div>
   )
 }

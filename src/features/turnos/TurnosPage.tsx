@@ -5,11 +5,13 @@ import { useCliente } from '@/hooks/useClientes'
 import { confirmarTurno, cancelarTurno, cumplirTurno } from '@/lib/firestore/turnos'
 import { Button, Card, PageHeader, Spinner, Badge } from '@/components/ui'
 import Modal from '@/components/shared/Modal'
-import NuevoTurnoForm from './NuevoTurnoForm'
+import NuevoTurnoForm   from './NuevoTurnoForm'
+import { useGestoriaId } from '@/context/GestoriaContext'
 import { TIPO_TRAMITE_LABELS, type Turno } from '@/types'
 import { format, addDays, startOfWeek, isSameDay, isToday } from 'date-fns'
 import { es } from 'date-fns/locale'
 import toast from 'react-hot-toast'
+import { usePageTitle } from '@/hooks/usePageTitle'
 
 const ESTADO_COLORS: Record<string, string> = {
   reservado:  'bg-yellow-100 text-yellow-700',
@@ -98,6 +100,8 @@ function TurnoCard({ turno, onAccion }: { turno: Turno; onAccion: () => void }) 
 }
 
 export default function TurnosPage() {
+  const gestoriaId = useGestoriaId()
+  usePageTitle('Agenda / Turnos')
   const [fechaSeleccionada, setFecha] = useState(new Date())
   const [semanaBase, setSemana]       = useState(startOfWeek(new Date(), { weekStartsOn: 1 }))
   const [modalOpen, setModal]         = useState(false)
@@ -178,7 +182,7 @@ export default function TurnosPage() {
       </div>
 
       {loading ? (
-        <Spinner />
+        <SkeletonTurnos />
       ) : turnos.length === 0 ? (
         <div className="text-center py-12 bg-white rounded-xl border border-dashed border-gray-200">
           <CalendarDays size={36} className="text-gray-200 mx-auto mb-3" />
@@ -207,6 +211,35 @@ export default function TurnosPage() {
           onCancel={() => setModal(false)}
         />
       </Modal>
+    </div>
+  )
+}
+
+// ─── SKELETON ─────────────────────────────────────────────────────────────────
+function SkeletonTurnos() {
+  return (
+    <div className="space-y-3">
+      {Array.from({ length: 5 }).map((_, i) => (
+        <div key={i}
+          className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 flex items-center gap-4">
+          {/* Hora */}
+          <div className="shrink-0 text-center w-14">
+            <div className="h-5 w-12 bg-gray-200 rounded-full animate-pulse mx-auto mb-1" />
+            <div className="h-3 w-10 bg-gray-100 rounded-full animate-pulse mx-auto" />
+          </div>
+          <div className="w-px h-10 bg-gray-100 shrink-0" />
+          {/* Info */}
+          <div className="flex-1 space-y-2">
+            <div className="h-4 w-40 bg-gray-200 rounded-full animate-pulse" />
+            <div className="flex gap-2">
+              <div className="h-3 w-24 bg-gray-100 rounded-full animate-pulse" />
+              <div className="h-3 w-16 bg-gray-100 rounded-full animate-pulse" />
+            </div>
+          </div>
+          {/* Badge */}
+          <div className="h-6 w-20 bg-gray-100 rounded-full animate-pulse shrink-0" />
+        </div>
+      ))}
     </div>
   )
 }

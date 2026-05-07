@@ -63,7 +63,7 @@ function AlertaCard({
               {cat.emoji} {cat.label}
             </span>
             {!alerta.leida && (
-              <span className="w-2 h-2 rounded-full bg-[var(--gp-orange)] inline-block" />
+              <span className="w-2 h-2 rounded-full bg-gp-orange inline-block" />
             )}
           </div>
 

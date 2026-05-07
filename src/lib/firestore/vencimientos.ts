@@ -15,7 +15,7 @@ export const vencimientoDoc  = (id: string) => doc(db, 'vencimientos', id)
 
 export function calcularEstado(v: Vencimiento): EstadoVencimiento {
   if (!v.fechaVencimiento) return 'sin_datos'
-  const fecha = v.fechaVencimiento?.toDate?.() ?? new Date(v.fechaVencimiento)
+  const fecha = v.fechaVencimiento instanceof Timestamp ? v.fechaVencimiento.toDate() : new Date(v.fechaVencimiento)
   const diff  = Math.floor((fecha.getTime() - Date.now()) / (1000 * 60 * 60 * 24))
   if (diff < 0)   return 'vencido'
   if (diff <= 30) return 'por_vencer'
@@ -24,7 +24,7 @@ export function calcularEstado(v: Vencimiento): EstadoVencimiento {
 
 export function diasRestantes(v: Vencimiento): number {
   if (!v.fechaVencimiento) return Infinity
-  const fecha = v.fechaVencimiento?.toDate?.() ?? new Date(v.fechaVencimiento)
+  const fecha = v.fechaVencimiento instanceof Timestamp ? v.fechaVencimiento.toDate() : new Date(v.fechaVencimiento)
   return Math.floor((fecha.getTime() - Date.now()) / (1000 * 60 * 60 * 24))
 }
 

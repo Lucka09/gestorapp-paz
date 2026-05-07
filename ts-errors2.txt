@@ -1,0 +1,40 @@
+src/features/analytics/AnalyticsPage.tsx(364,19): error TS2322: Type '(v: number | undefined) => [string, string]' is not assignable to type 'Formatter<ValueType, NameType> & ((value: ValueType, name: NameType, item: TooltipPayloadEntry, index: number, payload: TooltipPayload) => ReactNode | [...])'.
+  Type '(v: number | undefined) => [string, string]' is not assignable to type 'Formatter<ValueType, NameType>'.
+    Types of parameters 'v' and 'value' are incompatible.
+      Type 'ValueType | undefined' is not assignable to type 'number | undefined'.
+        Type 'string' is not assignable to type 'number'.
+src/features/clientes/ClientesPage.tsx(126,58): error TS2339: Property 'maxClientes' does not exist on type 'Gestoria'.
+src/features/dashboard/DashboardPage.tsx(274,28): error TS2322: Type '(v: number, n: string) => [number, string]' is not assignable to type 'Formatter<ValueType, NameType> & ((value: ValueType, name: NameType, item: TooltipPayloadEntry, index: number, payload: TooltipPayload) => ReactNode | [...])'.
+  Type '(v: number, n: string) => [number, string]' is not assignable to type 'Formatter<ValueType, NameType>'.
+    Types of parameters 'v' and 'value' are incompatible.
+      Type 'ValueType | undefined' is not assignable to type 'number'.
+        Type 'undefined' is not assignable to type 'number'.
+src/features/dashboard/DashboardPage.tsx(402,70): error TS2339: Property 'clienteNombre' does not exist on type 'Turno'.
+src/features/equipo/EquipoPage.tsx(127,44): error TS2339: Property 'maxUsuarios' does not exist on type 'Gestoria'.
+src/features/pipeline/PipelinePage.tsx(711,45): error TS2552: Cannot find name 'prospectos'. Did you mean 'useProspectos'?
+src/features/pipeline/PipelinePage.tsx(711,106): error TS2552: Cannot find name 'prospectos'. Did you mean 'useProspectos'?
+src/features/superadmin/SuperAdminPage.tsx(238,25): error TS2339: Property 'precio' does not exist on type '{ maxUsuarios: number; maxClientes: number; label: string; } | { maxUsuarios: number; maxClientes: number; label: string; } | { maxUsuarios: number; maxClientes: number; label: string; }'.
+  Property 'precio' does not exist on type '{ maxUsuarios: number; maxClientes: number; label: string; }'.
+src/features/superadmin/SuperAdminPage.tsx(282,16): error TS2339: Property 'responsable' does not exist on type 'Gestoria'.
+src/features/superadmin/SuperAdminPage.tsx(282,34): error TS2339: Property 'email' does not exist on type 'Gestoria'.
+src/features/superadmin/SuperAdminPage.tsx(287,37): error TS2339: Property 'maxUsuarios' does not exist on type 'Gestoria'.
+src/features/superadmin/SuperAdminPage.tsx(291,38): error TS2339: Property 'precio' does not exist on type '{ maxUsuarios: number; maxClientes: number; label: string; } | { maxUsuarios: number; maxClientes: number; label: string; } | { maxUsuarios: number; maxClientes: number; label: string; }'.
+  Property 'precio' does not exist on type '{ maxUsuarios: number; maxClientes: number; label: string; }'.
+src/features/superadmin/SuperAdminPage.tsx(391,49): error TS2339: Property 'precio' does not exist on type '{ maxUsuarios: number; maxClientes: number; label: string; } | { maxUsuarios: number; maxClientes: number; label: string; } | { maxUsuarios: number; maxClientes: number; label: string; }'.
+  Property 'precio' does not exist on type '{ maxUsuarios: number; maxClientes: number; label: string; }'.
+src/features/tareas/TareasPage.tsx(106,45): error TS2345: Argument of type '{ gestoriaId: string; titulo: string; descripcion: string | undefined; prioridad: PrioridadTarea; asignadoA: string; asignadoNombre: string; vencimiento: Date | undefined; recordatorio: Date | undefined; clienteId: string | undefined; clienteNombre: string | undefined; }' is not assignable to parameter of type 'Partial<Omit<Tarea, "id" | "creadoEn" | "creadoPor">>'.
+  Types of property 'vencimiento' are incompatible.
+    Type 'Date | undefined' is not assignable to type 'Timestamp | undefined'.
+      Type 'Date' is missing the following properties from type 'Timestamp': seconds, nanoseconds, toDate, toMillis, isEqual
+src/features/tramites/TramiteForm.tsx(32,7): error TS2741: Property 'gestoriaId' is missing in type '{ tipo: "transferencia"; clienteId: string; vehiculoId: string; patente: string; descripcion: string; observacionesInternas: string; honorarios: number; asignadoA: null; }' but required in type 'TramiteInput'.
+src/features/vehiculos/PanelVencimientos.tsx(93,34): error TS2339: Property 'toDate' does not exist on type 'DateConstructor'.
+src/features/vehiculos/VehiculosPage.tsx(41,38): error TS2345: Argument of type '{ patente: string; tipo: "auto" | "moto" | "camion" | "utilitario" | "otro"; marca: string; modelo: string; anio: number; color: string; nroMotor: string; nroChasis: string; clienteId: string; }' is not assignable to parameter of type 'VehiculoInput'.
+  Property 'gestoriaId' is missing in type '{ patente: string; tipo: "auto" | "moto" | "camion" | "utilitario" | "otro"; marca: string; modelo: string; anio: number; color: string; nroMotor: string; nroChasis: string; clienteId: string; }' but required in type 'VehiculoInput'.
+src/hooks/usePlanLimites.ts(60,33): error TS2339: Property 'maxClientes' does not exist on type 'Gestoria'.
+src/hooks/usePlanLimites.ts(61,33): error TS2339: Property 'maxUsuarios' does not exist on type 'Gestoria'.
+src/lib/firestore/inscripcionworkflow.ts(368,5): error TS2322: Type 'string' is not assignable to type 'Rol'.
+src/lib/firestore/notificaciones.ts(55,35): error TS2345: Argument of type '{ tramiteId: string | null; turnoId: string | null; leida: false; creadoEn: FieldValue; gestoriaId: string; destinatarioId: string; titulo: string; mensaje: string; tipo: TipoNotificacion; }' is not assignable to parameter of type 'WithFieldValue<Notificacion>'.
+  Property 'id' is missing in type '{ tramiteId: string | null; turnoId: string | null; leida: false; creadoEn: FieldValue; gestoriaId: string; destinatarioId: string; titulo: string; mensaje: string; tipo: TipoNotificacion; }' but required in type '{ id: string | FieldValue; gestoriaId: string | FieldValue; destinatarioId: string | FieldValue; titulo: string | FieldValue; ... 5 more ...; creadoEn: FieldValue | WithFieldValue<...>; }'.
+src/MotorAlertas.ts(5,30): error TS2304: Cannot find name 'getVencimientosProximos'.
+src/MotorAlertas.ts(6,39): error TS2304: Cannot find name 'getTramitesInactivos'.
+src/MotorAlertas.ts(7,9): error TS2304: Cannot find name 'procesarYGuardarAlertas'.

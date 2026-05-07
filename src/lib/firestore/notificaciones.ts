@@ -52,13 +52,15 @@ export async function crearNotificacion(data: {
   tramiteId?:     string | null
   turnoId?:       string | null
 }): Promise<void> {
-  await addDoc(notificacionesCol, {
+  const docRef = await addDoc(notificacionesCol, {
+    id:        '',  // se asigna luego con el ID del doc
     ...data,
     tramiteId: data.tramiteId ?? null,
     turnoId:   data.turnoId   ?? null,
     leida:     false,
     creadoEn:  serverTimestamp(),
   })
+  await updateDoc(docRef, { id: docRef.id })
 }
 
 export async function marcarLeida(id: string): Promise<void> {

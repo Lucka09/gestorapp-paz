@@ -90,16 +90,16 @@ function regresionLineal(puntos: number[]): number {
 
 // ─── MOTOR PRINCIPAL ──────────────────────────────────────────────────────────
 
-export async function calcularAnalytics(meses = 12): Promise<DatosAnalytics> {
+export async function calcularAnalytics(gestoriaId: string, meses = 12): Promise<DatosAnalytics> {
   const ahora  = new Date()
   const limite = new Date(ahora)
   limite.setMonth(limite.getMonth() - meses)
 
   // Cargar todos los datos
   const [snapT, snapC, snapTurnos] = await Promise.all([
-    getDocs(query(tramitesCol, orderBy('creadoEn', 'desc'))),
-    getDocs(clientesCol),
-    getDocs(query(turnosCol,   orderBy('fecha', 'desc'))),
+    getDocs(query(tramitesCol, where('gestoriaId', '==', gestoriaId), orderBy('creadoEn', 'desc'))),
+    getDocs(query(clientesCol, where('gestoriaId', '==', gestoriaId))),
+    getDocs(query(turnosCol,   where('gestoriaId', '==', gestoriaId), orderBy('fecha', 'desc'))),
   ])
 
   const tramites = snapT.docs.map(d => ({ ...d.data(), id: d.id })) as Tramite[]

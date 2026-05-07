@@ -34,6 +34,16 @@ import { TIPO_TRAMITE_LABELS } from '@/types'
 import { formatPesos } from '@/utils'
 import { format } from 'date-fns/format'
 import { es } from 'date-fns/locale/es'
+import { usePageTitle } from '@/hooks/usePageTitle'
+
+interface Alerta {
+  id: string
+  titulo: string
+  detalle: string
+  nivel?: string
+  tipo?: string
+  link?: string
+}
 
 const COLORES_ESTADO: Record<string, string> = {
   pendiente: '#EAB308', en_proceso: '#3B82F6',
@@ -63,7 +73,7 @@ function KpiCard({ label, value, icon: Icon, color = '#D4621A', sub, onClick }: 
   )
 }
 
-function AlertaCard({ alerta, onClick }: { alerta: any; onClick?: () => void }) {
+function AlertaCard({ alerta, onClick }: { alerta: Alerta; onClick?: () => void }) {
   const nivel = alerta.nivel ?? alerta.tipo
   const base  = NIVEL_CONFIG[nivel as keyof typeof NIVEL_CONFIG] ?? NIVEL_CONFIG.info
   const s     = { bg: base.bg, border: base.border, dot: base.dot, text: base.color }
@@ -82,12 +92,18 @@ function AlertaCard({ alerta, onClick }: { alerta: any; onClick?: () => void }) 
   )
 }
 
-function CustomTooltip({ active, payload, label }: any) {
+interface CustomTooltipProps {
+  active?: boolean
+  payload?: Array<{ color: string; name: string; value: number }>
+  label?: string
+}
+
+function CustomTooltip({ active, payload, label }: CustomTooltipProps) {
   if (!active || !payload?.length) return null
   return (
     <div className="bg-white border border-gray-100 rounded-xl shadow-lg px-4 py-3">
       <p className="text-xs font-bold text-gray-500 mb-1">{label}</p>
-      {payload.map((p: any, i: number) => (
+      {payload.map((p, i: number) => (
         <p key={i} className="text-sm font-semibold" style={{ color: p.color }}>
           {p.name === 'ingresos' ? formatPesos(p.value) : p.value}
           {' '}<span className="text-xs font-normal text-gray-400">{p.name}</span>
@@ -100,12 +116,13 @@ function CustomTooltip({ active, payload, label }: any) {
 export default function DashboardPage() {
   const navigate = useNavigate()
   const { user } = useAuth()
+  usePageTitle('Dashboard')
   const { metricas, loading: loadM } = useMetricas()
   const { tramites }                 = useUltimosTramites()
   const { turnos: turnosHoy }        = useTurnosHoy()
   const { data: distribucion }       = useDistribucionEstados()
   const { metricas: metPipeline }    = useProspectos()
-  const { alertas, noLeidas: alertasCount, nivelMax } = useAlertas()
+  const { alertas, nivelMax } = useAlertas()
 
   const [ingresosMes,   setIngresosMes]   = useState<IngresoMes[]>([])
   const [tiposTramite,  setTiposTramite]  = useState<TipoCount[]>([])
@@ -124,7 +141,7 @@ export default function DashboardPage() {
         titulo:  `⏰ Turno en 15 minutos`,
         cuerpo:  `${TTL[t.tipoTramite]} a las ${t.horaInicio} hs`,
         url:     '/admin/turnos',
-        tag:     `turno-${t.id}`,
+        tag:     `turno-${String(t.id)}`,
       })
     })
   }, [turnosHoy])
@@ -133,14 +150,14 @@ export default function DashboardPage() {
     // Ejecutar motor de alertas en background
     ejecutarMotorAlertas().catch(() => {})
     Promise.all([
-      getIngresosPorMes(6),
-      getTiposTramiteFrecuentes(),
-      getTopClientes(5),
+      getIngresosPorMes('6'),
+      getTiposTramiteFrecuentes(user?.gestoriaId || ''),
+      getTopClientes('5'),
     ]).then(([ing, tipos, top]) => {
       setIngresosMes(ing); setTiposTramite(tipos)
       setTopClientes(top); setLoadAnalytics(false)
     })
-  }, [])
+  }, [user?.gestoriaId])
 
   const hoy = format(new Date(), "EEEE d 'de' MMMM", { locale: es })
   if (loadM) return <Spinner label="Cargando dashboard..." />
@@ -254,7 +271,10 @@ export default function DashboardPage() {
                       <Cell key={i} fill={COLORES_ESTADO[e.estado] ?? '#E5E7EB'} />
                     ))}
                   </Pie>
-                  <Tooltip formatter={(v:any,n:any) => [v,n]}
+                  <Tooltip formatter={(v) => {
+  const n = typeof v === 'number' ? v : 0;
+  return [n, 'Cantidad'];
+}}
                     contentStyle={{ borderRadius:12,border:'1px solid #E5E7EB',fontSize:12 }} />
                 </PieChart>
               </ResponsiveContainer>
@@ -300,7 +320,7 @@ export default function DashboardPage() {
                 <XAxis type="number" hide />
                 <YAxis type="category" dataKey="label" width={110}
                   tick={{ fontSize:11,fill:'#6B7280' }} axisLine={false} tickLine={false} />
-                <Tooltip cursor={{ fill:'#F9FAFB' }} formatter={(v:any) => [v,'trámites']}
+                <Tooltip cursor={{ fill:'#F9FAFB' }} formatter={(v) => [v,'trámites']}
                   contentStyle={{ borderRadius:12,border:'1px solid #E5E7EB',fontSize:12 }} />
                 <Bar dataKey="cantidad" fill="#D4621A" radius={[0,6,6,0]} />
               </BarChart>
@@ -382,7 +402,7 @@ export default function DashboardPage() {
                     <p className="text-sm font-semibold text-gray-800 truncate">
                       {TIPO_TRAMITE_LABELS[t.tipoTramite]}
                     </p>
-                    <p className="text-xs text-gray-400 truncate">{(t as any).clienteNombre ?? 'Cliente'}</p>
+                    <p className="text-xs text-gray-400 truncate">{t.clienteNombre ?? 'cliente'}</p>
                   </div>
                   <span className={`text-xs px-2 py-0.5 rounded-full font-semibold shrink-0 ${
                     t.estado==='confirmado'?'bg-emerald-100 text-emerald-700':'bg-yellow-100 text-yellow-700'}`}>

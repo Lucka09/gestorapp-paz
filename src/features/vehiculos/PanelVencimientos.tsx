@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Timestamp } from 'firebase/firestore'
 import {
-  Plus, Edit2, Trash2, Bell, AlertTriangle,
+  Plus, Edit2, Trash2, AlertTriangle,
   CheckCircle, Calendar, MessageCircle,
 } from 'lucide-react'
 import {
@@ -90,7 +90,7 @@ function ModalVencimiento({
         await crearVencimiento({
           gestoriaId,
           vehiculoId, clienteId, patente, tipo,
-          fechaVencimiento: Timestamp.fromDate(new Date(fecha + 'T12:00:00')),
+          fechaVencimiento: new Date(fecha + 'T12:00:00'),
           compania:  compania  || undefined,
           nroPóliza: nroPoliza || undefined,
           notas:     notas     || undefined,
@@ -126,7 +126,7 @@ function ModalVencimiento({
                 className={`flex items-center gap-2 px-3 py-2 rounded-xl text-xs
                             font-medium border-2 transition-all text-left
                             ${tipo === t
-                              ? 'border-[var(--gp-orange)] bg-[var(--gp-orange-pale)] text-[var(--gp-orange)]'
+                              ? 'border-gp-orange bg-gp-orange-pale text-gp-orange'
                               : 'border-gray-100 bg-white text-gray-600 hover:border-gray-200'
                             }`}
               >

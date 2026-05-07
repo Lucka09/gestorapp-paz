@@ -76,6 +76,28 @@ const CONTEXTO_MENSAJES: Record<ErrorContext, Record<string, MensajeError>> = {
       titulo:  'Sin conexión a internet',
       detalle: 'Verificá tu WiFi o datos móviles e intentá de nuevo.',
     },
+    'auth/email-already-in-use': {
+      titulo:  'Email ya en uso',
+      detalle: 'Esa dirección de correo ya está registrada.',
+    },
+    'auth/invalid-email': {
+      titulo:  'Email inválido',
+      detalle: 'La dirección de correo no tiene un formato válido.',
+    },
+    'auth/weak-password': {
+      titulo:  'Contraseña débil',
+      detalle: 'Usá una contraseña más segura (mínimo 6 caracteres).',
+    },
+    'auth/operation-not-allowed': {
+      titulo:  'Registro deshabilitado',
+      detalle: 'La creación de usuarios por email/contraseña no está habilitada en Firebase Auth.',
+      mostrarContacto: true,
+    },
+    'auth/quota-exceeded': {
+      titulo:  'Límite de Auth alcanzado',
+      detalle: 'Se alcanzó la cuota de operaciones de autenticación. Intentá más tarde.',
+      accion:  'Intentar de nuevo',
+    },
   },
   turno: {
     'slot-occupied': {

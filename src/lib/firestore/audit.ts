@@ -80,6 +80,7 @@ export const ACCION_CONFIG: Record<AccionAudit, {
   registrar_pago: { label: 'Registró cobro',   emoji: '💰', color: 'text-green-700',   bg: 'bg-green-50'    },
   desmarcar_pago: { label: 'Desmarcó cobro',   emoji: '↩️', color: 'text-yellow-700',  bg: 'bg-yellow-50'   },
   crear_acceso:   { label: 'Creó acceso',      emoji: '🔑', color: 'text-purple-700',  bg: 'bg-purple-50'   },
+  acceso_denegado: { label: 'Acceso denegado', emoji: '⛔', color: 'text-gray-700',    bg: 'bg-gray-50'     },
   confirmar_turno:{ label: 'Confirmó turno',   emoji: '✅', color: 'text-emerald-700', bg: 'bg-emerald-50'  },
   cancelar_turno: { label: 'Canceló turno',    emoji: '❌', color: 'text-red-700',     bg: 'bg-red-50'      },
   importar:       { label: 'Importó datos',    emoji: '📥', color: 'text-indigo-700',  bg: 'bg-indigo-50'   },
@@ -95,6 +96,7 @@ export const ENTIDAD_CONFIG: Record<EntidadAudit, {
   tramite:       { label: 'Trámite',       emoji: '📋' },
   turno:         { label: 'Turno',         emoji: '📅' },
   usuario:       { label: 'Usuario',       emoji: '👥' },
+  sistema:       { label: 'Sistema',       emoji: '🖥️' },
   configuracion: { label: 'Configuración', emoji: '⚙️' },
   presupuesto:   { label: 'Presupuesto',   emoji: '📄' },
 }

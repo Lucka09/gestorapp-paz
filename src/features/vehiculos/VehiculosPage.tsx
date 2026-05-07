@@ -38,12 +38,15 @@ export default function VehiculosPage() {
 
   const handleCrear = async (data: VehiculoFormData) => {
     try {
-      const id = await crearVehiculo(data)
+      // TODO: Replace with actual gestoriaId from auth context or props
+      const gestoriaId = '' // Get from your auth/context
+      const id = await crearVehiculo({ ...data, gestoriaId })
       toast.success('Vehículo registrado correctamente')
       setModal(false)
       navigate(`/admin/vehiculos/${id}`)
-    } catch (err: any) {
-      if (err.message === 'YA_EXISTE')
+    } catch (err) {
+      const error = err instanceof Error ? err : new Error(String(err))
+      if (error.message === 'YA_EXISTE')
         toast.error('Ya existe un vehículo con esa patente')
       else
         toast.error('Error al registrar el vehículo')

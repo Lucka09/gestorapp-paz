@@ -15,6 +15,15 @@ export interface DatosReporteMensual {
   ingresosMes:    IngresoMes[]    // últimos 6 meses para el gráfico
   tiposTramite:   TipoCount[]
   topClientes:    TopCliente[]
+  // Datos de la gestoría (desde configuracion.ts)
+  gestoriaNombre:     string
+  gestoriaSubtitulo?: string      // ej: 'Mandataria del Automotor'
+  gestoriaLocalidad?: string
+  gestoriaTelefono?:  string
+  gestoriaEmail?:     string
+  gestoriaWeb?:       string
+  colorPrimario?:     string
+  logoUrl?:           string | null
 }
 
 // ─── HELPERS ─────────────────────────────────────────────────────────────────
@@ -60,6 +69,14 @@ export async function generarReporteMensual(
   const mes  = MESES_ES[datos.mes]
   const anio = datos.anio
   const titulo = `Reporte ${mes} ${anio}`
+
+  // Branding dinámico del tenant
+  const hexToRgb = (hex: string): [number,number,number] => {
+    const h = hex.replace('#', '')
+    return [parseInt(h.slice(0,2),16), parseInt(h.slice(2,4),16), parseInt(h.slice(4,6),16)]
+  }
+  const COLOR_PRIMARIO: [number,number,number] = datos.colorPrimario
+    ? hexToRgb(datos.colorPrimario) : NARANJA
 
   // ── HELPERS INTERNOS ──────────────────────────────────────────────────────
 
@@ -126,7 +143,7 @@ export async function generarReporteMensual(
 
   // Logo / iniciales
   try {
-    const logoUrl = `${window.location.origin}/logo-gp-200.jpg`
+    const logoUrl = datos.logoUrl ?? `${window.location.origin}/logo-gp-200.jpg`
     const resp = await fetch(logoUrl)
     const blob = await resp.blob()
     const b64 = await new Promise<string>(res => {
@@ -136,16 +153,20 @@ export async function generarReporteMensual(
     })
     doc.addImage(`data:image/jpeg;base64,${b64}`, 'JPEG', mg, 12, 24, 24)
   } catch {
-    box(mg, 12, 24, 24, NARANJA, undefined, 4)
-    txt('GP', mg + 12, 26, { size: 11, bold: true, color: BLANCO, align: 'center' })
+    box(mg, 12, 24, 24, COLOR_PRIMARIO, undefined, 4)
+    txt(datos.gestoriaNombre.slice(0,2).toUpperCase(), mg + 12, 26, { size: 11, bold: true, color: BLANCO, align: 'center' })
   }
 
-  txt('GESTORÍA PAZ', mg + 28, 20, { size: 14, bold: true, color: BLANCO })
-  txt('Mandataria del Automotor', mg + 28, 26, { size: 8, color: [180,120,80] as any })
-  txt('San Martín, Buenos Aires', mg + 28, 31, { size: 7.5, color: [150,100,60] as any })
+  txt(datos.gestoriaNombre.toUpperCase(), mg + 28, 20, { size: 14, bold: true, color: BLANCO })
+  if (datos.gestoriaSubtitulo) {
+    txt(datos.gestoriaSubtitulo, mg + 28, 26, { size: 8, color: [180,120,80] as any })
+  }
+  if (datos.gestoriaLocalidad) {
+    txt(datos.gestoriaLocalidad, mg + 28, 31, { size: 7.5, color: [150,100,60] as any })
+  }
 
   // Título del reporte
-  txt('REPORTE MENSUAL', col2, 60, { size: 9, bold: true, color: NARANJA, align: 'center' })
+  txt('REPORTE MENSUAL', col2, 60, { size: 9, bold: true, color: COLOR_PRIMARIO, align: 'center' })
   txt(titulo.toUpperCase(), col2, 70, { size: 24, bold: true, color: BLANCO, align: 'center' })
 
   y = 90
@@ -255,7 +276,7 @@ export async function generarReporteMensual(
   // Header de continuación
   box(0, 0, W, 12, NEGRO)
   txt(`${titulo} — continuación`, mg, 8, { size: 8, bold: true, color: NARANJA })
-  txt('Gestoría Paz', W - mg, 8, { size: 8, color: [180,120,80] as any, align: 'right' })
+  txt(datos.gestoriaNombre, W - mg, 8, { size: 8, color: [180,120,80] as any, align: 'right' })
   y = 20
 
   // ── TOP CLIENTES ──────────────────────────────────────────────────────────
@@ -359,13 +380,18 @@ export async function generarReporteMensual(
   for (let p = 1; p <= numPags; p++) {
     doc.setPage(p)
     box(0, H - 14, W, 14, NEGRO)
-    txt('Gestoría Paz  ·  San Martín, Buenos Aires  ·  11 3614-1431  ·  info@gestoriapaz.com',
-        col2, H - 8, { size: 7, color: [180,120,80] as any, align: 'center' })
+    const footerParts = [
+      datos.gestoriaNombre,
+      datos.gestoriaLocalidad,
+      datos.gestoriaTelefono,
+      datos.gestoriaEmail,
+    ].filter(Boolean).join('  ·  ')
+    txt(footerParts, col2, H - 8, { size: 7, color: [180,120,80] as any, align: 'center' })
     txt(`Generado el ${new Date().toLocaleDateString('es-AR')}  ·  Página ${p}`,
         col2, H - 4, { size: 6.5, color: [130,80,40] as any, align: 'center' })
   }
 
   const blob   = doc.output('blob')
-  const nombre = `Reporte_GestoriaPaz_${mes}_${anio}.pdf`
+  const nombre = `Reporte_${datos.gestoriaNombre.replace(/\s+/g,'_')}_${mes}_${anio}.pdf`
   return { blob, nombre }
 }

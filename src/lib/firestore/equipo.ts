@@ -2,15 +2,16 @@ import {
   createUserWithEmailAndPassword,
   sendPasswordResetEmail,
   fetchSignInMethodsForEmail,
+  signOut,
 } from 'firebase/auth'
 import {
-  getDocs, setDoc, updateDoc, query,
+  setDoc, updateDoc, query,
   where, orderBy, onSnapshot, serverTimestamp,
   type Unsubscribe,
 } from 'firebase/firestore'
-import { auth }          from '../firebase'
+import { auth, secondaryAuth } from '../firebase'
 import { userDoc, usersCol } from './collections'
-import { verificarLimiteUsuarios, LimitePlanError } from './planLimits'
+import { verificarLimiteUsuarios } from './planLimits'
 import type { Usuario, Rol, PlanGestoria } from '@/types'
 
 // ─── TIPOS ────────────────────────────────────────────────────────────────────
@@ -41,7 +42,30 @@ export function subscribeEquipo(
   const q = query(
     usersCol,
     where('gestoriaId', '==', gestoriaId),
-    where('rol', 'in', ['propietario', 'admin', 'vendedor', 'operador']),
+    where('rol', 'in', ['propietario', 'admin', 'vendedor', 'operador', 'gestor']),
+    orderBy('creadoEn', 'asc')
+  )
+  return onSnapshot(q, snap =>
+    callback(
+      snap.docs.map(d => {
+        const data = d.data() as Usuario
+        return {
+          ...data,
+          iniciales: `${data.nombre?.[0] ?? ''}${data.apellido?.[0] ?? ''}`.toUpperCase(),
+        }
+      })
+    )
+  )
+}
+
+export function subscribeGestores(
+  gestoriaId: string,
+  callback:   (miembros: MiembroEquipo[]) => void
+): Unsubscribe {
+  const q = query(
+    usersCol,
+    where('gestoriaId', '==', gestoriaId),
+    where('rol', '==', 'gestor'),
     orderBy('creadoEn', 'asc')
   )
   return onSnapshot(q, snap =>
@@ -79,7 +103,7 @@ export async function crearMiembro(
   if (methods.length > 0) throw new Error('EMAIL_EN_USO')
 
   // 3. Crear en Firebase Auth
-  const cred = await createUserWithEmailAndPassword(auth, data.email, data.password)
+  const cred = await createUserWithEmailAndPassword(secondaryAuth, data.email, data.password)
   const uid  = cred.user.uid
 
   // 4. Crear perfil en Firestore
@@ -97,6 +121,9 @@ export async function crearMiembro(
     creadoEn:     serverTimestamp(),
     ultimoAcceso: serverTimestamp(),
   })
+
+  // Limpiar sesión secundaria para no acumular estado entre altas.
+  await signOut(secondaryAuth)
 
   return uid
 }
@@ -197,5 +224,12 @@ export const PERMISOS_POR_ROL: Record<Exclude<Rol, 'cliente'>, string[]> = {
     'Sin acceso a CRM ni pipeline',
     'Sin acceso a honorarios ni pagos',
     'Sin acceso a configuración',
+  ],
+  gestor: [
+    'Ver trámites asignados',
+    'Actualizar avance de trámites asignados',
+    'Subir documentación y evidencias del trámite',
+    'Sin acceso a clientes, vehículos y configuración',
+    'Sin acceso a honorarios ni pagos',
   ],
 }

@@ -75,7 +75,7 @@ export default function NotificacionesPanel() {
 
   const handleMarcarTodas = async () => {
     if (!user) return
-    await marcarTodasLeidas(user.uid)
+    await marcarTodasLeidas(user.uid, user.gestoriaId)
   }
 
   return (

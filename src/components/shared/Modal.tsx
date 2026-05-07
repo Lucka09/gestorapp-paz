@@ -97,7 +97,7 @@ export default function Modal({ open, onClose, title, subtitle, children, size =
             aria-label="Cerrar modal"
             className="text-gray-400 hover:text-gray-700 hover:bg-gray-100
                        rounded-xl p-1.5 transition-all duration-150 -mt-0.5 ml-3 shrink-0
-                       focus-visible:outline-2 focus-visible:outline-[var(--gp-orange)]"
+                       focus-visible:outline-2 focus-visible:outline-gp-orange"
           >
             <X size={18} />
           </button>

@@ -22,7 +22,8 @@ export interface MetricasDashboard {
 }
 
 export function subscribeMetricas(
-  callback: (m: MetricasDashboard) => void
+  gestoriaId: string,
+  callback:   (m: MetricasDashboard) => void
 ): Unsubscribe {
   const hoyInicio = new Date(); hoyInicio.setHours(0, 0, 0, 0)
   const hoyFin    = new Date(); hoyFin.setHours(23, 59, 59, 999)
@@ -30,14 +31,14 @@ export function subscribeMetricas(
 
   // Suscripción principal a trámites
   return onSnapshot(
-    query(tramitesCol, orderBy('creadoEn', 'desc')),
+    query(tramitesCol, where('gestoriaId', '==', gestoriaId), orderBy('creadoEn', 'desc')),
     async (snapTramites) => {
       const tramites = snapTramites.docs.map(d => ({ ...d.data(), id: d.id })) as Tramite[]
 
       const [snapTurnos, snapClientes, snapVehiculos] = await Promise.all([
-        getDocs(query(turnosCol, orderBy('fecha', 'desc'))),
-        getDocs(clientesCol),
-        getDocs(vehiculosCol),
+        getDocs(query(turnosCol,   where('gestoriaId', '==', gestoriaId), orderBy('fecha', 'desc'))),
+        getDocs(query(clientesCol,  where('gestoriaId', '==', gestoriaId))),
+        getDocs(query(vehiculosCol, where('gestoriaId', '==', gestoriaId))),
       ])
       const turnos   = snapTurnos.docs.map(d => ({ ...d.data(), id: d.id })) as Turno[]
       const clientes = snapClientes.size
@@ -101,10 +102,11 @@ export function subscribeMetricas(
 // ─── ÚLTIMOS TRÁMITES ─────────────────────────────────────────────────────────
 
 export function subscribeUltimosTramites(
-  callback: (tramites: Tramite[]) => void,
+  gestoriaId: string,
+  callback:   (tramites: Tramite[]) => void,
   cantidad = 8
 ): Unsubscribe {
-  const q = query(tramitesCol, orderBy('actualizadoEn', 'desc'), limit(cantidad))
+  const q = query(tramitesCol, where('gestoriaId', '==', gestoriaId), orderBy('actualizadoEn', 'desc'), limit(cantidad))
   return onSnapshot(q, snap =>
     callback(snap.docs.map(d => ({ ...d.data(), id: d.id })))
   )
@@ -113,12 +115,14 @@ export function subscribeUltimosTramites(
 // ─── TURNOS DE HOY ────────────────────────────────────────────────────────────
 
 export function subscribeTurnosHoy(
-  callback: (turnos: Turno[]) => void
+  gestoriaId: string,
+  callback:   (turnos: Turno[]) => void
 ): Unsubscribe {
   const hoyInicio = new Date(); hoyInicio.setHours(0, 0, 0, 0)
   const hoyFin    = new Date(); hoyFin.setHours(23, 59, 59, 999)
   const q = query(
     turnosCol,
+    where('gestoriaId', '==', gestoriaId),
     where('fecha', '>=', Timestamp.fromDate(hoyInicio)),
     where('fecha', '<=', Timestamp.fromDate(hoyFin)),
     orderBy('fecha')
@@ -133,9 +137,11 @@ export function subscribeTurnosHoy(
 export interface EstadoCount { estado: string; cantidad: number; label: string }
 
 export function subscribeDistribucionEstados(
-  callback: (data: EstadoCount[]) => void
+  gestoriaId: string,
+  callback:   (data: EstadoCount[]) => void
 ): Unsubscribe {
-  return onSnapshot(tramitesCol, snap => {
+  const _q = query(tramitesCol, where('gestoriaId', '==', gestoriaId))
+  return onSnapshot(_q, snap => {
     const conteo: Record<string, number> = {}
     snap.docs.forEach(d => {
       const estado = d.data().estado as string
@@ -162,8 +168,8 @@ export interface IngresoMes {
   tramites: number
 }
 
-export async function getIngresosPorMes(meses = 6): Promise<IngresoMes[]> {
-  const snap = await getDocs(query(tramitesCol, orderBy('creadoEn', 'desc')))
+export async function getIngresosPorMes(gestoriaId: string, meses = 6): Promise<IngresoMes[]> {
+  const snap = await getDocs(query(tramitesCol, where('gestoriaId', '==', gestoriaId), orderBy('creadoEn', 'desc')))
   const tramites = snap.docs.map(d => d.data()) as Tramite[]
 
   const resultado: IngresoMes[] = []
@@ -200,8 +206,8 @@ export async function getIngresosPorMes(meses = 6): Promise<IngresoMes[]> {
 
 export interface TipoCount { tipo: string; label: string; cantidad: number; ingresos: number }
 
-export async function getTiposTramiteFrecuentes(): Promise<TipoCount[]> {
-  const snap = await getDocs(tramitesCol)
+export async function getTiposTramiteFrecuentes(gestoriaId: string): Promise<TipoCount[]> {
+  const snap = await getDocs(query(tramitesCol, where('gestoriaId', '==', gestoriaId)))
   const conteo: Record<string, { cantidad: number; ingresos: number }> = {}
 
   snap.docs.forEach(d => {
@@ -233,12 +239,12 @@ export interface AlertaDashboard {
   link?:   string
 }
 
-export async function getAlertas(): Promise<AlertaDashboard[]> {
+export async function getAlertas(gestoriaId: string): Promise<AlertaDashboard[]> {
   const alertas: AlertaDashboard[] = []
 
   const [snapTramites, snapTurnos] = await Promise.all([
-    getDocs(query(tramitesCol, orderBy('actualizadoEn', 'desc'))),
-    getDocs(query(turnosCol, orderBy('fecha', 'asc'))),
+    getDocs(query(tramitesCol, where('gestoriaId', '==', gestoriaId), orderBy('actualizadoEn', 'desc'))),
+    getDocs(query(turnosCol,   where('gestoriaId', '==', gestoriaId), orderBy('fecha', 'asc'))),
   ])
 
   const tramites = snapTramites.docs.map(d => ({ ...d.data(), id: d.id })) as Tramite[]
@@ -330,10 +336,10 @@ export interface TopCliente {
   ingresos:  number
 }
 
-export async function getTopClientes(n = 5): Promise<TopCliente[]> {
+export async function getTopClientes(gestoriaId: string, n = 5): Promise<TopCliente[]> {
   const [snapTramites, snapClientes] = await Promise.all([
-    getDocs(tramitesCol),
-    getDocs(clientesCol),
+    getDocs(query(tramitesCol, where('gestoriaId', '==', gestoriaId))),
+    getDocs(query(clientesCol, where('gestoriaId', '==', gestoriaId))),
   ])
   const clientes = Object.fromEntries(
     snapClientes.docs.map(d => [d.id, d.data()])

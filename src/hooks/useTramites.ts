@@ -1,10 +1,11 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import {
-  subscribeTramites, subscribeTramitesPorCliente, subscribeTramite,
-  getTramitesPagina, getTramitesCount, getTramitesTodos,
+  subscribeTramites, subscribeTramitesPropios, subscribeTramitesPorCliente, subscribeTramite,
+  getTramitesPagina, getTramitesCount, getTramitesPropiosTodos, getTramitesTodos,
   type FiltrosTramitesPagina,
 } from '@/lib/firestore/tramites'
 import { useGestoriaId } from '@/context/GestoriaContext'
+import { useAuthStore } from '@/store/authStore'
 import { exportarTramites } from '@/utils/exportar'
 import { useClientes } from '@/hooks/useClientes'
 import type { Tramite, EstadoTramite, TipoTramite } from '@/types'
@@ -12,46 +13,100 @@ import type { QueryDocumentSnapshot } from 'firebase/firestore'
 
 // ─── HOOKS EXISTENTES ─────────────────────────────────────────────────────────
 
-export function useTramites() {
+type UseTramitesOptions = {
+  whenHidden?: 'realtime' | 'poll'
+  hiddenPollMs?: number
+}
+
+export function useTramites(options: UseTramitesOptions = {}) {
   const gestoriaId              = useGestoriaId()
+  const { user }                = useAuthStore()
   const [tramites, setTramites] = useState<Tramite[]>([])
-  const [loading, setLoading]   = useState(true)
+  const [loading, setLoading]   = useState(!!gestoriaId)
+  const [isPageVisible, setIsPageVisible] = useState(
+    typeof document === 'undefined' ? true : !document.hidden
+  )
+
+  const whenHidden = options.whenHidden ?? 'realtime'
+  const hiddenPollMs = options.hiddenPollMs ?? 60_000
+
+  useEffect(() => {
+    if (whenHidden !== 'poll' || typeof document === 'undefined') return
+    const onVisibilityChange = () => setIsPageVisible(!document.hidden)
+    document.addEventListener('visibilitychange', onVisibilityChange)
+    return () => document.removeEventListener('visibilitychange', onVisibilityChange)
+  }, [whenHidden])
 
   useEffect(() => {
     if (!gestoriaId) return
-    setLoading(true)
-    const unsub = subscribeTramites(gestoriaId, data => {
-      setTramites(data)
-      setLoading(false)
-    })
+    const esGestor = user?.rol === 'gestor' && !!user?.uid
+
+    if (whenHidden === 'poll' && !isPageVisible) {
+      let disposed = false
+      const cargar = async () => {
+        try {
+          const data = esGestor
+            ? await getTramitesPropiosTodos(gestoriaId, user.uid)
+            : await getTramitesTodos(gestoriaId)
+          if (!disposed) {
+            setTramites(data)
+            setLoading(false)
+          }
+        } catch {
+          if (!disposed) setLoading(false)
+        }
+      }
+
+      void cargar()
+      const intervalId = window.setInterval(() => {
+        void cargar()
+      }, hiddenPollMs)
+
+      return () => {
+        disposed = true
+        window.clearInterval(intervalId)
+      }
+    }
+
+    const unsub = esGestor
+      ? subscribeTramitesPropios(gestoriaId, user.uid, data => {
+        setTramites(data)
+        setLoading(false)
+      })
+      : subscribeTramites(gestoriaId, data => {
+        setTramites(data)
+        setLoading(false)
+      })
+
     return () => unsub()
-  }, [gestoriaId])
+  }, [gestoriaId, user, whenHidden, hiddenPollMs, isPageVisible])
 
   return { tramites, loading }
 }
 
 export function useTramitesPorCliente(clienteId: string | undefined) {
+  const gestoriaId = useGestoriaId()
   const [tramites, setTramites] = useState<Tramite[]>([])
-  const [loading, setLoading]   = useState(true)
+  const [loading, setLoading]   = useState(!!clienteId)
 
   useEffect(() => {
-    if (!clienteId) { setLoading(false); return }
-    const unsub = subscribeTramitesPorCliente(clienteId, data => {
+    if (!clienteId || !gestoriaId) return
+    const unsub = subscribeTramitesPorCliente(clienteId, gestoriaId, data => {
       setTramites(data)
       setLoading(false)
     })
     return () => unsub()
-  }, [clienteId])
+  }, [clienteId, gestoriaId])
 
   return { tramites, loading }
 }
 
 export function useTramite(id: string | undefined) {
   const [tramite, setTramite] = useState<Tramite | null>(null)
-  const [loading, setLoading] = useState(true)
+  const [loading, setLoading] = useState(!!id)
 
   useEffect(() => {
-    if (!id) { setLoading(false); return }
+    if (!id) return
     const unsub = subscribeTramite(id, data => {
       setTramite(data)
       setLoading(false)
@@ -142,7 +197,6 @@ export function useTramitesPaginados(
     setSearchAll(null)
     setInputSearch('')
     setDebouncedSearch('')
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filtrosKey])
 
   // 2. Contar total (se recalcula cuando cambian filtros)

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import {
   AreaChart, Area, BarChart, Bar, LineChart, Line,
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
@@ -14,6 +14,8 @@ import {
 import { calcularAnalytics, type DatosAnalytics } from '@/lib/firestore/analytics'
 import { PageHeader, Card, Spinner } from '@/components/ui'
 import { formatPesos } from '@/utils'
+import { useGestoriaId } from '@/context/GestoriaContext'
+import { usePageTitle } from '@/hooks/usePageTitle'
 
 // ─── COLORES ──────────────────────────────────────────────────────────────────
 
@@ -73,13 +75,19 @@ function ComparativaCard({
 
 // ─── TOOLTIP PERSONALIZADO ────────────────────────────────────────────────────
 
-function CustomTooltip({ active, payload, label }: any) {
+interface CustomTooltipProps {
+  active?: boolean
+  payload?: Array<{ color: string; name: string; value: number }>
+  label?: string
+}
+
+function CustomTooltip({ active, payload, label }: CustomTooltipProps) {
   if (!active || !payload?.length) return null
   return (
     <div className="bg-white border border-gray-100 rounded-xl shadow-xl px-4 py-3 text-sm"
          style={{ fontFamily: 'var(--font-body)' }}>
       <p className="text-xs font-bold text-gray-500 mb-1.5">{label}</p>
-      {payload.map((p: any, i: number) => (
+      {payload.map((p, i: number) => (
         <div key={i} className="flex items-center gap-2">
           <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: p.color }} />
           <span className="text-gray-600 capitalize">{p.name}:</span>
@@ -107,15 +115,17 @@ function SkeletonChart({ h = 200 }: { h?: number }) {
 // ─── PÁGINA PRINCIPAL ─────────────────────────────────────────────────────────
 
 export default function AnalyticsPage() {
+  usePageTitle('Analytics')
+  const gestoriaId = useGestoriaId()
   const [datos,     setDatos]     = useState<DatosAnalytics | null>(null)
   const [loading,   setLoading]   = useState(true)
   const [ventana,   setVentana]   = useState<6 | 12>(12)
   const [recargando,setRecargando]= useState(false)
 
-  const cargar = async (m: 6 | 12) => {
+  const cargar = useCallback(async (m: 6 | 12) => {
     setRecargando(true)
     try {
-      const d = await calcularAnalytics(m)
+      const d = await calcularAnalytics(gestoriaId, m)
       setDatos(d)
     } catch (err) {
       console.error('[Analytics]', err)
@@ -123,9 +133,9 @@ export default function AnalyticsPage() {
       setLoading(false)
       setRecargando(false)
     }
-  }
+  }, [gestoriaId])
 
-  useEffect(() => { cargar(ventana) }, [ventana])
+  useEffect(() => { cargar(ventana) }, [cargar, ventana])
 
   if (loading) return <Spinner label="Calculando analytics..." />
 
@@ -351,7 +361,10 @@ export default function AnalyticsPage() {
                 <YAxis type="category" dataKey="label" width={115}
                   tick={{ fontSize:11, fill:'#6B7280' }} axisLine={false} tickLine={false}/>
                 <Tooltip cursor={{ fill:'#F9FAFB' }}
-                  formatter={(v:any, n:any) => [`${v} días`, 'Promedio']}
+                  formatter={(v) => {
+  const n = typeof v === 'number' ? v : 0;
+  return [`$${n.toLocaleString()}`, 'Valor'];
+}}
                   contentStyle={{ borderRadius:12, border:'1px solid #E5E7EB', fontSize:12 }}/>
                 <Bar dataKey="promediosDias" name="promedio" radius={[0,6,6,0]}>
                   {tiempoResolucion.map((_, i) => (

@@ -35,13 +35,13 @@ export default function ActividadPage() {
   // Métricas rápidas
   const hoy       = new Date(); hoy.setHours(0,0,0,0)
   const hoy_count = entradas.filter(e => {
-    const d = e.timestamp?.toDate?.()
+    const d = typeof e.timestamp === 'object' && e.timestamp?.toDate ? e.timestamp.toDate() : undefined
     return d && d >= hoy
   }).length
 
   const usuarios_activos = new Set(
     entradas.filter(e => {
-      const d = e.timestamp?.toDate?.()
+      const d = typeof e.timestamp === 'object' && e.timestamp?.toDate ? e.timestamp.toDate() : undefined
       return d && d >= hoy
     }).map(e => e.usuarioId)
   ).size
@@ -91,7 +91,7 @@ export default function ActividadPage() {
           {ENTIDADES.map(e => (
             <button
               key={e.id}
-              onClick={() => setFiltroEntidad(e.id as any)}
+              onClick={() => setFiltroEntidad(e.id)}
               className={`text-xs px-2.5 py-1 rounded-full font-medium transition-colors
                           ${filtroEntidad === e.id
                             ? 'text-white'

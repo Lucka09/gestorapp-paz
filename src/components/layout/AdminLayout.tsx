@@ -1,8 +1,9 @@
 import { NavLink, Outlet } from 'react-router-dom'
 import {
   LayoutDashboard, Users, Car, FileText,
-  CalendarDays, LogOut, Menu, X,
-  AlertTriangle, Ban, WifiOff,
+  CalendarDays, LogOut, Radar, Menu, X,
+  AlertTriangle, Ban, WifiOff,TrendingUp, CheckSquare, UserCog,
+  Calculator, Upload, Settings,
 } from 'lucide-react'
 import { useState } from 'react'
 import { signOut }     from 'firebase/auth'
@@ -13,30 +14,42 @@ import NotificacionesPanel from '@/components/shared/NotificacionesPanel'
 import ConfirmDialog       from '@/components/shared/ConfirmDialog'
 import { usePermisos }     from '@/hooks/usePermisos'
 import BusquedaGlobal      from '@/components/shared/BusquedaGlobal'
-import { useAlertas }      from '@/hooks/useAlertas'
-import { useMisTareas }    from '@/hooks/useTareas'
 import { ROL_LABELS, ROL_COLORS } from '@/utils/permisos'
+import AsistenteIA from '@/components/shared/AsistenteIA'
 
 // ─── PREFETCH DE CHUNKS AL HOVER ──────────────────────────────────────────────
 
-const PREFETCH_MAP: Record<string, () => Promise<any>> = {
-  '/admin/tramites':      () => import('@/features/tramites/TramitesPage'),
-  '/admin/clientes':      () => import('@/features/clientes/ClientesPage'),
-  '/admin/vehiculos':     () => import('@/features/vehiculos/VehiculosPage'),
-  '/admin/turnos':        () => import('@/features/turnos/TurnosPage'),
-  '/admin/pipeline':      () => import('@/features/pipeline/PipelinePage'),
-  '/admin/cobranzas':     () => import('@/features/cobranzas/CobranzasPage'),
-  '/admin/reportes':      () => import('@/features/reportes/ReportesPage'),
-  '/admin/configuracion': () => import('@/features/configuracion/ConfiguracionPage'),
-  '/admin/dashboard':     () => import('@/features/dashboard/DashboardPage'),
+const PREFETCH_MAP: Record<string, () => Promise<unknown>> = {
+  '/admin/gestor':            () => import('@/features/gestor/GestorHomePage'),
+  '/admin/tramites':          () => import('@/features/tramites/TramitesPage'),
+  '/admin/torre-de-control':  () => import('@/features/torre/TorreDeControlPage'),
+  '/admin/clientes':          () => import('@/features/clientes/ClientesPage'),
+  '/admin/vehiculos':         () => import('@/features/vehiculos/VehiculosPage'),
+  '/admin/turnos':            () => import('@/features/turnos/TurnosPage'),
+  '/admin/pipeline':          () => import('@/features/pipeline/PipelinePage'),
+  '/admin/cobranzas':         () => import('@/features/cobranzas/CobranzasPage'),
+  '/admin/reportes':          () => import('@/features/reportes/ReportesPage'),
+  '/admin/configuracion':     () => import('@/features/configuracion/ConfiguracionPage'),
+  '/admin/dashboard':         () => import('@/features/dashboard/DashboardPage'),
+  '/admin/tareas':            () => import('@/features/tareas/TareasPage'),           // ← nuevo
+  '/admin/equipo':            () => import('@/features/equipo/EquipoPage'),           // ← nuevo
+  '/admin/calculadora':       () => import('@/features/calculadora/CalculadoraPage'), // ← nuevo
+  '/admin/importar':          () => import('@/features/importar/ImportarPage'),       // ← nuevo
 }
 
 const NAV_ITEMS_ALL = [
-  { to: '/admin/dashboard', icon: LayoutDashboard, label: 'Dashboard', permiso: 'verDashboard' },
-  { to: '/admin/clientes',  icon: Users,           label: 'Clientes',  permiso: 'verClientes'  },
-  { to: '/admin/vehiculos', icon: Car,             label: 'Vehículos', permiso: 'verVehiculos' },
-  { to: '/admin/tramites',  icon: FileText,        label: 'Trámites',  permiso: 'verTramites'  },
-  { to: '/admin/turnos',    icon: CalendarDays,    label: 'Turnos',    permiso: 'verTurnos'    },
+  { to: '/admin/dashboard',        icon: LayoutDashboard, label: 'Dashboard',        permiso: 'verDashboard'  },
+  { to: '/admin/clientes',         icon: Users,           label: 'Clientes',         permiso: 'verClientes'   },
+  { to: '/admin/vehiculos',        icon: Car,             label: 'Vehículos',        permiso: 'verVehiculos'  },
+  { to: '/admin/tramites',         icon: FileText,        label: 'Trámites',         permiso: 'verTramites'   },
+  { to: '/admin/torre-de-control', icon: Radar,           label: 'Torre de Control', permiso: 'verTramites'   },
+  { to: '/admin/turnos',           icon: CalendarDays,    label: 'Turnos',           permiso: 'verTurnos'     },
+  { to: '/admin/pipeline',         icon: TrendingUp,      label: 'Pipeline',         permiso: 'verPipeline'   },
+  { to: '/admin/tareas',           icon: CheckSquare,     label: 'Tareas',           permiso: 'verTramites'   },
+  { to: '/admin/equipo',           icon: UserCog,         label: 'Equipo',           permiso: 'verEquipo'     },
+  { to: '/admin/calculadora',      icon: Calculator,      label: 'Calculadora',      permiso: 'verDashboard'  },
+  { to: '/admin/importar',         icon: Upload,          label: 'Importar',         permiso: 'verClientes'   },
+  { to: '/admin/configuracion',    icon: Settings,        label: 'Configuración',    permiso: 'verConfiguracion' },
 ] as const
 
 // ─── PANTALLAS DE ESTADO DEL TENANT ──────────────────────────────────────────
@@ -139,10 +152,9 @@ export default function AdminLayout() {
   const { user }      = useAuth()
   const { puede, rol } = usePermisos()
   const {
-    gestoria, gestoriaId, loading: tenantLoading,
+    gestoriaId, loading: tenantLoading,
     estadoGestoria, nombreComercial, logoUrl,
   } = useGestoria()
-  const { vencidas: tareasVencidas }  = useMisTareas(user?.uid ?? '')
   const [logoutOpen, setLogoutOpen]   = useState(false)
   const [open, setOpen]               = useState(false)
 
@@ -223,7 +235,15 @@ export default function AdminLayout() {
 
           {/* Nav */}
           <nav className="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto">
-            {NAV_ITEMS_ALL.filter(item => puede(item.permiso)).map(({ to, icon: Icon, label }) => (
+            {[
+              ...(rol === 'gestor'
+                ? [{ to: '/admin/gestor', icon: FileText, label: 'Mis Trámites', permiso: 'verTramites' }]
+                : []),
+              ...NAV_ITEMS_ALL,
+            ]
+              .filter(item => puede(item.permiso as Parameters<typeof puede>[0]))
+              .filter(item => !(rol === 'gestor' && item.to === '/admin/tramites'))
+              .map(({ to, icon: Icon, label }) => (
               <NavLink
                 key={to}
                 to={to}
@@ -306,7 +326,7 @@ export default function AdminLayout() {
             <Outlet />
           </main>
         </div>
-
+              <AsistenteIA />
         <ConfirmDialog
           open={logoutOpen}
           onClose={() => setLogoutOpen(false)}

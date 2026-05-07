@@ -1,10 +1,12 @@
 import {
   createUserWithEmailAndPassword,
   sendPasswordResetEmail,
+  sendEmailVerification,
   fetchSignInMethodsForEmail,
+  signOut,
 } from 'firebase/auth'
 import { updateDoc, setDoc, serverTimestamp } from 'firebase/firestore'
-import { auth } from '@/lib/firebase'
+import { auth, secondaryAuth } from '@/lib/firebase'
 import { clienteDoc, userDoc } from './collections'
 import type { Rol } from '@/types'
 
@@ -25,13 +27,28 @@ export async function crearAccesoPortal(data: AccesoPortalInput): Promise<string
   if (methods.length > 0) throw new Error('EMAIL_EN_USO')
 
   // 2. Crear usuario en Firebase Auth
-  const cred = await createUserWithEmailAndPassword(auth, data.email, data.password)
+  const cred = await createUserWithEmailAndPassword(secondaryAuth, data.email, data.password)
   const uid = cred.user.uid
+
+  // Enviar email de verificación — mejora la seguridad y confirma que el
+  // cliente es dueño del correo. El cliente puede ingresar al portal antes
+  // de verificar, pero se lo incentiva a hacerlo.
+  try {
+    await sendEmailVerification(cred.user, {
+      url: `${window.location.origin}/portal`,   // link de redirección post-verificación
+      handleCodeInApp: false,
+    })
+  } catch {
+    // No bloquear el flujo si el email de verificación falla
+    // (puede ser error temporal de Firebase)
+    console.warn('[acceso] No se pudo enviar email de verificación')
+  }
 
   // 3. Crear perfil en Firestore /users
   await setDoc(userDoc(uid), {
     uid,
     email:      data.email,
+    gestoriaId: '',  // se asigna luego desde SuperAdminPage
     nombre:     data.nombre,
     apellido:   data.apellido,
     telefono:   data.telefono,
@@ -46,6 +63,9 @@ export async function crearAccesoPortal(data: AccesoPortalInput): Promise<string
   await updateDoc(clienteDoc(data.clienteId), {
     userId: uid,
   })
+
+  // Cierra la sesión secundaria para evitar estado residual.
+  await signOut(secondaryAuth)
 
   return uid
 }

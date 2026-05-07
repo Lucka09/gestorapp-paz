@@ -1,13 +1,13 @@
 import {
   getDoc, addDoc, updateDoc, query, where,
   orderBy, serverTimestamp, onSnapshot, Timestamp,
-  type Unsubscribe, arrayUnion, limit,
+  type CollectionReference, type DocumentData, type Unsubscribe, arrayUnion, limit,
 } from 'firebase/firestore'
 import { tramitesCol, tramiteDoc, vehiculoDoc, clienteDoc } from './collections'
 import { generarNumeroTramite } from '@/utils'
 import { registrarActividad } from './audit'
 import { notificarCambioEstado } from './notificaciones'
-import type { Tramite, EstadoTramite, TipoTramite } from '@/types'
+import type { Tramite, EstadoTramite, TipoTramite, Rol } from '@/types'
 
 // ─── READ ─────────────────────────────────────────────────────────────────────
 
@@ -23,6 +23,83 @@ export function subscribeTramites(
   return onSnapshot(q, snap =>
     callback(snap.docs.map(d => ({ ...d.data(), id: d.id }) as Tramite))
   )
+}
+
+// Trámites propios de un gestor (asignados o creados por su usuario)
+export function subscribeTramitesPropios(
+  gestoriaId: string,
+  uid:        string,
+  callback:   (tramites: Tramite[]) => void
+): Unsubscribe {
+  const asignadosQ = query(
+    tramitesCol,
+    where('gestoriaId', '==', gestoriaId),
+    where('asignadoA',  '==', uid)
+  )
+  const creadosQ = query(
+    tramitesCol,
+    where('gestoriaId', '==', gestoriaId),
+    where('creadoPor',  '==', uid)
+  )
+
+  let asignados: Tramite[] = []
+  let creados: Tramite[] = []
+
+  const toMillis = (t: Tramite) => {
+    const val = t.creadoEn as unknown as { toMillis?: () => number }
+    if (val?.toMillis) return val.toMillis()
+    return 0
+  }
+
+  const emitir = () => {
+    const byId = new Map<string, Tramite>()
+    ;[...asignados, ...creados].forEach(t => byId.set(t.id, t))
+    const merged = Array.from(byId.values())
+      .sort((a, b) => toMillis(b) - toMillis(a))
+    callback(merged)
+  }
+
+  const unsubAsignados = onSnapshot(asignadosQ, snap => {
+    asignados = snap.docs.map(d => ({ ...d.data(), id: d.id }) as Tramite)
+    emitir()
+  })
+
+  const unsubCreados = onSnapshot(creadosQ, snap => {
+    creados = snap.docs.map(d => ({ ...d.data(), id: d.id }) as Tramite)
+    emitir()
+  })
+
+  return () => {
+    unsubAsignados()
+    unsubCreados()
+  }
+}
+
+export async function getTramitesPropiosTodos(
+  gestoriaId: string,
+  uid:        string,
+): Promise<Tramite[]> {
+  const { getDocs: gd } = await import('firebase/firestore')
+
+  const [asignadosSnap, creadosSnap] = await Promise.all([
+    gd(query(
+      tramitesCol,
+      where('gestoriaId', '==', gestoriaId),
+      where('asignadoA',  '==', uid)
+    )),
+    gd(query(
+      tramitesCol,
+      where('gestoriaId', '==', gestoriaId),
+      where('creadoPor',  '==', uid)
+    )),
+  ])
+
+  const byId = new Map<string, Tramite>()
+  ;[...asignadosSnap.docs, ...creadosSnap.docs].forEach(d => {
+    byId.set(d.id, { ...d.data(), id: d.id } as Tramite)
+  })
+
+  return Array.from(byId.values()).sort((a, b) => b.creadoEn.toMillis() - a.creadoEn.toMillis())
 }
 
 export function subscribeTramitesPorCliente(
@@ -69,7 +146,7 @@ export async function crearTramite(
   creadoPor: string
 ): Promise<string> {
   const numero = generarNumeroTramite()
-  const ref = await addDoc(tramitesCol, {
+  const ref = await addDoc(tramitesCol as CollectionReference<DocumentData>, {
     ...data,
     numero,
     estado:           'pendiente',
@@ -81,7 +158,7 @@ export async function crearTramite(
     creadoPor,
     creadoEn:         serverTimestamp(),
     actualizadoEn:    serverTimestamp(),
-  } as any)
+  })
 
   // Vincular al vehículo
   const vRef  = vehiculoDoc(data.vehiculoId)
@@ -99,7 +176,8 @@ export async function cambiarEstado(
   nuevoEstado:    EstadoTramite,
   nota:           string,
   cambiadoPor:    string,
-  estadoAnterior: EstadoTramite
+  estadoAnterior: EstadoTramite,
+  cambiadoPorNombre?: string,
 ): Promise<void> {
   // 1. Actualizar el trámite
   await updateDoc(tramiteDoc(id), {
@@ -109,6 +187,7 @@ export async function cambiarEstado(
       estadoAnterior,
       estadoNuevo: nuevoEstado,
       cambiadoPor,
+      cambiadoPorNombre,
       fecha:       new Date(),
       nota,
     }),
@@ -196,7 +275,7 @@ export async function registrarPago(
       entidadLabel:  patente,
       usuarioId:     ctx.uid,
       usuarioNombre: ctx.nombre,
-      usuarioRol:    ctx.rol as any,
+      usuarioRol:    ctx.rol as Rol,
       gestoriaId:    ctx.gestoriaId,
       despues:       { monto: pago.monto, formaPago: pago.formaPago },
       nota:          pago.notas || undefined,

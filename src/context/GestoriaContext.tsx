@@ -45,7 +45,7 @@ function setHeadTag(
   attrs:    Record<string, string>,
   content?: string
 ): void {
-  let el = document.querySelector(selector) as HTMLElement | null
+  let el = document.querySelector(selector) as HTMLMetaElement | HTMLLinkElement | null
   if (!el) {
     const tag = selector.startsWith('link') ? 'link' : 'meta'
     el = document.createElement(tag)
@@ -60,22 +60,23 @@ function setHeadTag(
 export function GestoriaProvider({ children }: { children: ReactNode }) {
   const { user }   = useAuthStore()
   const [gestoria, setGestoria] = useState<Gestoria | null>(null)
-  const [loading,  setLoading]  = useState(true)
+  const [loadedForGestoriaId, setLoadedForGestoriaId] = useState<string | null>(null)
 
   // gestoriaId viene del perfil del usuario almacenado en Firestore
   const gestoriaId = (user as { gestoriaId?: string | null })?.gestoriaId ?? null
 
   useEffect(() => {
     if (!gestoriaId) {
-      setLoading(false)
       return
     }
     const unsub = subscribeGestoria(gestoriaId, g => {
       setGestoria(g)
-      setLoading(false)
+      setLoadedForGestoriaId(gestoriaId)
     })
     return () => unsub()
   }, [gestoriaId])
+
+  const loading = Boolean(gestoriaId) && loadedForGestoriaId !== gestoriaId
 
   // ── Branding dinámico completo ───────────────────────────────────────────
   // Se ejecuta cada vez que la gestoría cambia (incluyendo cambios en tiempo
@@ -86,8 +87,8 @@ export function GestoriaProvider({ children }: { children: ReactNode }) {
 
     // CSS custom properties → todos los componentes se actualizan
     const root = document.documentElement
-    root.style.setProperty('--gp-orange', colorPrimario)
-    root.style.setProperty('--gp-black',  colorSecundario)
+    root.style.setProperty('--gp-orange', colorPrimario ?? '#D4621A')
+    root.style.setProperty('--gp-black',  colorSecundario ?? '#1A1A1A')
 
     // Título de la pestaña
     document.title = slogan
@@ -121,7 +122,7 @@ export function GestoriaProvider({ children }: { children: ReactNode }) {
     )
 
     // Theme color para PWA (barra de estado del móvil)
-    setHeadTag("meta[name='theme-color']", { name: 'theme-color' }, colorPrimario)
+    setHeadTag("meta[name='theme-color']", { name: 'theme-color' }, colorPrimario ?? '#D4621A')
   }, [gestoria])
 
   const value: GestoriaContextValue = {
@@ -145,10 +146,12 @@ export function GestoriaProvider({ children }: { children: ReactNode }) {
 
 // ─── HOOKS ────────────────────────────────────────────────────────────────────
 
+// eslint-disable-next-line react-refresh/only-export-components
 export function useGestoria() {
   return useContext(GestoriaContext)
 }
 
+// eslint-disable-next-line react-refresh/only-export-components
 export function useGestoriaId(): string {
   const { gestoriaId } = useContext(GestoriaContext)
   return gestoriaId ?? 'default'

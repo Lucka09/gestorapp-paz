@@ -1,11 +1,8 @@
-import { initializeApp } from 'firebase/app'
+import { initializeApp, getApps, getApp } from 'firebase/app'
 import { getAuth }       from 'firebase/auth'
-import { getFirestore }  from 'firebase/firestore'
+import { getFirestore, initializeFirestore }  from 'firebase/firestore'
 import { getStorage }    from 'firebase/storage'
 import { ENV }           from './env'
-
-// ENV valida las variables al importar — si falta alguna, la app falla
-// con un mensaje claro antes de llegar aquí.
 
 const firebaseConfig = {
   apiKey:            ENV.VITE_FIREBASE_API_KEY,
@@ -16,9 +13,27 @@ const firebaseConfig = {
   appId:             ENV.VITE_FIREBASE_APP_ID,
 }
 
-export const app     = initializeApp(firebaseConfig)
+// Evita reinicializar en cada HMR de Vite
+export const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp()
+
+const secondaryAppName = 'gestorapp-secondary-auth'
+const secondaryApp = getApps().find(a => a.name === secondaryAppName)
+  ?? initializeApp(firebaseConfig, secondaryAppName)
+
 export const auth    = getAuth(app)
-export const db      = getFirestore(app)
+export const secondaryAuth = getAuth(secondaryApp)
+
+// En algunos entornos (localhost/redes inestables), QUIC puede cortar los
+// canales de Listen/Write. Esto fuerza un transporte más estable.
+export const db = (() => {
+  try {
+    return initializeFirestore(app, {
+      experimentalAutoDetectLongPolling: true,
+    })
+  } catch {
+    return getFirestore(app)
+  }
+})()
 export const storage = getStorage(app)
 
 export default app

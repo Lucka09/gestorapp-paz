@@ -2,7 +2,8 @@ import { RouterProvider }      from 'react-router-dom'
 import { GestoriaProvider } from '@/context/GestoriaContext'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { Toaster } from 'react-hot-toast'
-import { router } from '@/router'
+import { router }         from '@/router'
+import BannerOffline     from '@/components/shared/BannerOffline'
 import { useAuthListener } from '@/hooks/useAuth'
 
 const queryClient = new QueryClient({
@@ -22,6 +23,7 @@ export default function App() {
       <AuthProvider>
         <GestoriaProvider>
           <RouterProvider router={router} />
+          <BannerOffline />
           <Toaster
           position="top-right"
           toastOptions={{

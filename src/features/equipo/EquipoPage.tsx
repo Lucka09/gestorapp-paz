@@ -21,6 +21,7 @@ import { PageHeader, Button, Input, Select, Spinner } from '@/components/ui'
 import Modal        from '@/components/shared/Modal'
 import ConfirmDialog from '@/components/shared/ConfirmDialog'
 import { ROL_LABELS, ROL_COLORS } from '@/utils/permisos'
+import { getMensajeError } from '@/utils/errores'
 import type { Rol } from '@/types'
 import { formatFecha } from '@/utils'
 import toast from 'react-hot-toast'
@@ -112,7 +113,7 @@ function ModalNuevoMiembro({
   const [creado,   setCreado]   = useState<{ nombre: string; email: string; password: string } | null>(null)
   const [error,    setError]    = useState('')
 
-  const rolOpciones: Rol[] = ['admin', 'vendedor', 'operador']
+  const rolOpciones: Rol[] = ['admin', 'vendedor', 'operador', 'gestor']
 
   const handleCrear = async () => {
     if (!nombre.trim() || !apellido.trim()) { setError('Completá nombre y apellido'); return }
@@ -129,13 +130,14 @@ function ModalNuevoMiembro({
       setCreado({ nombre, email, password })
       refetch()   // actualizar indicador de uso
       toast.success(`${nombre} agregado al equipo`)
-    } catch (err: any) {
+    } catch (err: unknown) {
       if (err instanceof LimitePlanError) {
         setError(err.mensajeUpgrade)
-      } else if (err.message === 'EMAIL_EN_USO') {
+      } else if (err instanceof Error && err.message === 'EMAIL_EN_USO') {
         setError('Ese email ya tiene una cuenta. Usá otro.')
       } else {
-        setError('Error al crear el usuario. Intentá de nuevo.')
+        const msg = getMensajeError(err, 'general')
+        setError(`${msg.titulo}. ${msg.detalle}`)
       }
     } finally { setSaving(false) }
   }
@@ -347,7 +349,7 @@ function ModalEditarMiembro({
         <Input label="Teléfono" value={telefono} onChange={e => setTelefono(e.target.value)} />
 
         <Select label="Rol" value={rol} onChange={e => setRol(e.target.value as Rol)}>
-          {(['propietario', 'admin', 'vendedor', 'operador'] as Rol[]).map(r => (
+          {(['propietario', 'admin', 'vendedor', 'operador', 'gestor'] as Rol[]).map(r => (
             <option key={r} value={r} disabled={esMiMismo && r !== miembro.rol}>
               {ROL_LABELS[r]}
             </option>
@@ -522,8 +524,8 @@ export default function EquipoPage() {
       <IndicadorUso actual={totalUsuarios} maximo={maxUsuarios} planLabel={planLabel} />
 
       {/* Resumen por rol */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        {(['propietario', 'admin', 'vendedor', 'operador'] as Rol[]).map(r => {
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+        {(['propietario', 'admin', 'vendedor', 'operador', 'gestor'] as Rol[]).map(r => {
           const n = activos.filter(m => m.rol === r).length
           return (
             <div key={r} className="bg-white border border-gray-100 rounded-2xl p-4 shadow-sm">
@@ -599,7 +601,7 @@ export default function EquipoPage() {
       )}
 
       {/* Info de roles */}
-      <div className="bg-(--gp-orange-pale) border border-orange-100 rounded-2xl p-5">
+      <div className="bg-gp-orange-pale border border-orange-100 rounded-2xl p-5">
         <div className="flex items-start gap-3">
           <ShieldCheck size={18} style={{ color: 'var(--gp-orange)', flexShrink: 0 }} />
           <div>

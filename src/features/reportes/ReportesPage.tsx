@@ -15,6 +15,9 @@ import { formatPesos } from '@/utils'
 import { TIPO_TRAMITE_LABELS, ESTADO_TRAMITE_LABELS } from '@/types'
 import { descargarPDF, previsualizarPDF } from '@/utils/presupuesto'
 import toast from 'react-hot-toast'
+import { useGestoriaId, useGestoria } from '@/context/GestoriaContext'
+import { useConfiguracion }             from '@/hooks/useConfiguracion'
+import { usePageTitle } from '@/hooks/usePageTitle'
 
 const MESES = [
   'Enero','Febrero','Marzo','Abril','Mayo','Junio',
@@ -36,6 +39,10 @@ function KpiMes({
 }
 
 export default function ReportesPage() {
+  usePageTitle('Reportes')
+  const gestoriaId = useGestoriaId()
+  const { nombreComercial, colorPrimario, logoUrl } = useGestoria()
+  const { config } = useConfiguracion()
   const ahora  = new Date()
   const { tramites, loading: loadT } = useTramites()
   const { clientes }                 = useClientes()
@@ -107,12 +114,21 @@ export default function ReportesPage() {
     setPdfBlob(null)
     try {
       const [ingresosMes, tiposTramite, topClientes] = await Promise.all([
-        getIngresosPorMes(6),
-        getTiposTramiteFrecuentes(),
-        getTopClientes(8),
+        getIngresosPorMes(gestoriaId, 6),
+        getTiposTramiteFrecuentes(gestoriaId),
+        getTopClientes(gestoriaId, 8),
       ])
       const { blob, nombre } = await generarReporteMensual({
         mes, anio, tramites, clientes, ingresosMes, tiposTramite, topClientes,
+        // Branding dinámico del tenant
+        gestoriaNombre:    config.nombreComercial    ?? nombreComercial,
+        gestoriaSubtitulo: config.responsable ? `Mandataria — ${config.responsable}` : undefined,
+        gestoriaLocalidad: config.localidad          ?? undefined,
+        gestoriaTelefono:  config.telefono1           ?? undefined,
+        gestoriaEmail:     config.email               ?? undefined,
+        gestoriaWeb:       config.redesSociales?.web  ?? undefined,
+        colorPrimario,
+        logoUrl,
       })
       setPdfBlob(blob)
       setPdfNombre(nombre)

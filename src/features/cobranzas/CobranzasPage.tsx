@@ -1,4 +1,6 @@
 import { useState, useMemo } from 'react'
+import { usePaginacion }     from '@/hooks/usePaginacion'
+import ControlPaginacion     from '@/components/shared/ControlPaginacion'
 import {
   DollarSign, CheckCircle, Clock, AlertTriangle,
   MessageCircle, Search, Filter, ChevronDown,
@@ -16,11 +18,13 @@ import { TIPO_TRAMITE_LABELS } from '@/types'
 import type { Tramite } from '@/types'
 import { formatFecha, formatPesos } from '@/utils'
 import toast from 'react-hot-toast'
+import { usePageTitle } from '@/hooks/usePageTitle'
 
 // ─── TIPOS ────────────────────────────────────────────────────────────────────
 
 type FiltroEstadoPago = 'todos' | 'pendiente' | 'pagado' | 'vencido'
 type OrdenCobranza   = 'monto-desc' | 'monto-asc' | 'antiguedad' | 'estado'
+type FormaPago       = 'efectivo' | 'transferencia' | 'cheque' | 'mixto'
 
 interface TramiteConCliente extends Tramite {
   clienteNombreCompleto: string
@@ -74,7 +78,7 @@ function ModalPago({
     try {
       await registrarPago(tramite.id, {
         monto:     parseFloat(monto),
-        formaPago: formaPago as any,
+        formaPago: formaPago as FormaPago,
         fecha,
         notas,
       })
@@ -126,7 +130,7 @@ function ModalPago({
                 className={`flex items-center gap-2 px-3 py-2.5 rounded-xl border text-sm
                             font-medium transition-all
                             ${formaPago === opt.value
-                              ? 'border-[var(--gp-orange)] bg-[var(--gp-orange-pale)] text-[var(--gp-orange)]'
+                              ? 'border-gp-orange bg-gp-orange-pale text-gp-orange'
                               : 'border-gray-200 bg-white text-gray-600 hover:border-gray-300'
                             }`}
               >
@@ -273,6 +277,7 @@ function FilaCobranza({
 
 export default function CobranzasPage() {
   const { tramites, loading: loadT } = useTramites()
+  usePageTitle('Cobranzas')
   const { clientes }                 = useClientes()
 
   const [search,       setSearch]       = useState('')
@@ -331,6 +336,9 @@ export default function CobranzasPage() {
     return r
   }, [tramitesConHonorarios, filtroEstado, search, orden])
 
+  // Paginación
+  const pag = usePaginacion(filtrados, { porPagina: 30 })
+
   // KPIs
   const kpis = useMemo(() => {
     const todos      = tramitesConHonorarios
@@ -366,7 +374,7 @@ export default function CobranzasPage() {
     window.open(`https://wa.me/${num}?text=${msg}`, '_blank')
   }
 
-  if (loadT) return <Spinner label="Cargando cobranzas..." />
+  if (loadT) return <SkeletonCobranzas />
 
   return (
     <div className="space-y-5 animate-fadein">
@@ -421,7 +429,7 @@ export default function CobranzasPage() {
             onClick={k.onClick}
             className={`text-left p-4 rounded-2xl border-2 transition-all
                         ${k.active
-                          ? 'border-[var(--gp-orange)] shadow-md'
+                          ? 'border-gp-orange shadow-md'
                           : 'border-transparent bg-white shadow-sm hover:shadow-md'
                         }`}
             style={{ background: k.active ? k.bg : undefined }}
@@ -455,7 +463,7 @@ export default function CobranzasPage() {
               placeholder="Buscar cliente, patente o trámite..."
               aria-label="Buscar cobranzas"
               className="w-full border border-gray-200 rounded-xl pl-9 pr-4 py-2.5 text-sm
-                         outline-none focus:border-[var(--gp-orange)] transition-colors"
+                         outline-none focus:border-gp-orange transition-colors"
             />
           </div>
 
@@ -467,7 +475,7 @@ export default function CobranzasPage() {
               onChange={e => setOrden(e.target.value as OrdenCobranza)}
               aria-label="Ordenar cobranzas"
               className="border border-gray-200 rounded-xl pl-8 pr-4 py-2.5 text-sm
-                         outline-none focus:border-[var(--gp-orange)] bg-white cursor-pointer"
+                         outline-none focus:border-gp-orange bg-white cursor-pointer"
             >
               <option value="antiguedad">Más antiguos primero</option>
               <option value="monto-desc">Mayor monto primero</option>
@@ -512,7 +520,7 @@ export default function CobranzasPage() {
               <span className="text-right">Acción</span>
             </div>
 
-            {filtrados.map(item => (
+            {pag.itemsPagina.map(item => (
               <FilaCobranza
                 key={item.id}
                 item={item}
@@ -522,16 +530,22 @@ export default function CobranzasPage() {
               />
             ))}
 
-            {/* Totales */}
-            <div className="flex items-center justify-between px-4 py-3.5
-                            bg-gray-50 border-t-2 border-gray-100">
-              <span className="text-sm font-bold text-gray-600">
-                Total mostrado ({filtrados.length})
-              </span>
-              <span className="text-base font-bold"
-                    style={{ color: 'var(--gp-orange)', fontFamily: 'var(--font-display)' }}>
-                {formatPesos(filtrados.reduce((a, t) => a + t.honorarios, 0))}
-              </span>
+            {/* Totales + paginación */}
+            <div className="px-4 pb-4 pt-2 border-t border-gray-100 space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-bold text-gray-600">
+                  Total página ({pag.itemsPagina.length})
+                </span>
+                <span className="text-base font-bold"
+                      style={{ color: 'var(--gp-orange)', fontFamily: 'var(--font-display)' }}>
+                  {formatPesos(pag.itemsPagina.reduce((a, t) => a + t.honorarios, 0))}
+                </span>
+              </div>
+              <ControlPaginacion
+                pagina={pag.pagina} paginas={pag.paginas}
+                desde={pag.desde}   hasta={pag.hasta} total={pag.total}
+                onChange={pag.setPagina} labelItem="cobranzas"
+              />
             </div>
           </div>
         )}
@@ -562,6 +576,60 @@ export default function CobranzasPage() {
         tipo="warning"
       />
 
+    </div>
+  )
+}
+
+// ─── SKELETON ─────────────────────────────────────────────────────────────────
+function SkeletonCobranzas() {
+  return (
+    <div className="space-y-5 animate-fadein">
+      {/* Header placeholder */}
+      <div className="flex items-start justify-between">
+        <div className="space-y-2">
+          <div className="h-6 w-32 bg-gray-200 rounded-full animate-pulse" />
+          <div className="h-3.5 w-56 bg-gray-100 rounded-full animate-pulse" />
+        </div>
+      </div>
+
+      {/* KPI cards skeleton */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        {Array.from({ length: 4 }).map((_, i) => (
+          <div key={i} className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 space-y-3">
+            <div className="w-9 h-9 bg-gray-100 rounded-xl animate-pulse" />
+            <div className="h-3 w-24 bg-gray-100 rounded-full animate-pulse" />
+            <div className="h-6 w-28 bg-gray-200 rounded-full animate-pulse" />
+            <div className="h-3 w-16 bg-gray-100 rounded-full animate-pulse" />
+          </div>
+        ))}
+      </div>
+
+      {/* Filter bar skeleton */}
+      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
+        <div className="flex gap-3">
+          <div className="h-10 flex-1 bg-gray-100 rounded-xl animate-pulse" />
+          <div className="h-10 w-40 bg-gray-100 rounded-xl animate-pulse" />
+        </div>
+      </div>
+
+      {/* Table skeleton */}
+      <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden shadow-sm">
+        <div className="grid grid-cols-4 gap-4 px-4 py-2.5 bg-gray-50 border-b border-gray-100">
+          {[2,1,1,1].map((s,i) => (
+            <div key={i} className={`h-2.5 bg-gray-200 rounded-full animate-pulse col-span-${s}`} />
+          ))}
+        </div>
+        {Array.from({ length: 8 }).map((_, i) => (
+          <div key={i} className="grid grid-cols-4 gap-4 px-4 py-4 border-b border-gray-50 last:border-0 items-center">
+            <div className="col-span-2 space-y-2">
+              <div className="h-4 w-36 bg-gray-200 rounded-full animate-pulse" />
+              <div className="h-3 w-24 bg-gray-100 rounded-full animate-pulse" />
+            </div>
+            <div className="h-6 w-20 bg-gray-100 rounded-full animate-pulse ml-auto" />
+            <div className="h-8 w-24 bg-gray-100 rounded-xl animate-pulse ml-auto" />
+          </div>
+        ))}
+      </div>
     </div>
   )
 }

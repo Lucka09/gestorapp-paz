@@ -236,13 +236,12 @@ export default function ClientesPage() {
         <>
           <div className="space-y-2" role="list" aria-label="Lista de clientes">
             {clientes.map(c => (
-              <Card
-                key={c.id}
-                role="listitem"
-                onClick={() => navigate(`/admin/clientes/${c.id}`)}
-                className="p-0 overflow-hidden"
-              >
-                <div className="flex items-center gap-4 p-4">
+              <div key={c.id} role="listitem">
+                <Card
+                  onClick={() => navigate(`/admin/clientes/${c.id}`)}
+                  className="p-0 overflow-hidden"
+                >
+                  <div className="flex items-center gap-4 p-4">
                   <div className="w-10 h-10 rounded-full bg-gp-orange/10 flex items-center
                                   justify-center text-gp-orange font-bold text-sm shrink-0"
                        aria-hidden="true">
@@ -275,8 +274,9 @@ export default function ClientesPage() {
                     </div>
                   </div>
                   <ChevronRight size={16} className="text-gray-300 shrink-0" aria-hidden="true" />
-                </div>
-              </Card>
+                  </div>
+                </Card>
+              </div>
             ))}
           </div>
 
