@@ -224,7 +224,7 @@ export default function DashboardPage() {
       )}
 
       {/* Gráficos financieros — solo propietario */}
-      {verFinanzas && (
+      {verFinanzas && <>
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
 
         {/* Ingresos por mes */}
@@ -379,7 +379,7 @@ export default function DashboardPage() {
           )}
         </Card>
       </div>
-      )} {/* fin verFinanzas */}
+      </>} {/* fin verFinanzas */}
 
       {/* Agenda + Últimos trámites + Tareas */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
