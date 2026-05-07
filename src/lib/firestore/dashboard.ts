@@ -149,8 +149,8 @@ export async function getIngresosPorMes(gestoriaId: string, _meses = 6): Promise
 
 // ─── TIPOS AUXILIARES ────────────────────────────────────────────────────────
 
-export interface TipoCount  { tipo: string; label: string; cantidad: number }
-export interface TopCliente { clienteId: string; nombre: string; cantidad: number }
+export interface TipoCount  { tipo: string; label: string; cantidad: number; ingresos: number }
+export interface TopCliente { clienteId: string; nombre: string; tramites: number; ingresos: number }
 
 // ─── TIPOS DE TRÁMITE FRECUENTES ─────────────────────────────────────────────
 // ⚡ getDocs acotado — no listener permanente
@@ -162,9 +162,11 @@ export async function getTiposTramiteFrecuentes(gestoriaId: string): Promise<Tip
     limit(500),
   ))
   const conteo: Record<string, number> = {}
+  const conteoIngresos: Record<string, number> = {}
   snap.docs.forEach(d => {
     const tipo = d.data().tipo as string
     conteo[tipo] = (conteo[tipo] ?? 0) + 1
+    conteoIngresos[tipo] = (conteoIngresos[tipo] ?? 0) + (d.data().honorarios ?? 0)
   })
   const labels: Record<string, string> = {
     transferencia: 'Transferencia', inscripcion_inicial: 'Inscripción Inicial',
@@ -175,7 +177,7 @@ export async function getTiposTramiteFrecuentes(gestoriaId: string): Promise<Tip
     inhibicion: 'Inhibición', levantamiento_inhibicion: 'Lev. Inhibición',
   }
   return Object.entries(conteo)
-    .map(([tipo, cantidad]) => ({ tipo, label: labels[tipo] ?? tipo, cantidad }))
+    .map(([tipo, cantidad]) => ({ tipo, label: labels[tipo] ?? tipo, cantidad, ingresos: conteoIngresos[tipo] ?? 0 }))
     .sort((a, b) => b.cantidad - a.cantidad)
     .slice(0, 10)
 }
@@ -196,8 +198,18 @@ export async function getTopClientes(
     const cid = d.data().clienteId as string
     if (cid) conteo[cid] = (conteo[cid] ?? 0) + 1
   })
+  const ingresosPorCliente: Record<string, number> = {}
+  snap.docs.forEach(d => {
+    const cid = d.data().clienteId as string
+    if (cid) ingresosPorCliente[cid] = (ingresosPorCliente[cid] ?? 0) + (d.data().honorarios ?? 0)
+  })
   return Object.entries(conteo)
     .sort(([, a], [, b]) => b - a)
     .slice(0, cantidad)
-    .map(([clienteId, cant]) => ({ clienteId, nombre: clienteId, cantidad: cant }))
+    .map(([clienteId, tramites]) => ({
+      clienteId,
+      nombre:   clienteId,   // DashboardPage muestra el nombre del cliente por ID — se resuelve en el componente
+      tramites,
+      ingresos: ingresosPorCliente[clienteId] ?? 0,
+    }))
 }
