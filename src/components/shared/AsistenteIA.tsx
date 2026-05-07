@@ -173,18 +173,18 @@ export default function AsistenteIA() {
       tramitesActivos: metricas.tramitesActivos  ?? 0,
       tramitesHoy:     metricas.tramitesHoy      ?? 0,
       turnosHoy:       metricas.turnosHoy        ?? 0,
-      clientesTotal:   metricas.clientesTotal    ?? 0,
+      clientesTotal:   metricas.totalClientes    ?? 0,
     } : undefined,
     ultimosTramites: ultTramites.slice(0, 5).map(t => ({
       tipo:    t.tipo,
       estado:  t.estado,
-      cliente: `${t.clienteNombre ?? ''} ${t.clienteApellido ?? ''}`.trim(),
+      cliente: t.clienteId ?? '',
       patente: t.patente,
     })),
     turnosHoy: turnosHoy.slice(0, 5).map(t => ({
-      hora:    t.hora ?? '--:--',
-      tipo:    t.tipo,
-      cliente: `${t.clienteNombre ?? ''} ${t.clienteApellido ?? ''}`.trim(),
+      hora:    t.horaInicio ?? '--:--',
+      tipo:    t.tipoTramite,
+      cliente: t.clienteNombre ?? '',
     })),
   })
 
