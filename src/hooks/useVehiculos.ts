@@ -1,25 +1,30 @@
-import { useQuery }            from '@tanstack/react-query'
 import { useState, useEffect, useMemo } from 'react'
 import { useGestoriaId } from '@/context/GestoriaContext'
 import {
-  getVehiculos,
+  subscribeVehiculos,
   subscribeVehiculosPorCliente,
   subscribeVehiculo,
 } from '@/lib/firestore/vehiculos'
 import type { Vehiculo } from '@/types'
 
 // ─── TODOS LOS VEHÍCULOS DEL TENANT ─────────────────────────────────────────
-// ⚡ OPTIMIZADO: TanStack Query con caché 3 min en vez de onSnapshot permanente
 
 export function useVehiculos() {
   const gestoriaId = useGestoriaId()
-  const { data: vehiculos = [], isLoading: loading, refetch } = useQuery<Vehiculo[]>({
-    queryKey:  ['vehiculos-all', gestoriaId],
-    queryFn:   () => getVehiculos(gestoriaId),
-    staleTime: 1000 * 60 * 3,
-    enabled:   !!gestoriaId,
-  })
-  return { vehiculos, loading, refetch }
+  const [vehiculos, setVehiculos] = useState<Vehiculo[]>([])
+  const [loading,   setLoading]   = useState(true)
+
+  useEffect(() => {
+    if (!gestoriaId) return
+    setLoading(true)
+    const unsub = subscribeVehiculos(gestoriaId, data => {
+      setVehiculos(data)
+      setLoading(false)
+    })
+    return () => unsub()
+  }, [gestoriaId])
+
+  return { vehiculos, loading }
 }
 
 // ─── VEHÍCULOS DE UN CLIENTE ─────────────────────────────────────────────────

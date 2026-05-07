@@ -131,7 +131,7 @@ export function subscribeDistribucionEstados(
 // ─── INGRESOS POR MES ─────────────────────────────────────────────────────────
 export interface IngresoMes { mes: string; ingresos: number; tramites: number }
 
-export async function getIngresosPorMes(gestoriaId: string): Promise<IngresoMes[]> {
+export async function getIngresosPorMes(gestoriaId: string, _meses = 6): Promise<IngresoMes[]> {
   const hace6Meses = new Date(); hace6Meses.setMonth(hace6Meses.getMonth() - 6); hace6Meses.setDate(1); hace6Meses.setHours(0,0,0,0)
   const snap = await getDocs(query(tramitesCol, where('gestoriaId','==',gestoriaId), where('pagado','==',true), where('fechaPago','>=',Timestamp.fromDate(hace6Meses)), limit(500)))
   const meses: Record<string, IngresoMes> = {}
@@ -145,4 +145,59 @@ export async function getIngresosPorMes(gestoriaId: string): Promise<IngresoMes[
     meses[key].tramites += 1
   })
   return Object.entries(meses).sort(([a],[b]) => a.localeCompare(b)).map(([,v]) => v)
+}
+
+// ─── TIPOS AUXILIARES ────────────────────────────────────────────────────────
+
+export interface TipoCount  { tipo: string; label: string; cantidad: number }
+export interface TopCliente { clienteId: string; nombre: string; cantidad: number }
+
+// ─── TIPOS DE TRÁMITE FRECUENTES ─────────────────────────────────────────────
+// ⚡ getDocs acotado — no listener permanente
+
+export async function getTiposTramiteFrecuentes(gestoriaId: string): Promise<TipoCount[]> {
+  const snap = await getDocs(query(
+    tramitesCol,
+    where('gestoriaId', '==', gestoriaId),
+    limit(500),
+  ))
+  const conteo: Record<string, number> = {}
+  snap.docs.forEach(d => {
+    const tipo = d.data().tipo as string
+    conteo[tipo] = (conteo[tipo] ?? 0) + 1
+  })
+  const labels: Record<string, string> = {
+    transferencia: 'Transferencia', inscripcion_inicial: 'Inscripción Inicial',
+    baja: 'Baja', formulario_08: 'Form. 08', duplicado_titulo: 'Dup. Título',
+    duplicado_cedula: 'Dup. Cédula', cambio_radicacion: 'Cambio Radicación',
+    informe_dominio: 'Informe Dominio', certificado_dominio: 'Cert. Dominio',
+    prenda: 'Prenda', descargo_multas_pba: 'Descargo Multas', vtv: 'VTV',
+    inhibicion: 'Inhibición', levantamiento_inhibicion: 'Lev. Inhibición',
+  }
+  return Object.entries(conteo)
+    .map(([tipo, cantidad]) => ({ tipo, label: labels[tipo] ?? tipo, cantidad }))
+    .sort((a, b) => b.cantidad - a.cantidad)
+    .slice(0, 10)
+}
+
+// ─── TOP CLIENTES POR TRÁMITES ────────────────────────────────────────────────
+
+export async function getTopClientes(
+  gestoriaId: string,
+  cantidad = 5
+): Promise<TopCliente[]> {
+  const snap = await getDocs(query(
+    tramitesCol,
+    where('gestoriaId', '==', gestoriaId),
+    limit(500),
+  ))
+  const conteo: Record<string, number> = {}
+  snap.docs.forEach(d => {
+    const cid = d.data().clienteId as string
+    if (cid) conteo[cid] = (conteo[cid] ?? 0) + 1
+  })
+  return Object.entries(conteo)
+    .sort(([, a], [, b]) => b - a)
+    .slice(0, cantidad)
+    .map(([clienteId, cant]) => ({ clienteId, nombre: clienteId, cantidad: cant }))
 }

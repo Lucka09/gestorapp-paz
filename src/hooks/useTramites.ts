@@ -1,9 +1,7 @@
-import { useQuery }                from '@tanstack/react-query'
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import {
-  subscribeTramitesPropios, subscribeTramitesPorCliente, subscribeTramite,
+  subscribeTramites, subscribeTramitesPropios, subscribeTramitesPorCliente, subscribeTramite,
   getTramitesPagina, getTramitesCount, getTramitesPropiosTodos, getTramitesTodos,
-  getTramites,
   type FiltrosTramitesPagina,
 } from '@/lib/firestore/tramites'
 import { useGestoriaId } from '@/context/GestoriaContext'
@@ -13,25 +11,77 @@ import { useClientes } from '@/hooks/useClientes'
 import type { Tramite, EstadoTramite, TipoTramite } from '@/types'
 import type { QueryDocumentSnapshot } from 'firebase/firestore'
 
-// ─── HOOKS BASE ───────────────────────────────────────────────────────────────
+// ─── HOOKS EXISTENTES ─────────────────────────────────────────────────────────
 
-// ⚡ OPTIMIZADO: TanStack Query con caché 5 min en vez de onSnapshot permanente
-// Usado por VencimientosPage, ReportesPage, CobranzasPage, GestorHomePage
-export function useTramites() {
-  const gestoriaId  = useGestoriaId()
-  const { user }    = useAuthStore()
-  const esGestor    = user?.rol === 'gestor' && !!user?.uid
+type UseTramitesOptions = {
+  whenHidden?: 'realtime' | 'poll'
+  hiddenPollMs?: number
+}
 
-  const { data: tramites = [], isLoading: loading, refetch } = useQuery<Tramite[]>({
-    queryKey:  ['tramites-all', gestoriaId, user?.uid, esGestor],
-    queryFn:   () => esGestor
-      ? getTramitesPropiosTodos(gestoriaId, user!.uid)
-      : getTramites(gestoriaId),
-    staleTime: 1000 * 60 * 3,   // 3 minutos de caché
-    enabled:   !!gestoriaId,
-  })
+export function useTramites(options: UseTramitesOptions = {}) {
+  const gestoriaId              = useGestoriaId()
+  const { user }                = useAuthStore()
+  const [tramites, setTramites] = useState<Tramite[]>([])
+  const [loading, setLoading]   = useState(!!gestoriaId)
+  const [isPageVisible, setIsPageVisible] = useState(
+    typeof document === 'undefined' ? true : !document.hidden
+  )
 
-  return { tramites, loading, refetch }
+  const whenHidden = options.whenHidden ?? 'realtime'
+  const hiddenPollMs = options.hiddenPollMs ?? 60_000
+
+  useEffect(() => {
+    if (whenHidden !== 'poll' || typeof document === 'undefined') return
+    const onVisibilityChange = () => setIsPageVisible(!document.hidden)
+    document.addEventListener('visibilitychange', onVisibilityChange)
+    return () => document.removeEventListener('visibilitychange', onVisibilityChange)
+  }, [whenHidden])
+
+  useEffect(() => {
+    if (!gestoriaId) return
+    const esGestor = user?.rol === 'gestor' && !!user?.uid
+
+    if (whenHidden === 'poll' && !isPageVisible) {
+      let disposed = false
+      const cargar = async () => {
+        try {
+          const data = esGestor
+            ? await getTramitesPropiosTodos(gestoriaId, user.uid)
+            : await getTramitesTodos(gestoriaId)
+          if (!disposed) {
+            setTramites(data)
+            setLoading(false)
+          }
+        } catch {
+          if (!disposed) setLoading(false)
+        }
+      }
+
+      void cargar()
+      const intervalId = window.setInterval(() => {
+        void cargar()
+      }, hiddenPollMs)
+
+      return () => {
+        disposed = true
+        window.clearInterval(intervalId)
+      }
+    }
+
+    const unsub = esGestor
+      ? subscribeTramitesPropios(gestoriaId, user.uid, data => {
+        setTramites(data)
+        setLoading(false)
+      })
+      : subscribeTramites(gestoriaId, data => {
+        setTramites(data)
+        setLoading(false)
+      })
+
+    return () => unsub()
+  }, [gestoriaId, user, whenHidden, hiddenPollMs, isPageVisible])
+
+  return { tramites, loading }
 }
 
 export function useTramitesPorCliente(clienteId: string | undefined) {
