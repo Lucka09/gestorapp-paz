@@ -15,6 +15,7 @@ import type {
   InscripcionWorkflow, Paso1Data, Paso2Data, Paso3Data,
   Paso4Data, Paso5Data, Paso6Data, Paso7Data,
   IntentoRetiroChapa, AuditModificacion, AlertaChapaEnviada,
+  GeoRegistro,
 } from '@/types/torre.types'
 import type { Rol } from '@/types'
 
@@ -191,12 +192,14 @@ export async function confirmarPaso5(
   gestorId:     string,
   gestorNombre: string,
   fotos:        Paso5Data['fotos'],
+  ubicacion?:   GeoRegistro,   // geo al presentarse en el registro (opcional)
 ): Promise<void> {
   const paso5: Paso5Data = {
     fotos,
     completadoPor:       gestorId,
     completadoPorNombre: gestorNombre,
     completadoEn:        Timestamp.now(),
+    ...(ubicacion ? { ubicacion } : {}),
   }
   await updateDoc(workflowDoc(tramiteId), {
     paso5,
@@ -250,6 +253,7 @@ export async function confirmarRetiroChapa(
   gestorNombre: string,
   fotoChapaUrl: string,
   workflow:     InscripcionWorkflow,
+  ubicacion?:   GeoRegistro,   // geo al retirar la chapa (opcional, pero recomendado)
 ): Promise<void> {
   const intento: IntentoRetiroChapa = {
     numero:              (workflow.paso6?.intentos.length ?? 0) + 1,
@@ -260,6 +264,7 @@ export async function confirmarRetiroChapa(
     respondidoPorNombre: gestorNombre,
     respondidoEn:        Timestamp.now(),
     fotoChapaUrl,
+    ...(ubicacion ? { ubicacion } : {}),
   }
 
   const paso7: Paso7Data = {
@@ -292,6 +297,7 @@ export async function postergarRetiroChapa(
   nuevosDias:   number,
   nota:         string | undefined,
   workflow:     InscripcionWorkflow,
+  ubicacion?:   GeoRegistro,   // geo al presentarse (aunque no esté la chapa)
 ): Promise<void> {
   const nuevaFecha = new Date()
   nuevaFecha.setDate(nuevaFecha.getDate() + nuevosDias)
@@ -309,6 +315,7 @@ export async function postergarRetiroChapa(
     nota,
     nuevosDias,
     nuevaFechaEstimada,
+    ...(ubicacion ? { ubicacion } : {}),
   }
 
   await updateDoc(workflowDoc(tramiteId), {

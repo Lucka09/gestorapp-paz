@@ -85,6 +85,9 @@ export default function TramiteForm({
     }
   }, [form.vehiculoId, vehiculos])
 
+  // Detectar tipo multa para adaptar la UI
+  const esMulta = form.tipo === 'descargo_multa'
+
   const set = (field: keyof TramiteInput) =>
     (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
       const val = field === 'honorarios' ? Number(e.target.value) : e.target.value
@@ -175,29 +178,39 @@ export default function TramiteForm({
         readOnly={!!form.vehiculoId}
       />
 
-      {/* Descripción */}
+      {/* Descripción / N° LIT según tipo */}
       <Textarea
-        label="Descripción / Detalle"
+        label={esMulta ? 'N° de LIT *' : 'Descripción / Detalle'}
         value={form.descripcion}
         onChange={set('descripcion')}
-        placeholder="Detalle específico del trámite..."
-        rows={3}
+        placeholder={esMulta
+          ? 'Ej: LIT-2025-00123456 — Número de expediente de la infracción'
+          : 'Detalle específico del trámite...'}
+        rows={esMulta ? 2 : 3}
       />
+      {esMulta && (
+        <p className="text-xs text-amber-600 -mt-3 flex items-center gap-1">
+          <span>⚠️</span>
+          El cobro de honorarios se gestiona en el workflow paso a paso de multa.
+        </p>
+      )}
 
-      {/* Honorarios */}
-      <Input
-        label="Honorarios ($)"
-        type="number"
-        value={form.honorarios}
-        onChange={set('honorarios')}
-        onBlur={() => {
-          const r = tramiteSchema.shape.honorarios.safeParse(form.honorarios)
-          if (!r.success) setErrors(prev => ({ ...prev, honorarios: r.error.issues[0]?.message }))
-        }}
-        error={errors.honorarios}
-        min={0}
-        placeholder="0"
-      />
+      {/* Honorarios — ocultar para descargo_multa (lo gestiona el workflow) */}
+      {!esMulta && (
+        <Input
+          label="Honorarios ($)"
+          type="number"
+          value={form.honorarios}
+          onChange={set('honorarios')}
+          onBlur={() => {
+            const r = tramiteSchema.shape.honorarios.safeParse(form.honorarios)
+            if (!r.success) setErrors(prev => ({ ...prev, honorarios: r.error.issues[0]?.message }))
+          }}
+          error={errors.honorarios}
+          min={0}
+          placeholder="0"
+        />
+      )}
 
       {/* Observaciones internas */}
       <Textarea

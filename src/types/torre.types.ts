@@ -5,6 +5,18 @@
 
 import { Timestamp } from 'firebase/firestore'
 
+// ─── GEOLOCALIZACIÓN DE PRESENCIA ────────────────────────────────────────────
+// Se captura en los pasos donde el gestor debe presentarse físicamente
+// en un registro, delegación u oficina (P5 presentación, P6 retiro/postergar).
+
+export interface GeoRegistro {
+  lat:            number    // latitud WGS84
+  lng:            number    // longitud WGS84
+  precisionM:     number    // precisión GPS en metros
+  capturadaEn:    Timestamp
+  direccionAprox?: string   // resultado de reverse geocoding (Nominatim, opcional)
+}
+
 // ─── FOTO DE WORKFLOW ─────────────────────────────────────────────────────────
 
 export interface FotoWorkflow {
@@ -54,7 +66,8 @@ export interface Paso4Data extends PasoWorkflowBase {
 }
 
 export interface Paso5Data extends PasoWorkflowBase {
-  fotos: FotoWorkflow[]  // 1 foto — recibo de presentación
+  fotos:     FotoWorkflow[]  // 1 foto — recibo de presentación
+  ubicacion?: GeoRegistro    // geo al presentarse en el registro
 }
 
 // ─── PASO 6: CHAPA PATENTE (el más complejo) ──────────────────────────────────
@@ -90,6 +103,8 @@ export interface IntentoRetiroChapa {
   nuevaFechaEstimada?: Timestamp
   // Solo si resultado = retirado
   fotoChapaUrl?:       string
+  // Geolocalización al ir al registro (retirar o postergar)
+  ubicacion?:          GeoRegistro
   // Si admin modificó la fecha manualmente
   modificaciones?:     AuditModificacion[]
 }

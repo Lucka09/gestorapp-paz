@@ -13,14 +13,12 @@ import {
 import {
   useMetricas, useUltimosTramites,
   useTurnosHoy, useDistribucionEstados,
+  useIngresosPorMes, useTiposTramiteFrecuentes, useTopClientes,
 } from '@/hooks/useDashboard'
+import type { IngresoMes, TipoCount, TopCliente } from '@/lib/firestore/dashboard'
 import { useAuth } from '@/hooks/useAuth'
 import { useProspectos } from '@/hooks/usePipeline'
-import {
-  getIngresosPorMes, getTiposTramiteFrecuentes,
-  getTopClientes,
-  type IngresoMes, type TipoCount, type TopCliente,
-} from '@/lib/firestore/dashboard'
+
 import { ejecutarMotorAlertas }  from '@/lib/firestore/alertas'
 import { BannerPushNotifications } from '@/components/shared/PushNotifications'
 import { WidgetTareasHoy }          from '@/features/tareas/WidgetTareasHoy'
@@ -126,11 +124,6 @@ export default function DashboardPage() {
   const { metricas: metPipeline }    = useProspectos()
   const { alertas, nivelMax } = useAlertas()
 
-  const [ingresosMes,   setIngresosMes]   = useState<IngresoMes[]>([])
-  const [tiposTramite,  setTiposTramite]  = useState<TipoCount[]>([])
-  const [topClientes,   setTopClientes]   = useState<TopCliente[]>([])
-  const [loadAnalytics, setLoadAnalytics] = useState(true)
-
   // Programar recordatorios para turnos del día
   useEffect(() => {
     if (!turnosHoy.length) return
@@ -148,18 +141,16 @@ export default function DashboardPage() {
     })
   }, [turnosHoy])
 
+  // Analytics — usando hooks con TanStack Query (staleTime 10 min)
+  const { data: ingresosMes,  loading: loadIngr  } = useIngresosPorMes(6)
+  const { data: tiposTramite, loading: loadTipos } = useTiposTramiteFrecuentes()
+  const { data: topClientes,  loading: loadTop   } = useTopClientes(5)
+  const loadAnalytics = loadIngr || loadTipos || loadTop
+
   useEffect(() => {
-    // Ejecutar motor de alertas en background
+    // Ejecutar motor de alertas en background (sin bloquear analytics)
     ejecutarMotorAlertas().catch(() => {})
-    Promise.all([
-      getIngresosPorMes('6'),
-      getTiposTramiteFrecuentes(user?.gestoriaId || ''),
-      getTopClientes('5'),
-    ]).then(([ing, tipos, top]) => {
-      setIngresosMes(ing); setTiposTramite(tipos)
-      setTopClientes(top); setLoadAnalytics(false)
-    })
-  }, [user?.gestoriaId])
+  }, [])
 
   const hoy = format(new Date(), "EEEE d 'de' MMMM", { locale: es })
   if (loadM) return <Spinner label="Cargando dashboard..." />

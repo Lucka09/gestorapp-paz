@@ -1,17 +1,21 @@
 import { useState, useEffect, useMemo } from 'react'
+import { useGestoriaId } from '@/context/GestoriaContext'
 import { subscribeProspectos, calcularMetricasPipeline, type Prospecto, type EtapaPipeline } from '@/lib/firestore/pipeline'
 
 export function useProspectos() {
+  const gestoriaId                  = useGestoriaId()
   const [prospectos, setProspectos] = useState<Prospecto[]>([])
   const [loading, setLoading]       = useState(true)
 
   useEffect(() => {
-    const unsub = subscribeProspectos(data => {
+    // Guard: evita permission-denied antes de que auth resuelva el tenant.
+    if (!gestoriaId) return
+    const unsub = subscribeProspectos(gestoriaId, data => {
       setProspectos(data)
       setLoading(false)
     })
     return () => unsub()
-  }, [])
+  }, [gestoriaId])
 
   const metricas = useMemo(() => calcularMetricasPipeline(prospectos), [prospectos])
 

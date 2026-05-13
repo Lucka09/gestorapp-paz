@@ -1,13 +1,15 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import {
   ArrowLeft, Pencil, DollarSign, User,
-  Car, Clock, FileText, CheckCircle, XCircle
+  Car, Clock, FileText, CheckCircle, XCircle,
+  Scale, MapPin, ExternalLink, Navigation
 } from 'lucide-react'
 import { useTramite } from '@/hooks/useTramites'
 import { useCliente } from '@/hooks/useClientes'
 import { useVehiculo } from '@/hooks/useVehiculos'
 import { cambiarEstado, actualizarTramite, marcarPagado } from '@/lib/firestore/tramites'
+import { subscribeWorkflow } from '@/lib/firestore/inscripcionworkflow'
 import { useAuth } from '@/hooks/useAuth'
 import { Button, Card, Spinner, Badge } from '@/components/ui'
 import Modal from '@/components/shared/Modal'
@@ -15,7 +17,9 @@ import { EstadoBadge, EstadoSelector } from './EstadoBadge'
 import { BotonQR }        from './BotonQR'
 import BotonComprobante   from './BotonComprobante'
 import { PanelNotas }  from '@/components/shared/PanelNotas'
+import { GestorMultaWorkflow } from '@/components/GestorMultaWorkflow'
 import { TIPO_TRAMITE_LABELS, type EstadoTramite } from '@/types'
+import type { InscripcionWorkflow, GeoRegistro } from '@/types/torre.types'
 import { formatFecha, formatFechaHora, formatPesos, nombreCompleto } from '@/utils'
 import toast from 'react-hot-toast'
 import { usePageTitle } from '@/hooks/usePageTitle'
@@ -30,6 +34,15 @@ export default function TramiteDetallePage() {
   const { vehiculo } = useVehiculo(tramite?.vehiculoId)
   const [editOpen, setEditOpen] = useState(false)
   const [editForm, setEditForm] = useState({ descripcion: '', observacionesInternas: '', honorarios: 0 })
+
+  // Workflow de inscripción inicial — para mostrar registro de presencia (geo)
+  const esInscripcion = tramite?.tipo === 'inscripcion_inicial'
+  const [wfInscripcion, setWfInscripcion] = useState<InscripcionWorkflow | null>(null)
+
+  useEffect(() => {
+    if (!id || !esInscripcion) return
+    return subscribeWorkflow(id, setWfInscripcion)
+  }, [id, esInscripcion])
 
   const handleCambiarEstado = async (nuevo: EstadoTramite, nota: string) => {
     if (!tramite || !user) return
@@ -82,6 +95,8 @@ export default function TramiteDetallePage() {
     </div>
   )
 
+  const esMulta = tramite.tipo === 'descargo_multa'
+
   return (
     <div className="max-w-3xl space-y-4">
 
@@ -101,9 +116,16 @@ export default function TramiteDetallePage() {
         <div className="flex items-start justify-between gap-4 flex-wrap">
           <div>
             <p className="font-mono text-xs text-gray-400 mb-1">{tramite.numero}</p>
-            <h1 className="text-xl font-bold text-gray-900">
-              {TIPO_TRAMITE_LABELS[tramite.tipo]}
-            </h1>
+            <div className="flex items-center gap-2">
+              {esMulta && (
+                <span className="inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200">
+                  <Scale size={10} /> Multa / LIT
+                </span>
+              )}
+              <h1 className="text-xl font-bold text-gray-900">
+                {TIPO_TRAMITE_LABELS[tramite.tipo]}
+              </h1>
+            </div>
             <div className="flex items-center gap-3 mt-2 flex-wrap">
               <span className="font-mono text-sm bg-gray-100 text-gray-700 px-3 py-1 rounded-lg tracking-widest font-bold">
                 {tramite.patente}
@@ -133,35 +155,37 @@ export default function TramiteDetallePage() {
         )}
       </Card>
 
-      {/* Honorarios */}
-      <Card className="p-5">
-        <div className="flex items-center justify-between">
-          <div>
-            <p className="text-xs text-gray-400 uppercase tracking-wider font-semibold mb-1">Honorarios</p>
-            <p className="text-2xl font-bold text-gray-900">
-              {tramite.honorarios > 0 ? formatPesos(tramite.honorarios) : '—'}
-            </p>
-            {tramite.pagado && tramite.fechaPago && (
-              <p className="text-xs text-emerald-600 mt-0.5">
-                Pagado el {formatFecha(tramite.fechaPago)}
+      {/* Honorarios — solo si NO es multa (la multa maneja cobro en el workflow) */}
+      {!esMulta && (
+        <Card className="p-5">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-xs text-gray-400 uppercase tracking-wider font-semibold mb-1">Honorarios</p>
+              <p className="text-2xl font-bold text-gray-900">
+                {tramite.honorarios > 0 ? formatPesos(tramite.honorarios) : '—'}
               </p>
-            )}
+              {tramite.pagado && tramite.fechaPago && (
+                <p className="text-xs text-emerald-600 mt-0.5">
+                  Pagado el {formatFecha(tramite.fechaPago)}
+                </p>
+              )}
+            </div>
+            <button
+              onClick={handlePago}
+              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-all ${
+                tramite.pagado
+                  ? 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
+                  : 'bg-orange-50 text-orange-600 hover:bg-orange-100'
+              }`}
+            >
+              {tramite.pagado
+                ? <><CheckCircle size={16} /> Pagado</>
+                : <><DollarSign size={16} /> Marcar pagado</>
+              }
+            </button>
           </div>
-          <button
-            onClick={handlePago}
-            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-all ${
-              tramite.pagado
-                ? 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
-                : 'bg-orange-50 text-orange-600 hover:bg-orange-100'
-            }`}
-          >
-            {tramite.pagado
-              ? <><CheckCircle size={16} /> Pagado</>
-              : <><DollarSign size={16} /> Marcar pagado</>
-            }
-          </button>
-        </div>
-      </Card>
+        </Card>
+      )}
 
       {/* Cliente y Vehículo */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -212,6 +236,143 @@ export default function TramiteDetallePage() {
           ) : <p className="text-sm text-gray-400">Cargando...</p>}
         </Card>
       </div>
+
+      {/* ── WORKFLOW DE MULTA / INFRACCIÓN ─────────────────────────────────── */}
+      {esMulta && id && (
+        <div className="rounded-2xl overflow-hidden border border-slate-200 shadow-sm">
+          {/* Header del panel */}
+          <div className="flex items-center gap-3 px-5 py-4 bg-slate-900 border-b border-slate-700">
+            <div className="w-8 h-8 rounded-lg bg-amber-500/20 flex items-center justify-center shrink-0">
+              <Scale size={16} className="text-amber-400" />
+            </div>
+            <div>
+              <p className="text-sm font-bold text-white">Seguimiento del Trámite</p>
+              <p className="text-xs text-slate-400">Multas / Infracciones en Litigio (LIT)</p>
+            </div>
+          </div>
+
+          {/* Workflow */}
+          <div className="bg-slate-900 p-5">
+            <GestorMultaWorkflow
+              tramiteId={id}
+              numeroLITExterno={tramite.descripcion}
+            />
+          </div>
+        </div>
+      )}
+
+      {/* ── REGISTRO DE PRESENCIA — Inscripción Inicial (P5 + P6 intentos) ─── */}
+      {esInscripcion && wfInscripcion && (() => {
+        const entradas: {
+          key:     string
+          icono:   React.ReactNode
+          titulo:  string
+          detalle: string
+          geo:     GeoRegistro | null | undefined
+          gestor:  string
+          fecha:   string
+        }[] = []
+
+        // P5 — presentación en el registro
+        if (wfInscripcion.paso5) {
+          entradas.push({
+            key:     'p5',
+            icono:   <FileText size={13} className="text-blue-500" />,
+            titulo:  'Presentación de documentación',
+            detalle: 'Paso 5 — el gestor fue al registro a entregar la documentación',
+            geo:     wfInscripcion.paso5.ubicacion,
+            gestor:  wfInscripcion.paso5.completadoPorNombre,
+            fecha:   formatFechaHora(wfInscripcion.paso5.completadoEn),
+          })
+        }
+
+        // P6 — cada intento de retiro (con o sin geo)
+        wfInscripcion.paso6?.intentos.forEach((intento, i) => {
+          const esRetiro = intento.resultado === 'retirado'
+          entradas.push({
+            key:     `p6-${i}`,
+            icono:   esRetiro
+              ? <CheckCircle size={13} className="text-emerald-500" />
+              : <Clock size={13} className="text-amber-500" />,
+            titulo:  esRetiro
+              ? `Retiro de chapa confirmado — intento ${intento.numero}`
+              : `Postergado ${intento.nuevosDias ?? '?'} días más — intento ${intento.numero}`,
+            detalle: intento.nota
+              ? `"${intento.nota}"`
+              : esRetiro ? 'Chapa retirada exitosamente' : 'Sin observación',
+            geo:     intento.ubicacion,
+            gestor:  intento.respondidoPorNombre,
+            fecha:   formatFechaHora(intento.respondidoEn),
+          })
+        })
+
+        if (!entradas.length) return null
+
+        return (
+          <Card className="p-5">
+            <div className="flex items-center gap-2 mb-4">
+              <Navigation size={14} className="text-[#D4621A]" />
+              <p className="text-xs font-bold text-gray-400 uppercase tracking-wider">
+                Registro de presencia en registro
+              </p>
+            </div>
+            <div className="space-y-3">
+              {entradas.map(entrada => (
+                <div key={entrada.key}
+                  className="flex gap-3 p-3 rounded-xl bg-gray-50 border border-gray-100">
+                  {/* Ícono */}
+                  <div className="w-7 h-7 rounded-lg bg-white border border-gray-200 flex items-center justify-center shrink-0 mt-0.5">
+                    {entrada.icono}
+                  </div>
+                  {/* Contenido */}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-start justify-between gap-2 flex-wrap">
+                      <p className="text-sm font-semibold text-gray-800 leading-tight">
+                        {entrada.titulo}
+                      </p>
+                      <span className="text-xs text-gray-400 whitespace-nowrap shrink-0">
+                        {entrada.fecha}
+                      </span>
+                    </div>
+                    <p className="text-xs text-gray-500 mt-0.5">{entrada.gestor}</p>
+                    {entrada.detalle && (
+                      <p className="text-xs text-gray-400 mt-1 italic">{entrada.detalle}</p>
+                    )}
+
+                    {/* Geo registrada */}
+                    {entrada.geo ? (
+                      <div className="flex items-center gap-2 mt-2 flex-wrap">
+                        <div className="flex items-center gap-1.5 px-2 py-1 rounded-lg bg-emerald-50 border border-emerald-100">
+                          <MapPin size={11} className="text-emerald-600 shrink-0" />
+                          <span className="text-[11px] font-medium text-emerald-700">
+                            {entrada.geo.direccionAprox ?? `${entrada.geo.lat.toFixed(5)}, ${entrada.geo.lng.toFixed(5)}`}
+                          </span>
+                          <span className="text-[10px] text-emerald-500">
+                            ±{entrada.geo.precisionM}m
+                          </span>
+                        </div>
+                        <a
+                          href={`https://www.google.com/maps?q=${entrada.geo.lat},${entrada.geo.lng}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex items-center gap-1 text-[11px] text-blue-500 hover:text-blue-700 transition-colors"
+                        >
+                          Ver en Maps <ExternalLink size={10} />
+                        </a>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-1.5 mt-2 px-2 py-1 rounded-lg bg-gray-100 border border-gray-200 w-fit">
+                        <MapPin size={11} className="text-gray-400 shrink-0" />
+                        <span className="text-[11px] text-gray-400">Ubicación no registrada</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </Card>
+        )
+      })()}
 
       {/* Notas internas */}
       {tramite && (
@@ -269,7 +430,7 @@ export default function TramiteDetallePage() {
         <div className="space-y-4">
           <div>
             <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider block mb-1.5">
-              Descripción
+              Descripción {esMulta && <span className="text-amber-500 normal-case font-normal">(se usa como N° de LIT)</span>}
             </label>
             <textarea
               value={editForm.descripcion}
@@ -277,22 +438,24 @@ export default function TramiteDetallePage() {
               rows={3}
               className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm outline-none
                          focus:border-[#D4621A] resize-none placeholder-gray-400"
-              placeholder="Detalle del trámite..."
+              placeholder={esMulta ? 'Ej: LIT-2024-00123' : 'Detalle del trámite...'}
             />
           </div>
-          <div>
-            <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider block mb-1.5">
-              Honorarios ($)
-            </label>
-            <input
-              type="number"
-              min={0}
-              value={editForm.honorarios}
-              onChange={e => setEditForm(p => ({ ...p, honorarios: Number(e.target.value) }))}
-              className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm outline-none
-                         focus:border-[#D4621A]"
-            />
-          </div>
+          {!esMulta && (
+            <div>
+              <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider block mb-1.5">
+                Honorarios ($)
+              </label>
+              <input
+                type="number"
+                min={0}
+                value={editForm.honorarios}
+                onChange={e => setEditForm(p => ({ ...p, honorarios: Number(e.target.value) }))}
+                className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm outline-none
+                           focus:border-[#D4621A]"
+              />
+            </div>
+          )}
           <div>
             <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider block mb-1.5">
               Observaciones internas

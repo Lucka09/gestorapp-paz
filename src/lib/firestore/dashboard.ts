@@ -1,6 +1,6 @@
 import {
   query, where, orderBy, limit,
-  getDocs, Timestamp, onSnapshot,
+  getDocs, getCountFromServer, Timestamp, onSnapshot,
   type Unsubscribe,
 } from 'firebase/firestore'
 import { tramitesCol, turnosCol, clientesCol, vehiculosCol } from './collections'
@@ -35,18 +35,20 @@ export async function getMetricas(gestoriaId: string): Promise<MetricasDashboard
 
   const estadosActivos = ['pendiente', 'en_proceso', 'documentacion_requerida', 'en_organismo']
 
+  // getCountFromServer: solo lee metadatos del índice (1 read), no trae documentos.
+  // Ahorra hasta 4000 reads/mes vs getDocs con limit(2000).
   const [
     snapActivos, snapHoy, snapPagados,
     snapTurnosHoy, snapTurnosProx,
-    snapClientes, snapVehiculos,
+    cntClientes, cntVehiculos,
   ] = await Promise.all([
     getDocs(query(tramitesCol, where('gestoriaId','==',gestoriaId), where('estado','in',estadosActivos), limit(500))),
     getDocs(query(tramitesCol, where('gestoriaId','==',gestoriaId), where('creadoEn','>=',hoyTs), where('creadoEn','<=',hoyFinTs), limit(200))),
     getDocs(query(tramitesCol, where('gestoriaId','==',gestoriaId), where('pagado','==',true), where('fechaPago','>=',mesTs), limit(500))),
     getDocs(query(turnosCol,   where('gestoriaId','==',gestoriaId), where('fecha','>=',hoyTs), where('fecha','<=',hoyFinTs), limit(100))),
     getDocs(query(turnosCol,   where('gestoriaId','==',gestoriaId), where('fecha','>',hoyFinTs), where('fecha','<=',en7Ts), limit(100))),
-    getDocs(query(clientesCol,  where('gestoriaId','==',gestoriaId), limit(2000))),
-    getDocs(query(vehiculosCol, where('gestoriaId','==',gestoriaId), limit(2000))),
+    getCountFromServer(query(clientesCol,  where('gestoriaId','==',gestoriaId))),
+    getCountFromServer(query(vehiculosCol, where('gestoriaId','==',gestoriaId))),
   ])
 
   const tramitesActivos    = snapActivos.size
@@ -63,7 +65,8 @@ export async function getMetricas(gestoriaId: string): Promise<MetricasDashboard
   return {
     tramitesHoy, tramitesPendientes, tramitesActivos,
     turnosHoy, turnosProximos, sinPagar,
-    totalClientes: snapClientes.size, totalVehiculos: snapVehiculos.size,
+    totalClientes: cntClientes.data().count,
+    totalVehiculos: cntVehiculos.data().count,
     ingresosMes, ingresosHoy,
   }
 }
@@ -173,7 +176,7 @@ export async function getTiposTramiteFrecuentes(gestoriaId: string): Promise<Tip
     baja: 'Baja', formulario_08: 'Form. 08', duplicado_titulo: 'Dup. Título',
     duplicado_cedula: 'Dup. Cédula', cambio_radicacion: 'Cambio Radicación',
     informe_dominio: 'Informe Dominio', certificado_dominio: 'Cert. Dominio',
-    prenda: 'Prenda', descargo_multas_pba: 'Descargo Multas', vtv: 'VTV',
+    prenda: 'Prenda', descargo_multa: 'Descargo Multas PBA', vtv: 'VTV',
     inhibicion: 'Inhibición', levantamiento_inhibicion: 'Lev. Inhibición',
   }
   return Object.entries(conteo)

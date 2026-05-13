@@ -3,10 +3,12 @@
 // Para el panel del mandatario. Maneja el estado local del flujo de pasos,
 // validación de fotos y upload a Firebase Storage.
 
+import { comprimirImagen } from '@/utils/comprimirImagen'
 import { useState, useEffect, useCallback } from 'react'
 import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage'
 import { storage }           from '@/lib/firebase'
-import { useAuthStore }      from '@/store/authStore'
+import { useAuthStore }         from '@/store/authStore'
+import { useGeolocalizacion }  from '@/hooks/useGeolocalizacion'
 import { useGestoriaId }     from '@/context/GestoriaContext'
 import {
   subscribeWorkflow,
@@ -19,50 +21,6 @@ import type { InscripcionWorkflow, FotoWorkflow } from '@/types/torre.types'
 
 // ─── OPTIMIZACIÓN DE IMÁGENES ────────────────────────────────────────────────
 
-const MAX_DIMENSION = 1600
-const JPEG_QUALITY = 0.78
-const SKIP_COMPRESS_UNDER_BYTES = 350 * 1024
-
-async function comprimirImagen(file: File): Promise<File> {
-  // No recomprimir archivos chicos para evitar pérdida innecesaria.
-  if (file.size <= SKIP_COMPRESS_UNDER_BYTES || !file.type.startsWith('image/')) return file
-
-  const url = URL.createObjectURL(file)
-  try {
-    const img = await new Promise<HTMLImageElement>((resolve, reject) => {
-      const i = new Image()
-      i.onload = () => resolve(i)
-      i.onerror = reject
-      i.src = url
-    })
-
-    const scale = Math.min(1, MAX_DIMENSION / Math.max(img.width, img.height))
-    const w = Math.max(1, Math.round(img.width * scale))
-    const h = Math.max(1, Math.round(img.height * scale))
-
-    const canvas = document.createElement('canvas')
-    canvas.width = w
-    canvas.height = h
-    const ctx = canvas.getContext('2d')
-    if (!ctx) return file
-    ctx.drawImage(img, 0, 0, w, h)
-
-    const blob = await new Promise<Blob | null>(resolve =>
-      canvas.toBlob(resolve, 'image/jpeg', JPEG_QUALITY)
-    )
-    if (!blob) return file
-
-    // Si no mejora tamaño, conservar original.
-    if (blob.size >= file.size) return file
-
-    const nombreBase = file.name.replace(/\.[^.]+$/, '')
-    return new File([blob], `${nombreBase}.jpg`, { type: 'image/jpeg' })
-  } catch {
-    return file
-  } finally {
-    URL.revokeObjectURL(url)
-  }
-}
 
 // ─── TIPOS LOCALES ────────────────────────────────────────────────────────────
 
@@ -93,10 +51,13 @@ export function useInscripcionWorkflow(tramiteId: string) {
   const { user }   = useAuthStore()
   const gestoriaId = useGestoriaId()
 
-  const [workflow, setWorkflow]   = useState<InscripcionWorkflow | null>(null)
-  const [loading, setLoading]     = useState(true)
-  const [guardando, setGuardando] = useState(false)
-  const [error, setError]         = useState<string | null>(null)
+  const { capturar: capturarGeo } = useGeolocalizacion()
+
+  const [workflow, setWorkflow]     = useState<InscripcionWorkflow | null>(null)
+  const [loading, setLoading]       = useState(true)
+  const [guardando, setGuardando]   = useState(false)
+  const [geoCapturando, setGeoCapturando] = useState(false)
+  const [error, setError]           = useState<string | null>(null)
 
   // Estado local de fotos del paso activo
   const [fotosLocales, setFotosLocales] = useState<FotoLocal[]>([])
@@ -291,11 +252,17 @@ export function useInscripcionWorkflow(tramiteId: string) {
             fotosRemota,
           )
           break
-        case 5:
-          await confirmarPaso5(tramiteId, user.uid, nombre, fotosRemota)
+        case 5: {
+          // Capturar geo antes de confirmar — P5 requiere presencia en el registro.
+          // Si falla el GPS el paso igual avanza, la geo queda como undefined.
+          setGeoCapturando(true)
+          const geoP5 = await capturarGeo()
+          setGeoCapturando(false)
+          await confirmarPaso5(tramiteId, user.uid, nombre, fotosRemota, geoP5 ?? undefined)
           // Paso 5 NO finaliza. El hook de Firestore ya avanzó a paso 6.
           // El cartel de "¿cuántos días?" lo maneja el componente que consume este hook.
           break
+        }
       }
     } catch (e) {
       setError('Ocurrió un error al guardar. Intentá de nuevo.')
@@ -329,20 +296,26 @@ export function useInscripcionWorkflow(tramiteId: string) {
     if (!user || !workflow?.paso6) return
     setGuardando(true)
     try {
+      // Capturar geo — P6 retiro es el paso más crítico (presencia en registro obligatoria)
+      setGeoCapturando(true)
+      const geoRetiro = await capturarGeo()
+      setGeoCapturando(false)
+
       const fotoOptimizada = await comprimirImagen(fotoChapaFile)
       const path       = generarPathStorage(gestoriaId!, tramiteId, 6, 0, fotoOptimizada)
       const storageRef = ref(storage, path)
       await uploadBytesResumable(storageRef, fotoOptimizada)
       const url: string = await getDownloadURL(storageRef)
       const nombre = `${user.nombre} ${user.apellido}`.trim()
-      await confirmarRetiroChapa(tramiteId, user.uid, nombre, url, workflow)
+      await confirmarRetiroChapa(tramiteId, user.uid, nombre, url, workflow, geoRetiro ?? undefined)
     } catch (e) {
       setError('Error al confirmar el retiro de la chapa.')
       console.error(e)
     } finally {
       setGuardando(false)
+      setGeoCapturando(false)
     }
-  }, [user, workflow, tramiteId, gestoriaId])
+  }, [user, workflow, tramiteId, gestoriaId, capturarGeo])
 
   // ── Postergar retiro ──────────────────────────────────────────────────────
 
@@ -350,15 +323,21 @@ export function useInscripcionWorkflow(tramiteId: string) {
     if (!user || !workflow?.paso6) return
     setGuardando(true)
     try {
+      // Capturar geo — registra que el gestor fue al registro aunque no pudo retirar
+      setGeoCapturando(true)
+      const geoPostergar = await capturarGeo()
+      setGeoCapturando(false)
+
       const nombre = `${user.nombre} ${user.apellido}`.trim()
-      await postergarRetiroChapa(tramiteId, user.uid, nombre, nuevosDias, nota, workflow)
+      await postergarRetiroChapa(tramiteId, user.uid, nombre, nuevosDias, nota, workflow, geoPostergar ?? undefined)
     } catch (e) {
       setError('Error al postergar la fecha de retiro.')
       console.error(e)
     } finally {
       setGuardando(false)
+      setGeoCapturando(false)
     }
-  }, [user, workflow, tramiteId])
+  }, [user, workflow, tramiteId, capturarGeo])
 
   // ── Limpieza de object URLs ───────────────────────────────────────────────
 
@@ -373,6 +352,7 @@ export function useInscripcionWorkflow(tramiteId: string) {
     workflow,
     loading,
     guardando,
+    geoCapturando,
     error,
     pasoActual,
     // Fotos y datos locales

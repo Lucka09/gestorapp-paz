@@ -4,7 +4,9 @@ import {
   Loader2, RefreshCw, Copy, Check,
   MessageSquare, Zap,
 } from 'lucide-react'
-import { useAuth }     from '@/hooks/useAuth'
+import { useAuth }          from '@/hooks/useAuth'
+import { getFunctions, httpsCallable } from 'firebase/functions'
+import { app }              from '@/lib/firebase'
 import { useGestoria } from '@/context/GestoriaContext'
 import { useMetricas, useUltimosTramites, useTurnosHoy } from '@/hooks/useDashboard'
 
@@ -211,31 +213,23 @@ export default function AsistenteIA() {
     abortRef.current = new AbortController()
 
     try {
-      const response = await fetch('https://api.anthropic.com/v1/messages', {
-        method:  'POST',
-        headers: { 'Content-Type': 'application/json' },
-        signal:  abortRef.current.signal,
-        body: JSON.stringify({
-          model:      'claude-sonnet-4-20250514',
-          max_tokens: 1000,
-          system:     systemPrompt,
-          messages:   historialActualizado.map(m => ({
-            role:    m.rol,
-            content: m.texto,
-          })),
-        }),
+      // —— Llamar al proxy Cloud Function (API key nunca llega al cliente) ——
+      const functions = getFunctions(app, 'us-central1')
+      const callProxy = httpsCallable<
+        { messages: Array<{role: string; content: string}>; systemPrompt: string; gestoriaId: string },
+        { texto: string }
+      >(functions, 'claudeProxy')
+
+      const resultado = await callProxy({
+        messages: historialActualizado.map(m => ({
+          role:    m.rol,
+          content: m.texto,
+        })),
+        systemPrompt,
+        gestoriaId: user?.gestoriaId ?? '',
       })
 
-      if (!response.ok) {
-        const err = await response.json().catch(() => ({}))
-        throw new Error(err?.error?.message ?? `Error ${response.status}`)
-      }
-
-      const data = await response.json()
-      const respuesta = data.content
-        ?.filter((b: any) => b.type === 'text')
-        .map((b: any) => b.text)
-        .join('\n') ?? ''
+      const respuesta = resultado.data.texto ?? ''
 
       setMensajes(prev => [
         ...prev,
@@ -248,7 +242,8 @@ export default function AsistenteIA() {
       ])
     } catch (err: any) {
       if (err.name === 'AbortError') return
-      setError(err.message ?? 'Error al conectar con el asistente.')
+      const msg = err?.message ?? 'Error al conectar con el asistente.'
+      setError(msg.includes('internal') ? 'Error interno del asistente. Intentá de nuevo.' : msg)
     } finally {
       setCargando(false)
     }

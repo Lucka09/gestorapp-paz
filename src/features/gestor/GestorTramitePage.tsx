@@ -12,6 +12,7 @@ import { useAuth }                from '@/hooks/useAuth'
 import { usePageTitle }           from '@/hooks/usePageTitle'
 import { useTramite }             from '@/hooks/useTramites'
 import { useInscripcionWorkflow } from '@/hooks/useInscripcionWorkflow'
+import { GestorMultaWorkflow }    from '@/components/GestorMultaWorkflow'
 import { PASOS_INSCRIPCION }      from '@/types/torre.types'
 import { formatFecha }            from '@/utils'
 import type { FotoLocal }         from '@/hooks/useInscripcionWorkflow'
@@ -441,6 +442,44 @@ function ModalPostergar({ onConfirmar, onCancelar }: { onConfirmar: (dias: numbe
   )
 }
 
+// ─── VISTA MULTA (wrapper mobile para GestorMultaWorkflow) ───────────────────
+
+function GestorMultaView({ tramiteId, patente, navigate }: {
+  tramiteId: string
+  patente:   string
+  navigate:  (to: string) => void
+}) {
+  usePageTitle(`Multa ${patente}`)
+  return (
+    <div className="min-h-screen bg-[#080d14] text-gray-200" style={{ fontFamily: "'DM Sans', system-ui, sans-serif" }}>
+      {/* Header sticky */}
+      <div className="sticky top-0 z-40 bg-[#0a0f1a] border-b border-white/8 px-4 py-3">
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => navigate('/admin/gestor')}
+            className="w-8 h-8 rounded-lg bg-white/6 border border-white/10 flex items-center justify-center text-gray-400 hover:text-gray-200 transition-colors shrink-0"
+          >
+            <ArrowLeft size={14} />
+          </button>
+          <div className="flex-1 min-w-0">
+            <p className="text-[10px] font-mono text-gray-600">Multa / Infracción LIT</p>
+            <p className="text-sm font-bold text-gray-100 truncate">{patente}</p>
+          </div>
+          <div className="text-right shrink-0">
+            <p className="text-[10px] text-gray-600">Trámite</p>
+            <p className="text-xs font-extrabold text-amber-400">⚖️ LIT</p>
+          </div>
+        </div>
+      </div>
+
+      {/* Contenido */}
+      <div className="px-4 py-5 pb-24">
+        <GestorMultaWorkflow tramiteId={tramiteId} />
+      </div>
+    </div>
+  )
+}
+
 // ─── PÁGINA PRINCIPAL ─────────────────────────────────────────────────────────
 
 export default function GestorTramitePage() {
@@ -450,7 +489,7 @@ export default function GestorTramitePage() {
 
   const { tramite, loading: loadingTramite } = useTramite(tramiteId)
   const {
-    workflow, loading: loadingWf, guardando, error,
+    workflow, loading: loadingWf, guardando, geoCapturando, error,
     pasoActual, fotosLocales, datosLocales,
     agregarFoto, actualizarDato, puedeAvanzar,
     confirmarPaso, iniciarChapaPatente, confirmarRetiro, postergarRetiro,
@@ -493,6 +532,19 @@ export default function GestorTramitePage() {
     await confirmarRetiro(fotoChapa)
     setConfirmandoRetiro(false)
     setFotoChapa(null)
+  }
+
+  // ── Early return: multa/infracción LIT ───────────────────────────────────
+  // El workflow de multas tiene su propia pantalla mobile-first.
+  // Lo detectamos en cuanto el trámite carga (sin esperar el workflow de inscripción).
+  if (!loadingTramite && tramite?.tipo === 'descargo_multa') {
+    return (
+      <GestorMultaView
+        tramiteId={tramite.id}
+        patente={tramite.patente}
+        navigate={navigate}
+      />
+    )
   }
 
   if (loadingTramite || loadingWf) {
@@ -634,17 +686,27 @@ export default function GestorTramitePage() {
                     {/* Confirmar retiro (si el estado lo permite) */}
                     {(paso6.estado === 'pendiente' || paso6.estado === 'atrasada' || paso6.estado === 'postergada') && (
                       !confirmandoRetiro ? (
-                        <div className="flex gap-2">
-                          <button onClick={() => setConfirmandoRetiro(true)}
-                            className="flex-1 py-3 rounded-xl bg-emerald-500/15 border border-emerald-500/30
-                                       text-emerald-400 text-sm font-bold hover:bg-emerald-500/25 transition-all">
-                            ✓ Retiré la chapa
-                          </button>
-                          <button onClick={() => setModalPostergar(true)}
-                            className="flex-1 py-3 rounded-xl bg-orange-500/10 border border-orange-500/25
-                                       text-orange-400 text-sm font-bold hover:bg-orange-500/15 transition-all">
-                            Postergar
-                          </button>
+                        <div>
+                          {geoCapturando && (
+                            <div className="flex items-center gap-2 px-3 py-2 mb-2 rounded-xl bg-blue-900/20 border border-blue-500/25">
+                              <RefreshCw size={12} className="animate-spin text-blue-400 shrink-0" />
+                              <p className="text-[11px] text-blue-300">Registrando ubicación GPS...</p>
+                            </div>
+                          )}
+                          <div className="flex gap-2">
+                            <button onClick={() => setConfirmandoRetiro(true)} disabled={geoCapturando}
+                              className="flex-1 py-3 rounded-xl bg-emerald-500/15 border border-emerald-500/30
+                                         text-emerald-400 text-sm font-bold hover:bg-emerald-500/25 transition-all
+                                         disabled:opacity-50 disabled:cursor-not-allowed">
+                              📍 Retiré la chapa
+                            </button>
+                            <button onClick={() => setModalPostergar(true)} disabled={geoCapturando}
+                              className="flex-1 py-3 rounded-xl bg-orange-500/10 border border-orange-500/25
+                                         text-orange-400 text-sm font-bold hover:bg-orange-500/15 transition-all
+                                         disabled:opacity-50 disabled:cursor-not-allowed">
+                              Postergar
+                            </button>
+                          </div>
                         </div>
                       ) : (
                         <div className="space-y-3">
@@ -669,11 +731,11 @@ export default function GestorTramitePage() {
                               className="flex-1 py-2.5 rounded-xl bg-white/5 border border-white/10 text-gray-500 text-sm font-semibold">
                               Cancelar
                             </button>
-                            <button onClick={handleConfirmarRetiro} disabled={!fotoChapa || guardando}
+                            <button onClick={handleConfirmarRetiro} disabled={!fotoChapa || guardando || geoCapturando}
                               className="flex-1 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400
                                          disabled:opacity-40 disabled:cursor-not-allowed
                                          text-white text-sm font-extrabold transition-all">
-                              {guardando ? '...' : 'Finalizar trámite ✓'}
+                              {geoCapturando ? '📍 Ubicación...' : guardando ? 'Guardando...' : 'Finalizar trámite ✓'}
                             </button>
                           </div>
                         </div>
@@ -755,28 +817,45 @@ export default function GestorTramitePage() {
 
               {/* Botón avanzar */}
               {paso.accion && (
-                <button
-                  onClick={puede && !guardando ? confirmarPaso : undefined}
-                  disabled={!puede || guardando}
-                  className="w-full py-4 mt-4 rounded-xl text-sm font-extrabold tracking-wide transition-all"
-                  style={{
-                    background:  puede ? `linear-gradient(135deg, ${paso.color}, ${paso.color}cc)` : 'rgba(255,255,255,0.05)',
-                    color:       puede ? '#fff' : '#475569',
-                    cursor:      puede ? 'pointer' : 'not-allowed',
-                    boxShadow:   puede ? `0 4px 20px ${paso.color}35` : 'none',
-                    border:      puede ? 'none' : '1px solid rgba(255,255,255,0.08)',
-                  }}
-                >
-                  {guardando ? (
-                    <span className="flex items-center justify-center gap-2">
-                      <RefreshCw size={14} className="animate-spin" /> Guardando...
-                    </span>
-                  ) : !puede ? (
-                    paso.fotos
-                      ? `Subí ${typeof paso.cantidadFotos === 'number' ? `${paso.cantidadFotos} foto${paso.cantidadFotos > 1 ? 's' : ''}` : 'al menos 1 foto'} para continuar`
-                      : 'Completá todos los campos'
-                  ) : paso.accion}
-                </button>
+                <>
+                  {/* Indicador geo — solo visible en paso 5 mientras captura */}
+                  {paso.id === 5 && geoCapturando && (
+                    <div className="flex items-center gap-2 px-3 py-2 mt-3 rounded-xl bg-blue-900/20 border border-blue-500/25">
+                      <RefreshCw size={12} className="animate-spin text-blue-400 shrink-0" />
+                      <p className="text-[11px] text-blue-300">Obteniendo ubicación GPS...</p>
+                    </div>
+                  )}
+                  <button
+                    onClick={puede && !guardando && !geoCapturando ? confirmarPaso : undefined}
+                    disabled={!puede || guardando || geoCapturando}
+                    className="w-full py-4 mt-4 rounded-xl text-sm font-extrabold tracking-wide transition-all"
+                    style={{
+                      background:  puede ? `linear-gradient(135deg, ${paso.color}, ${paso.color}cc)` : 'rgba(255,255,255,0.05)',
+                      color:       puede ? '#fff' : '#475569',
+                      cursor:      puede ? 'pointer' : 'not-allowed',
+                      boxShadow:   puede ? `0 4px 20px ${paso.color}35` : 'none',
+                      border:      puede ? 'none' : '1px solid rgba(255,255,255,0.08)',
+                    }}
+                  >
+                    {geoCapturando ? (
+                      <span className="flex items-center justify-center gap-2">
+                        <RefreshCw size={14} className="animate-spin" /> Obteniendo ubicación...
+                      </span>
+                    ) : guardando ? (
+                      <span className="flex items-center justify-center gap-2">
+                        <RefreshCw size={14} className="animate-spin" /> Guardando...
+                      </span>
+                    ) : !puede ? (
+                      paso.fotos
+                        ? `Subí ${typeof paso.cantidadFotos === 'number' ? `${paso.cantidadFotos} foto${paso.cantidadFotos > 1 ? 's' : ''}` : 'al menos 1 foto'} para continuar`
+                        : 'Completá todos los campos'
+                    ) : paso.id === 5 ? (
+                      <span className="flex items-center justify-center gap-2">
+                        📍 {paso.accion}
+                      </span>
+                    ) : paso.accion}
+                  </button>
+                </>
               )}
             </div>
           )

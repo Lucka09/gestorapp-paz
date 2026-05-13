@@ -343,7 +343,7 @@ export const TIPO_TRAMITE_LABELS: Record<TipoTramite, string> = {
   certificado_dominio:     'Certificado de Dominio',
   inscripcion_inicial:     'Inscripción Inicial',
   prenda:                  'Prenda',
-  descargo_multa:          'Descargo de Multa PBA',
+  descargo_multa:          'Descargo de Multas',
   inhibicion:              'Inhibición',
   levantamiento_inhibicion:'Levantamiento de Inhibición',
   vtv:                     'VTV',

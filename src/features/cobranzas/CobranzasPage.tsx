@@ -286,6 +286,8 @@ export default function CobranzasPage() {
   const [modalPago,    setModalPago]    = useState<Tramite | null>(null)
   const [confirmDesm,  setConfirmDesm]  = useState<string | null>(null)
 
+  
+
   // Mapa clienteId → datos
   const clienteMap = useMemo(() =>
     Object.fromEntries(clientes.map(c => [c.id, c])),

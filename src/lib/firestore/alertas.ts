@@ -353,17 +353,16 @@ export async function ejecutarMotorAlertas(): Promise<number> {
 // ─── SUSCRIPCIÓN EN TIEMPO REAL ───────────────────────────────────────────────
 
 export function subscribeAlertas(
-  callback: (alertas: Alerta[]) => void,
-  soloNoLeidas = false
+  gestoriaId:   string,
+  callback:     (alertas: Alerta[]) => void,
+  soloNoLeidas  = false
 ): Unsubscribe {
+  // SIEMPRE filtrar por gestoriaId para que las Security Rules puedan
+  // evaluar docDeMiGestoria() correctamente y no dar permission-denied.
+  const base = [where('gestoriaId', '==', gestoriaId), where('resuelta', '==', false)]
   const q = soloNoLeidas
-    ? query(alertasCol,
-        where('resuelta', '==', false),
-        where('leida', '==', false),
-        orderBy('creadaEn', 'desc'))
-    : query(alertasCol,
-        where('resuelta', '==', false),
-        orderBy('creadaEn', 'desc'))
+    ? query(alertasCol, ...base, where('leida', '==', false), orderBy('creadaEn', 'desc'))
+    : query(alertasCol, ...base, orderBy('creadaEn', 'desc'))
 
   return onSnapshot(q, snap =>
     callback(snap.docs.map(d => ({ ...d.data(), id: d.id }) as Alerta))

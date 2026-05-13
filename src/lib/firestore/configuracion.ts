@@ -87,15 +87,12 @@ export async function guardarConfiguracion(
   }, { merge: true })
 }
 
-// ─── HOOK PÚBLICO ─────────────────────────────────────────────────────────────
-// Exportar config para usar en otros módulos (ej: turnos)
+// ─── CACHÉ LAZY ───────────────────────────────────────────────────────────────
+// IMPORTANTE: no suscribir a nivel de módulo — se ejecutaría antes de que haya
+// autenticación y dispararía permission-denied → cascade de errores del SDK.
+// La suscripción real la gestiona useConfiguracion() una vez autenticado.
 
 let _config: Configuracion | null = null
-let _listeners: Array<(c: Configuracion) => void> = []
 
-subscribeConfiguracion(cfg => {
-  _config = cfg
-  _listeners.forEach(l => l(cfg))
-})
-
+export function setConfigCache(cfg: Configuracion) { _config = cfg }
 export function getConfigCache(): Configuracion | null { return _config }

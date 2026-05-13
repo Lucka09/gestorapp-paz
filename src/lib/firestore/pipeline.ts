@@ -91,9 +91,16 @@ const prospectoDoc  = (id: string) => doc(db, 'prospectos', id)
 // ─── READ ─────────────────────────────────────────────────────────────────────
 
 export function subscribeProspectos(
-  callback: (items: Prospecto[]) => void
+  gestoriaId: string,
+  callback:   (items: Prospecto[]) => void
 ): Unsubscribe {
-  const q = query(prospectosCOL, orderBy('orden'), orderBy('creadoEn', 'desc'))
+  // Filtrar por gestoriaId para cumplir con Security Rules (docDeMiGestoria).
+  const q = query(
+    prospectosCOL,
+    where('gestoriaId', '==', gestoriaId),
+    orderBy('orden'),
+    orderBy('creadoEn', 'desc')
+  )
   return onSnapshot(q, snap =>
     callback(snap.docs.map(d => ({ ...d.data(), id: d.id }) as Prospecto))
   )
