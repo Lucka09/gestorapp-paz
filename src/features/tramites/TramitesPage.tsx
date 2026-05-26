@@ -9,6 +9,7 @@ import { EmptyStateIllustrated } from '@/components/shared/EmptyStateIllustrated
 import Modal from '@/components/shared/Modal'
 import TramiteForm from './TramiteForm'
 import { EstadoBadge } from './EstadoBadge'
+import NumeroBadge from '@/components/shared/NumeroBadge'
 import {
   TIPO_TRAMITE_LABELS, ESTADO_TRAMITE_LABELS,
   type EstadoTramite, type TipoTramite,
@@ -150,7 +151,7 @@ export default function TramitesPage() {
             <Card key={t.id} onClick={() => navigate(`/admin/tramites/${t.id}`)} className="p-0 overflow-hidden">
               <div className="flex items-center gap-4 p-4">
                 <div className="shrink-0 hidden sm:block">
-                  <p className="font-mono text-xs text-gray-400">{t.numero}</p>
+                  <NumeroBadge numero={t.numero} tipo={t.tipo} size="sm" />
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
@@ -192,7 +193,7 @@ export default function TramitesPage() {
               className="grid grid-cols-[76px_1fr_106px_106px_92px_24px] gap-2 px-4 py-3
                          border-b border-gray-50 last:border-0 items-center cursor-pointer
                          hover:bg-[#D4621A]/[0.03] transition-colors group">
-              <span className="font-mono text-xs text-gray-400 truncate">{t.numero}</span>
+              <NumeroBadge numero={t.numero} tipo={t.tipo} size="sm" />
               <div className="min-w-0">
                 <p className="text-sm font-semibold text-gray-800 truncate">{TIPO_TRAMITE_LABELS[t.tipo]}</p>
                 <span className="font-mono text-[11px] bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded tracking-wider">
@@ -213,7 +214,7 @@ export default function TramitesPage() {
       )}
 
       <Modal open={modalOpen} onClose={() => setModal(false)} title="Nuevo Trámite" subtitle="Completá los datos del trámite" size="lg">
-        <TramiteForm onSubmit={handleCrear} onCancel={() => setModal(false)} />
+        <TramiteForm gestoriaId={gestoriaId} onSubmit={handleCrear} onCancel={() => setModal(false)} />
       </Modal>
     </div>
   )

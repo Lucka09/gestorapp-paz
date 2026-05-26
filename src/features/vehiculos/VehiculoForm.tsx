@@ -20,16 +20,17 @@ const vehiculoSchema = z.object({
                .min(1,  'Requerido')
                .regex(PATENTE_RE, 'Formato inválido — ej: AB 123 CD o ABC 123'),
   tipo:      z.enum(['auto','moto','camion','utilitario','otro']),
-  marca:     z.string().min(1, 'Requerido').max(60),
-  modelo:    z.string().min(1, 'Requerido').max(60),
+  marca:     z.string().max(60),
+  modelo:    z.string().max(60),
   anio:      z.number()
                .int()
                .min(1900, 'Año inválido')
                .max(ANIO_ACTUAL + 1, `Máximo ${ANIO_ACTUAL + 1}`),
   color:     z.string().max(40),
   nroMotor:  z.string().max(30),
-  nroChasis: z.string().max(30),
-  clienteId: z.string().min(1, 'Seleccioná un titular'),
+  nroChasis:  z.string().max(30),
+  nroDominio: z.string().max(20),
+  clienteId:  z.string().min(1, 'Seleccioná un titular'),
 })
 
 export type VehiculoFormData = z.infer<typeof vehiculoSchema>
@@ -40,7 +41,7 @@ type Errors = Partial<Record<keyof VehiculoFormData, string>>
 
 const EMPTY: VehiculoFormData = {
   patente: '', tipo: 'auto', marca: '', modelo: '',
-  anio: ANIO_ACTUAL, color: '', nroMotor: '', nroChasis: '', clienteId: '',
+  anio: ANIO_ACTUAL, color: '', nroMotor: '', nroChasis: '', nroDominio: '', clienteId: '',
 }
 
 // ─── PROPS ────────────────────────────────────────────────────────────────────
@@ -133,12 +134,12 @@ export default function VehiculoForm({
       {/* Marca, Modelo y Año */}
       <div className="grid grid-cols-3 gap-4">
         <Input
-          label="Marca *" value={form.marca} placeholder="Toyota"
+          label="Marca" value={form.marca} placeholder="Toyota"
           onChange={set('marca')} onBlur={() => validateField('marca')}
           error={errors.marca}
         />
         <Input
-          label="Modelo *" value={form.modelo} placeholder="Corolla"
+          label="Modelo" value={form.modelo} placeholder="Corolla"
           onChange={set('modelo')} onBlur={() => validateField('modelo')}
           error={errors.modelo}
         />
@@ -156,15 +157,23 @@ export default function VehiculoForm({
         onChange={set('color')}
       />
 
-      {/* Nro Motor y Chasis */}
-      <div className="grid grid-cols-2 gap-4">
+      {/* Nro Motor / Chasis-Cuadro (según tipo) / Dominio */}
+      <div className="grid grid-cols-3 gap-4">
         <Input
           label="Nro. de Motor" value={form.nroMotor} placeholder="AB123456"
           className="uppercase" onChange={set('nroMotor')}
         />
         <Input
-          label="Nro. de Chasis" value={form.nroChasis} placeholder="9BWZZZ377VT004251"
+          label={form.tipo === 'moto' ? 'Nro. de Cuadro' : 'Nro. de Chasis'}
+          value={form.nroChasis}
+          placeholder={form.tipo === 'moto' ? 'Ej: 8BWZZZ123V' : '9BWZZZ377VT004251'}
           className="uppercase" onChange={set('nroChasis')}
+        />
+        <Input
+          label="Nro. de Dominio"
+          value={form.nroDominio}
+          placeholder="Ej: 123456"
+          onChange={set('nroDominio')}
         />
       </div>
 

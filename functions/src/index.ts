@@ -9,8 +9,12 @@
 //
 // La función queda disponible en:
 //   https://us-central1-gestorapp-paz.cloudfunctions.net/claudeProxy
-
-import * as admin     from 'firebase-admin'
+import * as admin           from 'firebase-admin'
+import * as functions        from 'firebase-functions'
+import { onRequest }         from 'firebase-functions/v2/https'
+import { handleVerification, handleIncomingMessage } from './whatsapp/Webhook'
+import { handleSendMessage }  from './whatsapp/Send'
+import type { MetaWebhookPayload, SendMessageRequest } from './whatsapp/types'
 import { onCall, HttpsError } from 'firebase-functions/v2/https'
 import { defineSecret }       from 'firebase-functions/params'
 import * as https             from 'https'
@@ -178,4 +182,67 @@ export const claudeProxy = onCall(
 
     return { texto }
   },
+)
+// ─── WHATSAPP WEBHOOK (HTTP) ──────────────────────────────────────────────────
+// GET  → verificación de Meta (setup inicial)
+// POST → mensajes y actualizaciones de estado entrantes
+ 
+export const whatsappWebhook = onRequest(
+  {
+    region:  'us-central1',
+    secrets: [
+      'WHATSAPP_TOKEN',
+      'WHATSAPP_VERIFY_TOKEN',
+      'WHATSAPP_PHONE_NUMBER_ID',
+      'GESTORIA_ID',
+      'NUMERO_LLAMADAS',
+    ],
+  },
+  async (req, res) => {
+    if (req.method === 'GET') {
+      // Meta verifica el webhook en el setup — responder con el challenge
+      handleVerification(
+        req.query as Record<string, string>,
+        res as any,
+      )
+      return
+    }
+ 
+    if (req.method === 'POST') {
+      // Responder 200 inmediatamente para que Meta no reintente
+      res.status(200).send('EVENT_RECEIVED')
+ 
+      try {
+        const payload = req.body as MetaWebhookPayload
+        if (payload?.object === 'whatsapp_business_account') {
+          await handleIncomingMessage(payload)
+        }
+      } catch (err) {
+        // Log pero no fallar — Meta ya recibió el 200
+        functions.logger.error('[WA Webhook] Error procesando mensaje:', err)
+      }
+      return
+    }
+ 
+    res.status(405).send('Method Not Allowed')
+  }
+)
+ 
+// ─── WHATSAPP SEND (Callable) ─────────────────────────────────────────────────
+// Llamada desde el frontend con httpsCallable('whatsappSend', {...})
+ 
+export const whatsappSend = onCall(
+  {
+    region:  'us-central1',
+    secrets: ['WHATSAPP_TOKEN', 'WHATSAPP_PHONE_NUMBER_ID', 'GESTORIA_ID'],
+    enforceAppCheck: false,   // activar en producción si se usa App Check
+  },
+  async (request) => {
+    return handleSendMessage(
+      request.data    as SendMessageRequest,
+      request.auth
+        ? { auth: { uid: request.auth.uid, token: request.auth.token as any } }
+        : {},
+    )
+  }
 )

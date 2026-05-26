@@ -26,7 +26,8 @@ const clienteSchema = z.object({
   direccion:    z.string().max(120),
   localidad:    z.string().max(80),
   userId:       z.string().nullable(),
-  observaciones:z.string().max(500),
+  observaciones: z.string().max(500),
+  origen:        z.string().max(80),   // canal de captación / referido
 })
 
 export type ClienteFormData = z.infer<typeof clienteSchema>
@@ -38,7 +39,7 @@ type Errors = Partial<Record<keyof ClienteFormData, string>>
 const EMPTY: ClienteFormData = {
   nombre: '', apellido: '', dni: '', cuit: '',
   telefono: '', email: '', direccion: '',
-  localidad: '', userId: null, observaciones: '',
+  localidad: '', userId: null, observaciones: '', origen: '',
 }
 
 // ─── PROPS ────────────────────────────────────────────────────────────────────
@@ -152,6 +153,40 @@ export default function ClienteForm({
           label="Localidad" value={form.localidad} placeholder="San Martín"
           onChange={set('localidad')}
         />
+      </div>
+
+      {/* Origen / Canal de captación */}
+      <div>
+        <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">
+          Origen / Cómo llegó
+        </label>
+        <div className="flex flex-wrap gap-2 mb-2">
+          {['Referido', 'Instagram', 'Facebook', 'Google', 'Cartel / Local', 'WhatsApp', 'Otro'].map(op => (
+            <button
+              key={op}
+              type="button"
+              onClick={() => setForm(prev => ({
+                ...prev,
+                origen: prev.origen === op ? '' : op,
+              }))}
+              className={`px-3 py-1 rounded-full text-xs font-medium border transition-all ${
+                form.origen === op
+                  ? 'bg-[#D4621A] border-[#D4621A] text-white'
+                  : 'border-gray-200 text-gray-500 hover:border-gray-300'
+              }`}
+            >
+              {op}
+            </button>
+          ))}
+        </div>
+        {form.origen === 'Referido' && (
+          <Input
+            label="Nombre del referente"
+            value={form.origen === 'Referido' ? '' : form.origen}
+            placeholder="¿Quién lo recomendó?"
+            onChange={e => setForm(prev => ({ ...prev, origen: `Referido: ${e.target.value}` }))}
+          />
+        )}
       </div>
 
       {/* Observaciones */}

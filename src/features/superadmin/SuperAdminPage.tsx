@@ -18,11 +18,11 @@ import {
 } from '@/types'
 import toast from 'react-hot-toast'
 
-const PLANES_CONFIG = {
-  starter: { maxUsuarios: 2,  maxClientes: 50,  label: 'Starter',    precio: 50000  },
-  pro:     { maxUsuarios: 10, maxClientes: 500,  label: 'Pro',        precio: 125000 },
-  enterprise: { maxUsuarios: 50, maxClientes: 9999, label: 'Enterprise', precio: 250000 },
-};
+const PLANES_CONFIG: Record<PlanGestoria, { maxUsuarios: number; maxClientes: number; label: string; precio: number; color: string }> = {
+  starter:     { maxUsuarios: 2,    maxClientes: 100,  label: 'Starter',     precio: 50_000,  color: '#6B7280' },
+  profesional: { maxUsuarios: 10,   maxClientes: 500,  label: 'Profesional', precio: 125_000, color: '#3B82F6' },
+  enterprise:  { maxUsuarios: 9999, maxClientes: 99999,label: 'Enterprise',  precio: 250_000, color: '#7C3AED' },
+}
 // ─── ESTADO BADGE ─────────────────────────────────────────────────────────────
 
 function EstadoBadge({ estado }: { estado: EstadoGestoria }) {
@@ -44,11 +44,11 @@ function EstadoBadge({ estado }: { estado: EstadoGestoria }) {
 // ─── PLAN BADGE ───────────────────────────────────────────────────────────────
 
 function PlanBadge({ plan }: { plan: PlanGestoria }) {
-  const cfg = {
-    starter:      { cls: 'bg-gray-100 text-gray-600',   icon: Zap,   label: 'Starter'      },
-    profesional:  { cls: 'bg-blue-100 text-blue-700',   icon: Globe, label: 'Profesional'  },
-    enterprise:   { cls: 'bg-purple-100 text-purple-700',icon: Crown, label: 'Enterprise'  },
-  }[plan]
+  const cfg = ({
+    starter:     { cls: 'bg-gray-100 text-gray-600',    icon: Zap,   label: 'Starter'     },
+    profesional: { cls: 'bg-blue-100 text-blue-700',    icon: Globe, label: 'Profesional' },
+    enterprise:  { cls: 'bg-purple-100 text-purple-700',icon: Crown, label: 'Enterprise'  },
+  } as Record<string, { cls: string; icon: typeof Zap; label: string }>)[plan] ?? { cls: 'bg-gray-100 text-gray-600', icon: Zap, label: plan }
   const Icon = cfg.icon
   return (
     <span className={`inline-flex items-center gap-1 text-xs font-bold px-2.5 py-1
@@ -261,6 +261,135 @@ function ModalNuevaGestoria({
   )
 }
 
+
+// ─── MODAL EDITAR GESTORÍA ────────────────────────────────────────────────────
+
+function ModalEditarGestoria({
+  gestoria, open, onClose,
+}: { gestoria: Gestoria; open: boolean; onClose: () => void }) {
+  const [plan,        setPlan]       = useState<PlanGestoria>(gestoria.plan as PlanGestoria)
+  const [estado,      setEstado]     = useState<EstadoGestoria>(gestoria.estado as EstadoGestoria)
+  const [maxUsuarios, setMaxUsu]     = useState(gestoria.maxUsuarios ?? PLANES_CONFIG[gestoria.plan as PlanGestoria]?.maxUsuarios ?? 5)
+  const [maxClientes, setMaxCli]     = useState(gestoria.maxClientes ?? PLANES_CONFIG[gestoria.plan as PlanGestoria]?.maxClientes ?? 500)
+  const [saving,      setSaving]     = useState(false)
+
+  // Al cambiar el plan, actualizar los límites a los del plan seleccionado
+  const handleChangePlan = (p: PlanGestoria) => {
+    setPlan(p)
+    setMaxUsu(PLANES_CONFIG[p].maxUsuarios)
+    setMaxCli(PLANES_CONFIG[p].maxClientes)
+  }
+
+  const handleGuardar = async () => {
+    setSaving(true)
+    try {
+      await actualizarGestoria(gestoria.id, {
+        plan,
+        estado,
+        maxUsuarios,
+        maxClientes,
+      })
+      toast.success(`Gestoría "${gestoria.nombre}" actualizada`)
+      onClose()
+    } catch { toast.error('Error al guardar') }
+    finally { setSaving(false) }
+  }
+
+  return (
+    <Modal
+      open={open}
+      onClose={onClose}
+      title={`Editar — ${gestoria.nombre}`}
+      subtitle={gestoria.email}
+      size="md"
+    >
+      <div className="space-y-5">
+
+        {/* Plan */}
+        <div>
+          <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">
+            Plan de suscripción
+          </label>
+          <div className="grid grid-cols-3 gap-2">
+            {(Object.entries(PLANES_CONFIG) as [PlanGestoria, typeof PLANES_CONFIG[PlanGestoria]][]).map(([p, cfg]) => (
+              <button key={p} type="button" onClick={() => handleChangePlan(p)}
+                className={`p-3 rounded-xl border-2 text-left transition-all
+                             ${plan === p
+                               ? 'border-gp-orange bg-gp-orange-pale'
+                               : 'border-gray-100 bg-white hover:border-gray-200'
+                             }`}>
+                <p className="text-sm font-bold text-gray-900">{cfg.label}</p>
+                <p className="text-xs text-gray-400 mt-0.5">
+                  ${cfg.precio.toLocaleString('es-AR')}/mes
+                </p>
+                <p className="text-xs text-gray-400">
+                  {cfg.maxUsuarios >= 9999 ? '∞' : cfg.maxUsuarios} usuarios ·{' '}
+                  {cfg.maxClientes >= 9999 ? '∞' : cfg.maxClientes} clientes
+                </p>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Límites custom (override del plan) */}
+        <div className="bg-gray-50 border border-gray-100 rounded-xl p-4 space-y-3">
+          <p className="text-xs font-bold text-gray-500 uppercase tracking-wider">
+            Límites personalizados
+          </p>
+          <p className="text-xs text-gray-400">
+            Pueden diferir del plan seleccionado. Útil para clientes fundacionales o negociaciones custom.
+          </p>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-semibold text-gray-500 mb-1.5">Máx. usuarios</label>
+              <input
+                type="number" min={1} max={9999} value={maxUsuarios}
+                onChange={e => setMaxUsu(Number(e.target.value))}
+                className="w-full border border-gray-200 rounded-xl px-3 py-2
+                           text-sm font-bold text-center outline-none
+                           focus:border-[var(--gp-orange)]"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-gray-500 mb-1.5">Máx. clientes</label>
+              <input
+                type="number" min={1} max={999999} value={maxClientes}
+                onChange={e => setMaxCli(Number(e.target.value))}
+                className="w-full border border-gray-200 rounded-xl px-3 py-2
+                           text-sm font-bold text-center outline-none
+                           focus:border-[var(--gp-orange)]"
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* Estado */}
+        <div>
+          <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">
+            Estado de la cuenta
+          </label>
+          <div className="grid grid-cols-4 gap-2">
+            {(['activa', 'trial', 'suspendida', 'cancelada'] as EstadoGestoria[]).map(e => (
+              <button key={e} type="button" onClick={() => setEstado(e)}
+                className={`py-2 px-3 rounded-xl border-2 text-xs font-semibold capitalize transition-all
+                             ${estado === e ? 'border-gp-orange bg-gp-orange-pale text-gp-orange' : 'border-gray-100 text-gray-400 hover:border-gray-200'}`}>
+                {e}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="flex gap-3 pt-2 border-t border-gray-100">
+          <Button onClick={handleGuardar} loading={saving} className="flex-1">
+            <CheckCircle size={15}/> Guardar cambios
+          </Button>
+          <Button variant="secondary" onClick={onClose}>Cancelar</Button>
+        </div>
+      </div>
+    </Modal>
+  )
+}
+
 // ─── CARD DE GESTORÍA ─────────────────────────────────────────────────────────
 
 function GestoriaCard({
@@ -380,6 +509,7 @@ export default function SuperAdminPage() {
   const [loading,      setLoading]      = useState(true)
   const [modalNueva,   setModalNueva]   = useState(false)
   const [gestoriaMig,  setGestoriaMig]  = useState<Gestoria | null>(null)
+  const [gestoriaEdit, setGestoriaEdit] = useState<Gestoria | null>(null)
 
   useEffect(() => {
     const unsub = subscribeGestorias(gs => {
@@ -462,7 +592,7 @@ export default function SuperAdminPage() {
             <GestoriaCard
               key={g.id}
               g={g}
-              onEditar={() => {}}
+              onEditar={() => setGestoriaEdit(g)}
               onMigrar={() => setGestoriaMig(g)}
             />
           ))}
@@ -476,6 +606,13 @@ export default function SuperAdminPage() {
           gestoria={gestoriaMig}
           open={!!gestoriaMig}
           onClose={() => setGestoriaMig(null)}
+        />
+      )}
+      {gestoriaEdit && (
+        <ModalEditarGestoria
+          gestoria={gestoriaEdit}
+          open={!!gestoriaEdit}
+          onClose={() => setGestoriaEdit(null)}
         />
       )}
     </div>

@@ -1,0 +1,311 @@
+// src/types/multa_types.ts
+// ─── WORKFLOW DE MULTAS / INFRACCIONES — 7 PASOS ─────────────────────────────
+
+import { Timestamp } from 'firebase/firestore'
+import type { FotoWorkflow } from '@/torre_types'
+
+// ─── ESTADOS DEL WORKFLOW ─────────────────────────────────────────────────────
+
+export type EstadoMultaWorkflow =
+  | 'recepcion'          // pasos 1-2: asesor cargando datos y documentación
+  | 'en_revision'        // paso 3: admin haciendo pre-revisión
+  | 'rebotado'           // admin rebotó al asesor — esperando resolución
+  | 'en_espera_mesa'     // esperando mesa de ayuda externa (24-72hs)
+  | 'en_gestion'         // paso 4: revisión profunda multa x multa
+  | 'borradores_listos'  // borradores de descargo preparados
+  | 'descargo_subido'    // paso 5 completado
+  | 'suats_generado'     // paso 6 con SUATS
+  | 'resuelto_sin_suats' // paso 6 sin SUATS (cliente no lo requería)
+  | 'completado'         // paso 7 — archivado
+
+// ─── PAGO / HONORARIOS ────────────────────────────────────────────────────────
+
+export type MetodoPago = 'efectivo' | 'transferencia' | 'mercadopago' | 'cheque' | 'otro'
+
+export interface RegistroPago {
+  monto:               number
+  metodoPago:          MetodoPago
+  nota?:               string
+  registradoPor:       string
+  registradoPorNombre: string
+  registradoEn:        Timestamp
+}
+
+// ─── PASO 1 — Recepción de datos (Asesor) ─────────────────────────────────────
+
+export interface MultaPaso1Data {
+  patente:        string
+  nombreCompleto: string
+  dni:            string
+  fechaTramite:   string    // YYYY-MM-DD — campo crítico con advertencia
+  requiereSUATS:  boolean
+  observacion?:   string
+  completadoPor:       string
+  completadoPorNombre: string
+  completadoEn:        Timestamp
+}
+
+// ─── PASO 2 — Documentación + Honorarios (Asesor) ─────────────────────────────
+
+export interface MultaPaso2Data {
+  // Documentos — DNI obligatorio, cédula/título opcionales
+  fotoDniFrente?:    FotoWorkflow
+  fotoDniDorso?:     FotoWorkflow
+  fotoCedulaFrente?: FotoWorkflow   // opcional
+  fotoCedulaDorso?:  FotoWorkflow   // opcional
+  fotoTituloFrente?: FotoWorkflow   // alternativa si no hay cédula
+  fotoTituloDorso?:  FotoWorkflow   // alternativa si no hay cédula
+  tieneCedula:       boolean
+  tieneTitulo:       boolean
+  // Observación OBLIGATORIA si falta cédula Y título
+  observacionDocumentacion?: string
+
+  // Honorarios
+  presupuestoEnviado: boolean
+  pagoConfirmado:     boolean
+  historialPagos:     RegistroPago[]
+  montoTotal:         number
+
+  completadoPor:       string
+  completadoPorNombre: string
+  completadoEn:        Timestamp
+}
+
+// ─── PASO 3 — Pre-revisión Admin ──────────────────────────────────────────────
+
+export type ResultadoPreRevision = 'ok' | 'rebotado' | 'mesa_ayuda'
+
+export interface MultaPaso3Data {
+  resultado: ResultadoPreRevision
+
+  // Observación general (siempre disponible)
+  observacion?: string
+
+  // Si resultado === 'rebotado'
+  motivoRebote?:       string
+  rebotadoAUid?:       string    // uid del asesor que inició
+  rebotadoANombre?:    string
+
+  // Si resultado === 'mesa_ayuda'
+  motivoMesaAyuda?:   string
+  emailMesaAyuda?:    string    // email al que se derivó
+  plazoEspera?:       '24hs' | '48hs' | '72hs'
+  fechaLimiteEspera?: Timestamp // para recordatorio automático
+
+  completadoPor:       string
+  completadoPorNombre: string
+  completadoEn:        Timestamp
+}
+
+// ─── SUB-PASO: Resolución del rebote (Asesor) ─────────────────────────────────
+
+export interface MultaReboteResolucion {
+  // Si consiguió el DNI del infractor
+  fotoDniInfractorFrente?: FotoWorkflow
+  fotoDniInfractorDorso?:  FotoWorkflow
+
+  // Si requiere informe de persona en lugar de DNI
+  requiereInformePersona?:   boolean
+  informePersonaPagado?:     boolean
+  fechaPagoInformePersona?:  Timestamp  // para calcular 24hs de espera
+
+  observacion?: string
+  resueltoBy:          string
+  resueltoPorNombre:   string
+  resueltoEn:          Timestamp
+}
+
+// ─── PASO 4 — Revisión profunda (Admin) ───────────────────────────────────────
+
+export interface MultaPaso4Data {
+  notasRevision:   string    // campo libre para documentar multa x multa
+  cantidadMultas?: number
+  borradoresListos: boolean
+  observacion?:    string
+  completadoPor:       string
+  completadoPorNombre: string
+  completadoEn:        Timestamp
+}
+
+// ─── PASO 5 — Carga del descargo (Admin) ──────────────────────────────────────
+
+export interface MultaPaso5Data {
+  fotosDescargo:  FotoWorkflow[]
+  observacion?:   string
+  completadoPor:       string
+  completadoPorNombre: string
+  completadoEn:        Timestamp
+}
+
+// ─── PASO 6 — SUATS o resolución (Admin) ──────────────────────────────────────
+
+export interface MultaPaso6Data {
+  suatsGenerado:  boolean         // true si el cliente requería SUATS
+  fotosSuats?:    FotoWorkflow[]  // capturas del informe SUATS
+  observacion?:   string
+  completadoPor:       string
+  completadoPorNombre: string
+  completadoEn:        Timestamp
+}
+
+// ─── PASO 7 — Cierre y entrega (Asesor / At. Cliente) ─────────────────────────
+
+export interface MultaPaso7Data {
+  clienteAvisado:   boolean
+  suatsEntregado?:  boolean    // solo si requiereSUATS
+  canalEntrega:     'presencial' | 'whatsapp' | 'email' | 'otro'
+  observacionFinal?: string
+  completadoPor:       string
+  completadoPorNombre: string
+  completadoEn:        Timestamp
+}
+
+// ─── DOCUMENTO PRINCIPAL ──────────────────────────────────────────────────────
+
+export interface MultaWorkflow {
+  id:            string    // = tramiteId
+  tramiteId:     string
+  gestoriaId:    string
+  pasoActual:    1 | 2 | 3 | 4 | 5 | 6 | 7 | 8   // 8 = finalizado
+  estadoWorkflow: EstadoMultaWorkflow
+
+  // Quién inició (asesor comercial)
+  iniciadoPor:       string
+  iniciadoPorNombre: string
+
+  // Admin asignado para la gestión
+  asignadoAdminId?:     string
+  asignadoAdminNombre?: string
+
+  // Recordatorio mesa de ayuda (para alertas)
+  recordatorioMesaAyuda?: Timestamp
+
+  creadoEn:      Timestamp
+  actualizadoEn: Timestamp
+
+  paso1?: MultaPaso1Data
+  paso2?: MultaPaso2Data
+  paso3?: MultaPaso3Data
+  reboteResolucion?: MultaReboteResolucion  // resolución del rebote por el asesor
+  paso4?: MultaPaso4Data
+  paso5?: MultaPaso5Data
+  paso6?: MultaPaso6Data
+  paso7?: MultaPaso7Data
+
+  auditoria?: {
+    campo:              string
+    valorAnterior:      unknown
+    valorNuevo:         unknown
+    modificadoPor:      string
+    modificadoPorNombre: string
+    modificadoEn:       Timestamp
+    nota?:              string
+  }[]
+}
+
+// ─── CONFIGURACIÓN DE PASOS (UI) ──────────────────────────────────────────────
+
+export const PASOS_MULTA_CONFIG = [
+  {
+    id:       1,
+    titulo:   'Recepción de datos',
+    subtitulo:'Patente · DNI · Fecha · SUATS',
+    icono:    '📋',
+    rol:      'asesor',
+    color:    '#64748b',
+  },
+  {
+    id:       2,
+    titulo:   'Documentación y honorarios',
+    subtitulo:'DNI · Cédula/Título · Pago',
+    icono:    '📄',
+    rol:      'asesor',
+    color:    '#3b82f6',
+  },
+  {
+    id:       3,
+    titulo:   'Pre-revisión Admin',
+    subtitulo:'Verificación de documentación',
+    icono:    '🔍',
+    rol:      'admin',
+    color:    '#8b5cf6',
+  },
+  {
+    id:       4,
+    titulo:   'Revisión profunda',
+    subtitulo:'Multa x multa · Borradores',
+    icono:    '⚖️',
+    rol:      'admin',
+    color:    '#f59e0b',
+  },
+  {
+    id:       5,
+    titulo:   'Carga del descargo',
+    subtitulo:'Subir borradores al sistema',
+    icono:    '📤',
+    rol:      'admin',
+    color:    '#f97316',
+  },
+  {
+    id:       6,
+    titulo:   'SUATS / Resolución',
+    subtitulo:'Informe SUATS o aviso de cierre',
+    icono:    '✅',
+    rol:      'admin',
+    color:    '#10b981',
+  },
+  {
+    id:       7,
+    titulo:   'Cierre y entrega',
+    subtitulo:'Avisar al cliente · Archivar',
+    icono:    '🗂️',
+    rol:      'asesor',
+    color:    '#1D9E75',
+  },
+] as const
+
+export const ESTADO_MULTA_LABELS: Record<EstadoMultaWorkflow, string> = {
+  recepcion:          'En recepción',
+  en_revision:        'En pre-revisión',
+  rebotado:           'Rebotado al asesor',
+  en_espera_mesa:     'En espera — Mesa de ayuda',
+  en_gestion:         'En gestión',
+  borradores_listos:  'Borradores listos',
+  descargo_subido:    'Descargo subido',
+  suats_generado:     'SUATS generado',
+  resuelto_sin_suats: 'Resuelto sin SUATS',
+  completado:         'Completado',
+}
+
+export const ESTADO_MULTA_COLORS: Record<EstadoMultaWorkflow, string> = {
+  recepcion:          'bg-gray-100 text-gray-600',
+  en_revision:        'bg-purple-100 text-purple-700',
+  rebotado:           'bg-red-100 text-red-700',
+  en_espera_mesa:     'bg-amber-100 text-amber-700',
+  en_gestion:         'bg-blue-100 text-blue-700',
+  borradores_listos:  'bg-indigo-100 text-indigo-700',
+  descargo_subido:    'bg-orange-100 text-orange-700',
+  suats_generado:     'bg-emerald-100 text-emerald-700',
+  resuelto_sin_suats: 'bg-teal-100 text-teal-700',
+  completado:         'bg-green-100 text-green-700',
+}
+
+export const METODOS_PAGO_LABELS: Record<MetodoPago, string> = {
+  efectivo:      'Efectivo',
+  transferencia: 'Transferencia bancaria',
+  mercadopago:   'Mercado Pago',
+  cheque:        'Cheque',
+  otro:          'Otro',
+}
+
+export function calcularMontoTotal(historial: RegistroPago[]): number {
+  return historial.reduce((acc, p) => acc + p.monto, 0)
+}
+
+export function documentacionCompleta(paso2: Partial<MultaPaso2Data>): boolean {
+  const dniOk     = !!paso2.fotoDniFrente && !!paso2.fotoDniDorso
+  const cedulaOk  = !!paso2.fotoCedulaFrente && !!paso2.fotoCedulaDorso
+  const tituloOk  = !!paso2.fotoTituloFrente && !!paso2.fotoTituloDorso
+  const docSecOk  = cedulaOk || tituloOk
+  return dniOk && (docSecOk || !!(paso2.observacionDocumentacion?.trim()))
+}

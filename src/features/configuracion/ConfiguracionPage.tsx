@@ -3,7 +3,7 @@ import {
   Building2, Phone, Clock, DollarSign,
   MessageSquare, Save, CheckCircle, Bell,
   Globe, CreditCard, ToggleLeft, ToggleRight,
-  AlertCircle, Settings,
+  AlertCircle, Settings, Trophy, Star, Target, Info,
 } from 'lucide-react'
 import { useConfiguracion }    from '@/hooks/useConfiguracion'
 import { useAuth }             from '@/hooks/useAuth'
@@ -15,7 +15,7 @@ import toast from 'react-hot-toast'
 
 // ─── TABS ─────────────────────────────────────────────────────────────────────
 
-type Tab = 'gestor' | 'horarios' | 'tarifas' | 'banco' | 'mensajes' | 'push'
+type Tab = 'gestor' | 'horarios' | 'tarifas' | 'banco' | 'mensajes' | 'push' | 'premios'
 
 const TABS: { id: Tab; label: string; icon: React.ElementType }[] = [
   { id: 'gestor',   label: 'La Gestoría',  icon: Building2     },
@@ -24,6 +24,7 @@ const TABS: { id: Tab; label: string; icon: React.ElementType }[] = [
   { id: 'banco',    label: 'Datos bancarios', icon: CreditCard  },
   { id: 'mensajes', label: 'Mensajes',     icon: MessageSquare },
   { id: 'push',     label: 'Notificaciones', icon: Bell          },
+  { id: 'premios',  label: 'Premios',        icon: Trophy        },
 ]
 
 const DIAS_CONFIG = [
@@ -462,6 +463,263 @@ function TabMensajes({
   )
 }
 
+// ─── TAB: PREMIOS & OBJETIVOS ────────────────────────────────────────────────
+
+interface HitoMultaConfigLocal {
+  id:           number
+  montoUmbral:  number
+  premioMonto:  number
+  descripcion:  string
+}
+
+interface PremiosConfigLocal {
+  montoPremioA:       number
+  tramitesPorPremioA: number
+  hitosMultas:        HitoMultaConfigLocal[]
+}
+
+const PREMIOS_DEFAULT: PremiosConfigLocal = {
+  montoPremioA:       50_000,
+  tramitesPorPremioA: 3,
+  hitosMultas: [
+    { id: 1, montoUmbral: 10_000_000, premioMonto: 0, descripcion: 'Primer hito — $10M en multas' },
+    { id: 2, montoUmbral: 15_000_000, premioMonto: 0, descripcion: 'Segundo hito — $15M en multas' },
+    { id: 3, montoUmbral: 17_000_000, premioMonto: 0, descripcion: 'Tercer hito — $17M en multas' },
+    { id: 4, montoUmbral: 20_000_000, premioMonto: 0, descripcion: 'Hito máximo — $20M en multas' },
+  ],
+}
+
+const HITO_ICON: Record<number, string> = { 1: '🥉', 2: '🥈', 3: '🥇', 4: '💎' }
+const HITO_LABEL: Record<number, string> = { 1: 'Bronce', 2: 'Plata', 3: 'Oro', 4: 'Platino' }
+
+function formatPesosPreview(n: number): string {
+  return new Intl.NumberFormat('es-AR', {
+    style: 'currency', currency: 'ARS', maximumFractionDigits: 0,
+  }).format(n)
+}
+
+function TabPremios({
+  form, set,
+}: { form: Partial<Configuracion>; set: (k: string, v: any) => void }) {
+  const rawCfg = (form as any).premiosConfig
+  const cfg: PremiosConfigLocal = rawCfg
+    ? { ...PREMIOS_DEFAULT, ...rawCfg, hitosMultas: rawCfg.hitosMultas ?? PREMIOS_DEFAULT.hitosMultas }
+    : { ...PREMIOS_DEFAULT }
+
+  const updateCfg = (partial: Partial<PremiosConfigLocal>) => {
+    set('premiosConfig', { ...cfg, ...partial })
+  }
+
+  const updateHito = (id: number, campo: keyof HitoMultaConfigLocal, valor: number | string) => {
+    const nuevos = cfg.hitosMultas.map(h =>
+      h.id === id ? { ...h, [campo]: valor } : h
+    )
+    updateCfg({ hitosMultas: nuevos })
+  }
+
+  return (
+    <div className="space-y-7">
+
+      {/* Aviso */}
+      <div className="flex items-start gap-2.5 bg-gp-orange-pale border border-orange-100 rounded-xl p-3.5">
+        <Info size={15} style={{ color: 'var(--gp-orange)', flexShrink: 0, marginTop: 1 }} />
+        <p className="text-xs text-gray-600 leading-relaxed">
+          Estos parámetros determinan cómo se calculan y muestran los premios al{' '}
+          <strong>Asesor Comercial</strong>. Los cambios se reflejan en tiempo real en
+          la página "Mis Premios" del asesor.
+        </p>
+      </div>
+
+      {/* ─── BLOQUE A: Premio por trámites ─────────────────────────────────── */}
+      <div>
+        <SectionTitle>
+          <span className="flex items-center gap-2">
+            <Star size={14} style={{ color: 'var(--gp-orange)' }} />
+            Premio A — Por trámites (Baja + Transferencia)
+          </span>
+        </SectionTitle>
+
+        <div className="rounded-xl border border-orange-100 bg-orange-50/40 p-5 space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+
+            <div>
+              <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">
+                Monto del premio ($ ARS)
+              </label>
+              <input
+                type="number"
+                min={0}
+                step={1000}
+                value={cfg.montoPremioA || ''}
+                onChange={e => updateCfg({ montoPremioA: Number(e.target.value) })}
+                placeholder="50000"
+                className="w-full border-[1.5px] border-gray-200 rounded-xl px-4 py-2.5
+                           text-gray-800 text-base font-bold outline-none
+                           focus:border-[var(--gp-orange)] focus:shadow-[0_0_0_3px_var(--focus-ring)]"
+              />
+              <p className="text-xs text-gray-400 mt-1.5">
+                Monto en pesos que recibe el asesor por cada grupo completado.
+              </p>
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">
+                Trámites necesarios por premio
+              </label>
+              <input
+                type="number"
+                min={1}
+                max={10}
+                value={cfg.tramitesPorPremioA || ''}
+                onChange={e => updateCfg({ tramitesPorPremioA: Number(e.target.value) })}
+                placeholder="3"
+                className="w-full border-[1.5px] border-gray-200 rounded-xl px-4 py-2.5
+                           text-gray-800 text-base font-bold outline-none
+                           focus:border-[var(--gp-orange)] focus:shadow-[0_0_0_3px_var(--focus-ring)]"
+              />
+              <p className="text-xs text-gray-400 mt-1.5">
+                Cuántos trámites completos y pagados activan un premio.
+              </p>
+            </div>
+          </div>
+
+          {/* Preview */}
+          {cfg.montoPremioA > 0 && (
+            <div className="flex items-center gap-3 bg-white border border-orange-200 rounded-xl p-3.5">
+              <Trophy size={18} style={{ color: 'var(--gp-orange)', flexShrink: 0 }} />
+              <p className="text-sm text-gray-700">
+                Cada <strong>{cfg.tramitesPorPremioA} trámites</strong> completados y pagados,
+                el asesor cobra{' '}
+                <strong style={{ color: 'var(--gp-orange)' }}>
+                  {formatPesosPreview(cfg.montoPremioA)}
+                </strong>
+              </p>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* ─── BLOQUE B: Hitos de facturación (multas) ───────────────────────── */}
+      <div>
+        <SectionTitle>
+          <span className="flex items-center gap-2">
+            <Target size={14} style={{ color: 'var(--gp-orange)' }} />
+            Premio B — Hitos de facturación en multas
+          </span>
+        </SectionTitle>
+
+        <div className="space-y-3">
+          {[...cfg.hitosMultas].sort((a, b) => a.montoUmbral - b.montoUmbral).map(hito => (
+            <div
+              key={hito.id}
+              className="border border-gray-100 rounded-xl bg-white overflow-hidden"
+            >
+              {/* Encabezado del hito */}
+              <div className="flex items-center gap-3 px-4 py-3 bg-gray-50 border-b border-gray-100">
+                <span style={{ fontSize: 22 }}>{HITO_ICON[hito.id]}</span>
+                <div>
+                  <div className="font-bold text-sm text-gray-800">
+                    {HITO_LABEL[hito.id]}
+                  </div>
+                  <div className="text-xs text-gray-400">
+                    Umbral: <strong>{formatPesosPreview(hito.montoUmbral)}</strong> en facturación de multas
+                  </div>
+                </div>
+                {hito.premioMonto > 0 && (
+                  <div className="ml-auto text-right">
+                    <div className="text-xs text-gray-400 mb-0.5">Premio configurado</div>
+                    <div className="text-base font-bold" style={{ color: 'var(--gp-orange)' }}>
+                      {formatPesosPreview(hito.premioMonto)}
+                    </div>
+                  </div>
+                )}
+                {hito.premioMonto === 0 && (
+                  <div className="ml-auto">
+                    <span className="text-xs text-amber-600 bg-amber-50 border border-amber-200 px-2 py-1 rounded-full font-semibold">
+                      Sin definir
+                    </span>
+                  </div>
+                )}
+              </div>
+
+              {/* Campos editables */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4">
+                <div>
+                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">
+                    Monto del premio al alcanzar este hito ($)
+                  </label>
+                  <input
+                    type="number"
+                    min={0}
+                    step={1000}
+                    value={hito.premioMonto || ''}
+                    onChange={e => updateHito(hito.id, 'premioMonto', Number(e.target.value))}
+                    placeholder="Ej: 100000"
+                    className="w-full border-[1.5px] border-gray-200 rounded-xl px-3 py-2.5
+                               text-gray-800 font-bold outline-none text-sm
+                               focus:border-[var(--gp-orange)] focus:shadow-[0_0_0_3px_var(--focus-ring)]"
+                  />
+                  <p className="text-xs text-gray-400 mt-1">
+                    Dejá en 0 si todavía no lo definiste.
+                  </p>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">
+                    Descripción del hito (visible para el asesor)
+                  </label>
+                  <input
+                    type="text"
+                    value={hito.descripcion}
+                    onChange={e => updateHito(hito.id, 'descripcion', e.target.value)}
+                    placeholder={`Hito ${HITO_LABEL[hito.id]} — $${(hito.montoUmbral / 1_000_000).toFixed(0)}M en multas`}
+                    className="w-full border-[1.5px] border-gray-200 rounded-xl px-3 py-2.5
+                               text-gray-600 outline-none text-sm
+                               focus:border-[var(--gp-orange)] focus:shadow-[0_0_0_3px_var(--focus-ring)]"
+                  />
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Resumen de premios B configurados */}
+        {cfg.hitosMultas.some(h => h.premioMonto > 0) && (
+          <div className="mt-4 rounded-xl border border-gray-100 bg-gray-50 p-4">
+            <div className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">
+              Resumen de premios por hito configurados
+            </div>
+            <div className="space-y-2">
+              {[...cfg.hitosMultas]
+                .sort((a, b) => a.montoUmbral - b.montoUmbral)
+                .filter(h => h.premioMonto > 0)
+                .map(h => (
+                  <div key={h.id} className="flex items-center justify-between">
+                    <div className="flex items-center gap-2 text-sm text-gray-600">
+                      <span>{HITO_ICON[h.id]}</span>
+                      <span>{HITO_LABEL[h.id]} — al alcanzar {formatPesosPreview(h.montoUmbral)}</span>
+                    </div>
+                    <span className="text-sm font-bold" style={{ color: 'var(--gp-orange)' }}>
+                      {formatPesosPreview(h.premioMonto)}
+                    </span>
+                  </div>
+                ))
+              }
+              <div className="flex items-center justify-between pt-2 border-t border-gray-200 mt-2">
+                <span className="text-xs font-semibold text-gray-500">Total potencial Tipo B</span>
+                <span className="text-base font-bold text-gray-800">
+                  {formatPesosPreview(cfg.hitosMultas.reduce((s, h) => s + h.premioMonto, 0))}
+                </span>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+
+    </div>
+  )
+}
+
 // ─── PÁGINA PRINCIPAL ─────────────────────────────────────────────────────────
 
 export default function ConfiguracionPage() {
@@ -542,6 +800,7 @@ export default function ConfiguracionPage() {
         {tabActiva === 'banco'    && <TabBanco      form={form} set={set} />}
         {tabActiva === 'mensajes' && <TabMensajes   form={form} set={set} />}
         {tabActiva === 'push'     && <PanelConfigPush />}
+        {tabActiva === 'premios'  && <TabPremios  form={form} set={set} />}
       </div>
 
       {/* Botón guardar al pie */}

@@ -17,7 +17,8 @@ import {
   confirmarRetiroChapa, postergarRetiroChapa,
 } from '@/lib/firestore/inscripcionworkflow'
 import { validarFoto, generarPathStorage } from '@/lib/firestore/fotoValidator'
-import type { InscripcionWorkflow, FotoWorkflow } from '@/types/torre.types'
+import { Timestamp } from 'firebase/firestore'
+import type { InscripcionWorkflow, FotoWorkflow } from '@/torre_types'
 
 // ─── OPTIMIZACIÓN DE IMÁGENES ────────────────────────────────────────────────
 
@@ -157,7 +158,7 @@ export function useInscripcionWorkflow(tramiteId: string) {
         nombre:      fileOptimizado.name,
         tamanoKb:    Math.round(fileOptimizado.size / 1024),
         subidaPor:   user!.uid,
-        subidaEn:    { toDate: () => new Date() } as ReturnType<typeof import('firebase/firestore').Timestamp.now>,
+        subidaEn:    Timestamp.now(),
         validadaOk:  true,
       }
 
@@ -253,20 +254,33 @@ export function useInscripcionWorkflow(tramiteId: string) {
           )
           break
         case 5: {
-          // Capturar geo antes de confirmar — P5 requiere presencia en el registro.
-          // Si falla el GPS el paso igual avanza, la geo queda como undefined.
+          // Capturar geo con timeout de 8s — si el GPS tarda o falla, el paso
+          // igual avanza. La geo queda como undefined (registrado sin verificación).
           setGeoCapturando(true)
-          const geoP5 = await capturarGeo()
+          const geoP5 = await Promise.race([
+            capturarGeo(),
+            new Promise<null>(res => setTimeout(() => res(null), 8_000)),
+          ])
           setGeoCapturando(false)
           await confirmarPaso5(tramiteId, user.uid, nombre, fotosRemota, geoP5 ?? undefined)
-          // Paso 5 NO finaliza. El hook de Firestore ya avanzó a paso 6.
-          // El cartel de "¿cuántos días?" lo maneja el componente que consume este hook.
           break
         }
       }
-    } catch (e) {
-      setError('Ocurrió un error al guardar. Intentá de nuevo.')
-      console.error(e)
+    } catch (e: unknown) {
+      const err = e as { code?: string; message?: string }
+      if (err?.code === 'permission-denied') {
+        setError('Sin permisos para guardar. Verificá tu sesión o contactá al admin.')
+      } else if (err?.code === 'unavailable' || err?.message?.includes('offline')) {
+        setError('Sin conexión. Los datos se intentarán guardar cuando vuelva internet.')
+      } else if (err?.code === 'storage/unauthorized') {
+        setError('Error al subir fotos: sin autorización. Verificá que Storage esté habilitado.')
+      } else if (err?.message?.includes('Unsupported field value')) {
+        setError('Error interno al guardar datos. Contactá al soporte técnico.')
+        console.error('[workflow] Unsupported field value:', e)
+      } else {
+        setError('Ocurrió un error al guardar. Intentá de nuevo.')
+        console.error('[workflow] confirmarPaso error:', e)
+      }
     } finally {
       setGuardando(false)
     }

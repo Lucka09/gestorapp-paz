@@ -4,6 +4,8 @@ import { auth } from '@/lib/firebase'
 import { Eye, EyeOff, Loader2, ArrowLeft, CheckCircle2 } from 'lucide-react'
 import { getDoc, doc, collection, query, where, getDocs, limit } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
+import { useNavigate }    from 'react-router-dom'
+import { useAuthStore }   from '@/store/authStore'
 
 // ─── HOOK: detecta gestoría desde la URL pre-login ───────────────────────────
 // Plan básico:  app.gestorapp.com         → título "GestorApp — Ingresá"
@@ -62,6 +64,20 @@ type Vista = 'login' | 'reset' | 'reset-enviado'
 export default function LoginPage() {
   const [vista,  setVista]  = useState<Vista>('login')
   const nombreTenant        = useTenantTitle()
+  const { user }            = useAuthStore()
+  const navigate            = useNavigate()
+
+  // Redirigir al panel si el usuario ya está autenticado
+  useEffect(() => {
+    if (!user) return
+    const dest = user.rol === 'cliente'
+      ? '/portal/inicio'
+      : user.rol === 'gestor'
+      ? '/admin/gestor'
+      : '/admin/dashboard'
+    navigate(dest, { replace: true })
+  }, [user, navigate])
+
 
   // Actualizar <title> con el nombre del tenant detectado
   useEffect(() => {

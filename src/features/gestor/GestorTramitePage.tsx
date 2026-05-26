@@ -10,10 +10,12 @@ import {
 } from 'lucide-react'
 import { useAuth }                from '@/hooks/useAuth'
 import { usePageTitle }           from '@/hooks/usePageTitle'
+import { useGeolocalizacion }     from '@/hooks/useGeolocalizacion'
+import AlertaGeoPermiso           from '@/components/shared/AlertaGeoPermiso'
 import { useTramite }             from '@/hooks/useTramites'
 import { useInscripcionWorkflow } from '@/hooks/useInscripcionWorkflow'
-import { GestorMultaWorkflow }    from '@/components/GestorMultaWorkflow'
-import { PASOS_INSCRIPCION }      from '@/types/torre.types'
+import GestorMultaWorkflow         from '@/components/GestorMultaWorkflow'
+import { PASOS_INSCRIPCION }      from '@/torre_types'
 import { formatFecha }            from '@/utils'
 import type { FotoLocal }         from '@/hooks/useInscripcionWorkflow'
 
@@ -495,6 +497,8 @@ export default function GestorTramitePage() {
     confirmarPaso, iniciarChapaPatente, confirmarRetiro, postergarRetiro,
   } = useInscripcionWorkflow(tramiteId ?? '')
 
+  const { estadoPermiso, solicitarPermiso } = useGeolocalizacion()
+
   usePageTitle(tramite ? `Inscripción ${tramite.patente}` : 'Trámite')
 
   const [modalChapa,     setModalChapa]     = useState(false)
@@ -558,16 +562,27 @@ export default function GestorTramitePage() {
     )
   }
 
-  if (!tramite || !workflow) {
+  if (!tramite) {
     return (
       <div className="min-h-screen bg-[#080d14] flex items-center justify-center px-6">
         <div className="text-center">
           <AlertTriangle size={28} className="text-yellow-500 mx-auto mb-2" />
-          <p className="text-sm text-gray-400">Trámite no encontrado o sin workflow activo.</p>
+          <p className="text-sm text-gray-400">Trámite no encontrado.</p>
           <button onClick={() => navigate('/admin/gestor')}
             className="mt-4 text-xs text-[#D4621A] underline">
             Volver a mis trámites
           </button>
+        </div>
+      </div>
+    )
+  }
+
+  if (!workflow) {
+    return (
+      <div className="min-h-screen bg-[#080d14] flex items-center justify-center">
+        <div className="text-center">
+          <RefreshCw size={24} className="animate-spin text-[#D4621A] mx-auto mb-3" />
+          <p className="text-xs text-gray-600">Iniciando workflow...</p>
         </div>
       </div>
     )
@@ -610,7 +625,24 @@ export default function GestorTramitePage() {
         </div>
       </div>
 
+      {/* Banner offline */}
+      {typeof navigator !== 'undefined' && !navigator.onLine && (
+        <div className="bg-amber-500/15 border-b border-amber-500/30 px-4 py-2 flex items-center gap-2">
+          <span className="text-amber-400">⚠</span>
+          <p className="text-xs text-amber-300">
+            Sin conexión — los datos se guardan localmente y se sincronizan cuando vuelva internet.
+          </p>
+        </div>
+      )}
+
       <div className="px-4 py-4 pb-24">
+
+        {/* Permiso de ubicación — mostrar si no concedido y antes del paso 5 */}
+        {estadoPermiso !== 'granted' && pasoActual < 5 && (
+          <div className="mb-4">
+            <AlertaGeoPermiso estadoPermiso={estadoPermiso} onSolicitar={solicitarPermiso} />
+          </div>
+        )}
 
         {/* Pasos completados (colapsados) */}
         {PASOS_INSCRIPCION.filter((_, i) => i < pasoActual - 1).map(p => (

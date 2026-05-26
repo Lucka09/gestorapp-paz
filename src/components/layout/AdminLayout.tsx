@@ -1,9 +1,10 @@
-import { NavLink, Outlet } from 'react-router-dom'
+import { NavLink, Outlet, Navigate } from 'react-router-dom'
 import {
   LayoutDashboard, Users, Car, FileText,
-  CalendarDays, LogOut, Radar, Menu, X,
+  CalendarDays, LogOut, Radar, Menu, X, MessageCircle,
   AlertTriangle, Ban, WifiOff, TrendingUp, CheckSquare, UserCog,
   Calculator, Upload, Settings, DollarSign, BarChart2,
+  Megaphone, Trophy,
 } from 'lucide-react'
 import { useState } from 'react'
 import { signOut }     from 'firebase/auth'
@@ -16,7 +17,7 @@ import { usePermisos }     from '@/hooks/usePermisos'
 import BusquedaGlobal      from '@/components/shared/BusquedaGlobal'
 import { ROL_LABELS, ROL_COLORS } from '@/utils/permisos'
 import AsistenteIA from '@/components/shared/AsistenteIA'
-
+import { useNoLeidosWA } from '@/hooks/useConversacionesWA'
 // ─── PREFETCH DE CHUNKS AL HOVER ──────────────────────────────────────────────
 
 const PREFETCH_MAP: Record<string, () => Promise<unknown>> = {
@@ -35,6 +36,8 @@ const PREFETCH_MAP: Record<string, () => Promise<unknown>> = {
   '/admin/equipo':            () => import('@/features/equipo/EquipoPage'),           // ← nuevo
   '/admin/calculadora':       () => import('@/features/calculadora/CalculadoraPage'), // ← nuevo
   '/admin/importar':          () => import('@/features/importar/ImportarPage'),       // ← nuevo
+  '/admin/bandeja':            () => import('@/features/bandeja/BandejaWAPage'),
+  '/admin/premios':            () => import('@/features/premios/PremiosPage'),
 }
 
 const NAV_ITEMS_ALL = [
@@ -45,13 +48,16 @@ const NAV_ITEMS_ALL = [
   { to: '/admin/torre-de-control', icon: Radar,           label: 'Torre de Control', permiso: 'verTramites'    },
   { to: '/admin/turnos',           icon: CalendarDays,    label: 'Turnos',           permiso: 'verTurnos'      },
   { to: '/admin/pipeline',         icon: TrendingUp,      label: 'Pipeline',         permiso: 'verCRM'         },
+  { to: '/admin/bandeja', icon: MessageCircle, label: 'WhatsApp', permiso: 'verBandejaWA' },
   { to: '/admin/cobranzas',        icon: DollarSign,      label: 'Cobranzas',        permiso: 'verCobranzas'   },
   { to: '/admin/reportes',         icon: BarChart2,       label: 'Reportes',         permiso: 'verReportes'    },
   { to: '/admin/tareas',           icon: CheckSquare,     label: 'Tareas',           permiso: 'verTramites'    },
+  { to: '/admin/premios',          icon: Trophy,          label: 'Mis Premios',      permiso: 'verPremios'     },
   { to: '/admin/equipo',           icon: UserCog,         label: 'Equipo',           permiso: 'verEquipo'      },
   { to: '/admin/calculadora',      icon: Calculator,      label: 'Calculadora',      permiso: 'verDashboard'   },
   { to: '/admin/importar',         icon: Upload,          label: 'Importar',         permiso: 'verClientes'    },
   { to: '/admin/configuracion',    icon: Settings,        label: 'Configuración',    permiso: 'verConfiguracion' },
+  { to: '/admin/campanas', icon: Megaphone, label: 'Campañas', permiso: 'verBandejaWA' },
 ] as const
 
 // ─── PANTALLAS DE ESTADO DEL TENANT ──────────────────────────────────────────
@@ -117,7 +123,7 @@ function TenantBloqueado({ titulo, detalle, icon: Icon, color }: {
           {detalle}
         </p>
         <a
-          href="https://wa.me/5491136141431"
+          href={`https://wa.me/${import.meta.env.VITE_SUPPORT_WHATSAPP ?? '5491136141431'}`}
           target="_blank"
           rel="noopener noreferrer"
           style={{
@@ -153,6 +159,7 @@ function ErrorConfigTenant() {
 export default function AdminLayout() {
   const { user }      = useAuth()
   const { puede, rol } = usePermisos()
+  const noLeidosWA = useNoLeidosWA()
   const {
     gestoriaId, loading: tenantLoading,
     estadoGestoria, nombreComercial, logoUrl,
@@ -163,7 +170,11 @@ export default function AdminLayout() {
   // ── Guards de tenant ──────────────────────────────────────────────────────
   // Orden: loading → error de config → estado operativo no apto → render normal
 
-  if (tenantLoading) return <TenantLoader />
+  // Si el user existe pero gestoriaId todavía no llegó (timing post-login),
+  // mostrar loader en lugar del error — se resuelve en < 1 segundo.
+  if (tenantLoading || (user && !gestoriaId)) return <TenantLoader />
+
+  if (!user) return <Navigate to='/login' replace />
 
   if (!gestoriaId) return <ErrorConfigTenant />
 
@@ -259,7 +270,18 @@ export default function AdminLayout() {
                   }`
                 }
               >
-                <Icon size={17} />{label}
+                <Icon size={17} />
+                <span style={{ flex: 1 }}>{label}</span>
+   {to === '/admin/bandeja' && noLeidosWA > 0 && (
+     <span style={{
+       minWidth: 18, height: 18, borderRadius: 999,
+       background: '#25D366', color: 'white',
+       fontSize: 10, fontWeight: 700,
+       display: 'flex', alignItems: 'center', justifyContent: 'center',
+       padding: '0 4px',
+     }}>
+       {noLeidosWA > 99 ? '99+' : noLeidosWA}
+     </span>)}
               </NavLink>
             ))}
           </nav>
@@ -328,7 +350,9 @@ export default function AdminLayout() {
             <Outlet />
           </main>
         </div>
-              <AsistenteIA />
+
+        <AsistenteIA />
+
         <ConfirmDialog
           open={logoutOpen}
           onClose={() => setLogoutOpen(false)}

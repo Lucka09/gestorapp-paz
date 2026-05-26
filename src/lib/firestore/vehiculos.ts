@@ -92,6 +92,7 @@ export type VehiculoInput = {
   color:      string
   nroMotor:   string
   nroChasis:  string
+  nroDominio: string
   clienteId:  string
 }
 

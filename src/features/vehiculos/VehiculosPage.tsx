@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { Search, Plus, ChevronRight } from 'lucide-react'
 import { useVehiculosFiltrados } from '@/hooks/useVehiculos'
 import { useCliente } from '@/hooks/useClientes'
+import { useGestoriaId } from '@/context/GestoriaContext'
 import { crearVehiculo } from '@/lib/firestore/vehiculos'
 import { Button, Card, PageHeader, Spinner, Badge } from '@/components/ui'
 import { EmptyStateIllustrated } from '@/components/shared/EmptyStateIllustrated'
@@ -32,15 +33,14 @@ const TIPO_COLORS: Record<string, string> = {
 
 export default function VehiculosPage() {
   const navigate              = useNavigate()
+  const gestoriaId            = useGestoriaId()           // ← FIXED
   const [search, setSearch]   = useState('')
   const [modalOpen, setModal] = useState(false)
   const { vehiculos, total, loading } = useVehiculosFiltrados(search)
 
   const handleCrear = async (data: VehiculoFormData) => {
     try {
-      // TODO: Replace with actual gestoriaId from auth context or props
-      const gestoriaId = '' // Get from your auth/context
-      const id = await crearVehiculo({ ...data, gestoriaId })
+      const id = await crearVehiculo({ ...data, gestoriaId })  // ← FIXED
       toast.success('Vehículo registrado correctamente')
       setModal(false)
       navigate(`/admin/vehiculos/${id}`)
@@ -92,14 +92,10 @@ export default function VehiculosPage() {
           {vehiculos.map(v => (
             <Card key={v.id} onClick={() => navigate(`/admin/vehiculos/${v.id}`)} className="p-0 overflow-hidden">
               <div className="flex items-center gap-4 p-4">
-                {/* Ícono tipo */}
                 <div className="w-10 h-10 rounded-xl bg-gray-100 flex items-center justify-center shrink-0">
                 </div>
-
-                {/* Info principal */}
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
-                    {/* Patente destacada */}
                     <span className="font-mono font-bold text-gray-900 text-sm bg-gray-100 px-2.5 py-0.5 rounded-lg tracking-widest">
                       {v.patente}
                     </span>
@@ -118,7 +114,6 @@ export default function VehiculosPage() {
                     </span>
                   </div>
                 </div>
-
                 <ChevronRight size={16} className="text-gray-300 shrink-0" />
               </div>
             </Card>

@@ -59,10 +59,18 @@ describe('admin', () => {
     })
   })
 
-  it('admin y propietario tienen exactamente los mismos permisos', () => {
-    TODOS_LOS_PERMISOS.forEach(permiso => {
-      expect(puedeHacer('admin', permiso)).toBe(puedeHacer('propietario', permiso))
-    })
+  it('admin tiene acceso operativo completo pero NO a módulos financieros', () => {
+    // Admin SÍ tiene
+    expect(puedeHacer('admin', 'verTramites')).toBe(true)
+    expect(puedeHacer('admin', 'verClientes')).toBe(true)
+    expect(puedeHacer('admin', 'verBandejaWA')).toBe(true)
+    expect(puedeHacer('admin', 'responderWA')).toBe(true)
+    // Admin NO tiene (solo propietario/superadmin)
+    expect(puedeHacer('admin', 'verCobranzas')).toBe(false)
+    expect(puedeHacer('admin', 'verReportes')).toBe(false)
+    expect(puedeHacer('admin', 'verMetricasFinancieras')).toBe(false)
+    expect(puedeHacer('admin', 'verHonorariosDetalle')).toBe(false)
+    expect(puedeHacer('admin', 'marcarPagado')).toBe(false)
   })
 })
 
@@ -223,5 +231,75 @@ describe('Separación vendedor/operador', () => {
   it('operador puede confirmar turnos pero vendedor no', () => {
     expect(puedeHacer('operador', 'confirmarTurnos')).toBe(true)
     expect(puedeHacer('vendedor', 'confirmarTurnos')).toBe(false)
+  })
+})
+
+// ─── WHATSAPP BANDEJA ─────────────────────────────────────────────────────────
+
+describe('Permisos WhatsApp Bandeja', () => {
+
+  it('propietario puede ver la bandeja y responder', () => {
+    expect(puedeHacer('propietario', 'verBandejaWA')).toBe(true)
+    expect(puedeHacer('propietario', 'responderWA')).toBe(true)
+  })
+
+  it('superadmin puede ver la bandeja y responder', () => {
+    expect(puedeHacer('superadmin', 'verBandejaWA')).toBe(true)
+    expect(puedeHacer('superadmin', 'responderWA')).toBe(true)
+  })
+
+  it('admin puede ver la bandeja y responder', () => {
+    expect(puedeHacer('admin', 'verBandejaWA')).toBe(true)
+    expect(puedeHacer('admin', 'responderWA')).toBe(true)
+  })
+
+  it('vendedor puede ver la bandeja y responder (canal de captación)', () => {
+    expect(puedeHacer('vendedor', 'verBandejaWA')).toBe(true)
+    expect(puedeHacer('vendedor', 'responderWA')).toBe(true)
+  })
+
+  it('operador NO puede ver la bandeja (sin acceso CRM)', () => {
+    expect(puedeHacer('operador', 'verBandejaWA')).toBe(false)
+    expect(puedeHacer('operador', 'responderWA')).toBe(false)
+  })
+
+  it('gestor NO puede ver la bandeja (solo sus trámites)', () => {
+    expect(puedeHacer('gestor', 'verBandejaWA')).toBe(false)
+    expect(puedeHacer('gestor', 'responderWA')).toBe(false)
+  })
+
+  it('cliente NO puede ver la bandeja', () => {
+    expect(puedeHacer('cliente', 'verBandejaWA')).toBe(false)
+    expect(puedeHacer('cliente', 'responderWA')).toBe(false)
+  })
+
+  it('verBandejaWA y responderWA son boolean para todos los roles', () => {
+    const roles: Rol[] = ['propietario', 'admin', 'vendedor', 'operador', 'gestor', 'cliente', 'superadmin']
+    roles.forEach(rol => {
+      expect(typeof puedeHacer(rol, 'verBandejaWA')).toBe('boolean')
+      expect(typeof puedeHacer(rol, 'responderWA')).toBe('boolean')
+    })
+  })
+})
+
+// ─── SEPARACIÓN FINANCIERA ────────────────────────────────────────────────────
+
+describe('Separación módulos financieros', () => {
+
+  it('SOLO propietario y superadmin ven cobranzas y reportes', () => {
+    expect(puedeHacer('propietario', 'verCobranzas')).toBe(true)
+    expect(puedeHacer('superadmin',  'verCobranzas')).toBe(true)
+    expect(puedeHacer('admin',       'verCobranzas')).toBe(false)
+    expect(puedeHacer('vendedor',    'verCobranzas')).toBe(false)
+    expect(puedeHacer('operador',    'verCobranzas')).toBe(false)
+    expect(puedeHacer('gestor',      'verCobranzas')).toBe(false)
+  })
+
+  it('SOLO propietario y superadmin ven métricas financieras', () => {
+    expect(puedeHacer('propietario', 'verMetricasFinancieras')).toBe(true)
+    expect(puedeHacer('superadmin',  'verMetricasFinancieras')).toBe(true)
+    expect(puedeHacer('admin',       'verMetricasFinancieras')).toBe(false)
+    expect(puedeHacer('vendedor',    'verMetricasFinancieras')).toBe(false)
+    expect(puedeHacer('operador',    'verMetricasFinancieras')).toBe(false)
   })
 })

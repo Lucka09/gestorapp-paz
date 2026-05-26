@@ -1,6 +1,6 @@
 import { initializeApp, getApps, getApp } from 'firebase/app'
 import { getAuth }       from 'firebase/auth'
-import { getFirestore, initializeFirestore, enableIndexedDbPersistence } from 'firebase/firestore'
+import { getFirestore, initializeFirestore, persistentLocalCache, persistentMultipleTabManager } from 'firebase/firestore'
 import { getStorage }    from 'firebase/storage'
 import { ENV }           from './env'
 
@@ -23,27 +23,21 @@ const secondaryApp = getApps().find(a => a.name === secondaryAppName)
 export const auth          = getAuth(app)
 export const secondaryAuth = getAuth(secondaryApp)
 
-// Firestore principal — con long polling para redes inestables
+// Firestore principal — persistence offline + multi-tab + long polling
+// API moderna (Firebase 10+) — reemplaza enableIndexedDbPersistence deprecada
 export const db = (() => {
   try {
     return initializeFirestore(app, {
+      localCache: persistentLocalCache({
+        tabManager: persistentMultipleTabManager(),
+      }),
       experimentalAutoDetectLongPolling: true,
     })
   } catch {
+    // Fallback si el browser no soporta IndexedDB (modo in-memory)
     return getFirestore(app)
   }
 })()
-
-// ⚡ Offline persistence — lecturas repetidas sirven del cache IndexedDB local.
-// Reduce lecturas al servidor cuando el usuario navega entre páginas ya visitadas.
-// Se ignora silenciosamente si ya está habilitada (HMR) o si el browser no lo soporta.
-enableIndexedDbPersistence(db).catch((err) => {
-  if (err.code === 'failed-precondition') {
-    // Múltiples tabs abiertas — persistence solo funciona en una a la vez. Ignorar.
-  } else if (err.code === 'unimplemented') {
-    // Browser no soporta IndexedDB. Ignorar.
-  }
-})
 
 // Firestore secundario — usa la sesión del secondaryAuth (nuevo usuario recién creado).
 // Se usa exclusivamente en crearMiembro para que el doc se escriba con el UID del nuevo usuario.

@@ -1,7 +1,10 @@
 import {
-  getDoc, addDoc, updateDoc, query, where,
+  getDoc, addDoc, updateDoc, deleteDoc, getDocs, query, where,
   orderBy, serverTimestamp, onSnapshot, Timestamp,
-  type CollectionReference, type DocumentData, type Unsubscribe, arrayUnion, limit,
+  startAfter, getCountFromServer,
+  type CollectionReference, type DocumentData, type Unsubscribe,
+  type QueryConstraint, type QueryDocumentSnapshot,
+  arrayUnion, limit,
 } from 'firebase/firestore'
 import { tramitesCol, tramiteDoc, vehiculoDoc, clienteDoc } from './collections'
 import { generarNumeroTramite } from '@/utils'
@@ -243,6 +246,28 @@ export async function actualizarTramite(
   })
 }
 
+/** Cambia el estado operativo del trámite (en_proceso, completado, cancelado, etc.) */
+export async function cambiarEstadoTramite(
+  id:     string,
+  estado: string,
+  opts?: { completadoPor?: string; completadoPorNombre?: string }
+): Promise<void> {
+  await updateDoc(tramiteDoc(id), {
+    estado,
+    ...(estado === 'completado' ? {
+      fechaCompletado:     serverTimestamp(),
+      completadoPor:       opts?.completadoPor ?? null,
+      completadoPorNombre: opts?.completadoPorNombre ?? null,
+    } : {}),
+    actualizadoEn: serverTimestamp(),
+  })
+}
+
+/** Elimina un trámite permanentemente — solo Propietario */
+export async function eliminarTramite(id: string): Promise<void> {
+  await deleteDoc(tramiteDoc(id))
+}
+
 export async function marcarPagado(
   id:     string,
   pagado: boolean
@@ -351,13 +376,6 @@ export async function getTramitePorToken(token: string): Promise<Tramite | null>
 //   [gestoriaId ASC, estado   ASC, tipo ASC, creadoEn DESC]
 //
 // ─────────────────────────────────────────────────────────────────────────────
-
-import {
-  getDocs, startAfter, getCountFromServer,
-  type QueryConstraint, type QueryDocumentSnapshot,
-} from 'firebase/firestore'
-
-
 
 export const PAGE_SIZE_TRAMITES = 25
 

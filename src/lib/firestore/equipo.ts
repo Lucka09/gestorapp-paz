@@ -44,7 +44,7 @@ export function subscribeEquipo(
   const q = query(
     usersCol,
     where('gestoriaId', '==', gestoriaId),
-    where('rol', 'in', ['propietario', 'admin', 'vendedor', 'operador', 'gestor']),
+    where('rol', 'in', ['propietario', 'admin', 'vendedor', 'operador', 'gestor', 'asesor_comercial']),
     orderBy('creadoEn', 'asc')
   )
   return onSnapshot(q, snap =>
@@ -210,12 +210,12 @@ export const PERMISOS_POR_ROL: Record<Exclude<Rol, 'cliente'>, string[]> = {
     'Eliminar clientes y trámites',
   ],
   admin: [
-    'Acceso total a todos los módulos',
-    'Ver y editar honorarios y pagos',
-    'Exportar datos y reportes',
+    'Acceso operativo completo (clientes, vehículos, trámites, turnos)',
     'Gestionar equipo y roles',
     'Configuración de la gestoría',
-    'Eliminar clientes y trámites',
+    'Sin acceso a cobranzas ni reportes financieros',
+    'Sin acceso a honorarios ni pagos',
+    'No puede eliminar clientes (solo el propietario)',
   ],
   vendedor: [
     'Ver y crear clientes',
@@ -234,10 +234,20 @@ export const PERMISOS_POR_ROL: Record<Exclude<Rol, 'cliente'>, string[]> = {
     'Sin acceso a configuración',
   ],
   gestor: [
-    'Ver trámites asignados',
-    'Actualizar avance de trámites asignados',
-    'Subir documentación y evidencias del trámite',
-    'Sin acceso a clientes, vehículos y configuración',
-    'Sin acceso a honorarios ni pagos',
+    'Crear y gestionar sus propios clientes, vehículos y trámites',
+    'Trabajar con trámites asignados por el propietario o admin',
+    'Torre de Control con vista exclusiva de sus propias gestiones',
+    'Gestionar turnos (crear y confirmar)',
+    'Sin acceso a Dashboard general, WhatsApp ni bandeja',
+    'Sin acceso a honorarios, pagos, cobranzas ni reportes',
+  ],
+  asesor_comercial: [
+    'Crear y gestionar clientes, vehículos y trámites',
+    'Cambiar estado de trámites (baja, transferencia, multas, etc.)',
+    'Gestionar turnos, tareas y seguimientos',
+    'Pipeline CRM y bandeja WhatsApp',
+    'Torre de Control completa (todos los trámites)',
+    'Panel de Premios & Objetivos personal',
+    'Sin acceso a honorarios, cobranzas ni reportes financieros',
   ],
 }

@@ -1,1040 +1,976 @@
 // src/components/GestorMultaWorkflow.tsx
-// ─── UI — WORKFLOW DE MULTAS / INFRACCIONES ───────────────────────────────────
-// Componente paso a paso para gestionar un trámite de multa/infracción (LIT).
-// Se monta dentro de TramiteDetallePage cuando tipo === 'descargo_multa'.
+import { useState, useRef, useCallback } from 'react'
+import { useMultaWorkflow }  from '@/hooks/useMultaWorkflow'
+import { useAuthStore }      from '@/store/authStore'
+import { usePermisos }       from '@/hooks/usePermisos'
+import { useGestoresEquipo } from '@/hooks/useEquipo'
+import {
+  PASOS_MULTA_CONFIG, ESTADO_MULTA_LABELS, ESTADO_MULTA_COLORS,
+  METODOS_PAGO_LABELS, documentacionCompleta,
+} from '@/multa_types'
+import type { MetodoPago, RegistroPago } from '@/multa_types'
+import {
+  AlertTriangle, CheckCircle2, Clock, RotateCcw,
+  Upload, X, Eye, ChevronDown, ChevronUp,
+  DollarSign, User, FileText, Camera,
+} from 'lucide-react'
 
-import { useState, useRef } from 'react'
-import { useMultaWorkflow } from '@/hooks/useMultaWorkflow'
-import { useAuthStore }     from '@/store/authStore'
-import { retrocederPasoMulta } from '@/lib/firestore/MultaWorwflow'
-import { PASOS_MULTA } from '@/types/multa.types'
-import type { MetodoPago } from '@/types/multa.types'
+// ─── HELPERS ──────────────────────────────────────────────────────────────────
 
-// ─── HELPERS ─────────────────────────────────────────────────────────────────
-
-const METODOS_PAGO: { value: MetodoPago; label: string }[] = [
-  { value: 'efectivo',     label: 'Efectivo' },
-  { value: 'transferencia', label: 'Transferencia bancaria' },
-  { value: 'mercadopago',  label: 'Mercado Pago' },
-  { value: 'cheque',       label: 'Cheque' },
-  { value: 'otro',         label: 'Otro' },
-]
-
-const CANALES_ENTREGA = [
-  { value: 'presencial', label: 'Presencial' },
-  { value: 'whatsapp',   label: 'WhatsApp' },
-  { value: 'email',      label: 'Email' },
-  { value: 'otro',       label: 'Otro' },
-]
-
-function formatMonto(n: number) {
+function formatARS(n: number) {
   return new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' }).format(n)
 }
 
-function Badge({ texto, color }: { texto: string; color: string }) {
-  return (
-    <span
-      className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium"
-      style={{ backgroundColor: `${color}20`, color }}
-    >
-      {texto}
-    </span>
-  )
-}
-
-// ─── SUBCOMPONENTE: STEPPER LATERAL ───────────────────────────────────────────
-
-function StepperLateral({ pasoActual }: { pasoActual: number }) {
-  return (
-    <div className="flex flex-col gap-1">
-      {PASOS_MULTA.map((paso) => {
-        const completado = pasoActual > paso.id
-        const activo     = pasoActual === paso.id
-        const pendiente  = pasoActual < paso.id
-
-        return (
-          <div key={paso.id} className="flex items-start gap-3">
-            {/* Línea conectora */}
-            <div className="flex flex-col items-center">
-              <div
-                className="w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold shrink-0 transition-all duration-300"
-                style={{
-                  backgroundColor: completado
-                    ? '#10b981'
-                    : activo
-                    ? paso.color
-                    : '#1e293b',
-                  color: completado || activo ? '#fff' : '#64748b',
-                  border: activo ? `2px solid ${paso.color}` : '2px solid transparent',
-                  boxShadow: activo ? `0 0 0 3px ${paso.color}30` : undefined,
-                }}
-              >
-                {completado ? '✓' : paso.id}
-              </div>
-              {paso.id < PASOS_MULTA.length && (
-                <div
-                  className="w-0.5 h-8 mt-1 transition-colors duration-300"
-                  style={{ backgroundColor: completado ? '#10b981' : '#1e293b' }}
-                />
-              )}
-            </div>
-
-            {/* Texto */}
-            <div className="pb-8">
-              <p
-                className="text-sm font-semibold leading-tight"
-                style={{ color: activo ? paso.color : completado ? '#10b981' : '#64748b' }}
-              >
-                {paso.icono} {paso.titulo}
-              </p>
-              {(activo || completado) && (
-                <p className="text-xs text-slate-500 mt-0.5 leading-tight">
-                  {paso.subtitulo}
-                </p>
-              )}
-            </div>
-          </div>
-        )
-      })}
-    </div>
-  )
-}
-
-// ─── SUBCOMPONENTE: FOTO UPLOADER ─────────────────────────────────────────────
-
 function FotoUploader({
-  clave,
-  label,
-  foto,
-  onAgregar,
-  onRemover,
+  label, required = false, onChange, preview,
 }: {
-  clave:    string
-  label:    string
-  foto?:    { estado: string; previewUrl?: string; error?: string }
-  onAgregar: (clave: string, archivo: File) => void
-  onRemover: (clave: string) => void
+  label: string; required?: boolean
+  onChange: (f: File | undefined) => void
+  preview?: string | null
 }) {
   const inputRef = useRef<HTMLInputElement>(null)
-
   return (
-    <div className="flex flex-col gap-1">
-      <span className="text-xs text-slate-400 font-medium">{label}</span>
-      {!foto ? (
-        <button
-          type="button"
-          onClick={() => inputRef.current?.click()}
-          className="w-full h-24 border-2 border-dashed border-slate-700 rounded-lg flex flex-col items-center justify-center gap-1 text-slate-500 hover:border-orange-500 hover:text-orange-400 transition-colors"
-        >
-          <span className="text-xl">📎</span>
-          <span className="text-xs">Subir foto</span>
-        </button>
-      ) : (
-        <div className="relative w-full h-24 rounded-lg overflow-hidden border border-slate-700 group">
-          {foto.previewUrl && (
-            <img
-              src={foto.previewUrl}
-              alt={label}
-              className="w-full h-full object-cover"
-            />
-          )}
-          {/* Estado overlay */}
-          {foto.estado === 'subiendo' && (
-            <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
-              <span className="text-white text-xs animate-pulse">Subiendo…</span>
-            </div>
-          )}
-          {foto.estado === 'ok' && (
-            <div className="absolute top-1 right-1 w-5 h-5 bg-green-500 rounded-full flex items-center justify-center">
-              <span className="text-white text-xs">✓</span>
-            </div>
-          )}
-          {foto.estado === 'error' && (
-            <div className="absolute inset-0 bg-red-900/80 flex items-center justify-center p-2">
-              <span className="text-red-200 text-xs text-center">{foto.error}</span>
-            </div>
-          )}
-          {/* Botón eliminar */}
-          <button
-            type="button"
-            onClick={() => onRemover(clave)}
-            className="absolute bottom-1 right-1 w-5 h-5 bg-red-600 rounded-full opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center"
-          >
-            <span className="text-white text-xs">×</span>
-          </button>
-        </div>
-      )}
-      {foto?.estado === 'error' && (
-        <p className="text-xs text-red-400">{foto.error}</p>
-      )}
-      <input
-        ref={inputRef}
-        type="file"
-        accept="image/*"
-        capture="environment"
-        className="hidden"
-        onChange={e => {
-          const f = e.target.files?.[0]
-          if (f) onAgregar(clave, f)
-        }}
-      />
-    </div>
-  )
-}
-
-// ─── PASO 1: INGRESO LIT ──────────────────────────────────────────────────────
-
-function Paso1({
-  datosLocales,
-  actualizarDato,
-  puedeAvanzar,
-  guardando,
-  onConfirmar,
-}: {
-  datosLocales:   Record<string, unknown>
-  actualizarDato: (k: string, v: unknown) => void
-  puedeAvanzar:   () => boolean
-  guardando:      boolean
-  onConfirmar:    () => void
-}) {
-  return (
-    <div className="flex flex-col gap-4">
-      <div className="flex flex-col gap-1">
-        <label className="text-sm text-slate-300 font-medium">
-          Número de LIT (Infracción en Litigio) <span className="text-orange-400">*</span>
-        </label>
-        <input
-          type="text"
-          placeholder="Ej: LIT-2024-00123"
-          value={(datosLocales.numeroLIT as string) ?? ''}
-          onChange={e => actualizarDato('numeroLIT', e.target.value)}
-          className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2.5 text-white placeholder-slate-500 focus:outline-none focus:border-orange-500 font-mono text-sm"
-        />
-        <p className="text-xs text-slate-500">
-          Ingresá el número de expediente o código de infracción en litigio.
-        </p>
-      </div>
-
-      <div className="flex flex-col gap-1">
-        <label className="text-sm text-slate-300 font-medium">
-          Observación inicial (opcional)
-        </label>
-        <textarea
-          rows={2}
-          placeholder="Ej: LIT recibido por email, pendiente de acuse de recibo..."
-          value={(datosLocales.observacionInicial as string) ?? ''}
-          onChange={e => actualizarDato('observacionInicial', e.target.value)}
-          className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-white placeholder-slate-500 focus:outline-none focus:border-orange-500 text-sm resize-none"
-        />
-      </div>
-
-      <BtnConfirmar
-        label="Confirmar ingreso del LIT"
-        disabled={!puedeAvanzar()}
-        guardando={guardando}
-        onClick={onConfirmar}
-      />
-    </div>
-  )
-}
-
-// ─── PASO 2: PRESUPUESTO Y COBRO ─────────────────────────────────────────────
-
-function Paso2({
-  datosLocales,
-  actualizarDato,
-  historialPagosLocal,
-  agregarPago,
-  puedeAvanzar,
-  guardando,
-  onConfirmar,
-}: {
-  datosLocales:        Record<string, unknown>
-  actualizarDato:      (k: string, v: unknown) => void
-  historialPagosLocal: import('@/types/multa.types').RegistroPago[]
-  agregarPago:         (monto: number, metodo: MetodoPago, nota?: string) => Promise<void>
-  puedeAvanzar:        () => boolean
-  guardando:           boolean
-  onConfirmar:         () => void
-}) {
-  const [montoPago, setMontoPago]   = useState('')
-  const [metodoPago, setMetodoPago] = useState<MetodoPago>('efectivo')
-  const [notaPago, setNotaPago]     = useState('')
-  const [agregandoPago, setAgregandoPago] = useState(false)
-
-  const handleAgregarPago = async () => {
-    const monto = parseFloat(montoPago.replace(',', '.'))
-    if (!monto || monto <= 0) return
-    setAgregandoPago(true)
-    await agregarPago(monto, metodoPago, notaPago || undefined)
-    setMontoPago('')
-    setNotaPago('')
-    setAgregandoPago(false)
-  }
-
-  const montoTotal = historialPagosLocal.reduce((acc, p) => acc + p.monto, 0)
-
-  return (
-    <div className="flex flex-col gap-5">
-      {/* Checklist presupuesto */}
-      <div className="flex flex-col gap-3">
-        <ToggleCheck
-          label="Presupuesto enviado al cliente"
-          checked={!!(datosLocales.presupuestoEnviado)}
-          onChange={v => actualizarDato('presupuestoEnviado', v)}
-        />
-        <ToggleCheck
-          label="Pago confirmado por el cliente"
-          checked={!!(datosLocales.pagoConfirmado)}
-          onChange={v => actualizarDato('pagoConfirmado', v)}
-        />
-      </div>
-
-      {/* Formulario de pago */}
-      <div className="border border-slate-700 rounded-xl p-4 flex flex-col gap-3">
-        <p className="text-sm font-semibold text-slate-300">Registrar pago</p>
-
-        <div className="flex gap-2">
-          <div className="flex-1">
-            <label className="text-xs text-slate-400 mb-1 block">Monto (ARS)</label>
-            <input
-              type="number"
-              min="0"
-              placeholder="0.00"
-              value={montoPago}
-              onChange={e => setMontoPago(e.target.value)}
-              className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-orange-500 text-sm"
-            />
-          </div>
-          <div className="flex-1">
-            <label className="text-xs text-slate-400 mb-1 block">Método</label>
-            <select
-              value={metodoPago}
-              onChange={e => setMetodoPago(e.target.value as MetodoPago)}
-              className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-orange-500 text-sm"
-            >
-              {METODOS_PAGO.map(m => (
-                <option key={m.value} value={m.value}>{m.label}</option>
-              ))}
-            </select>
-          </div>
-        </div>
-
-        <input
-          type="text"
-          placeholder="Nota (opcional, ej: anticipo)"
-          value={notaPago}
-          onChange={e => setNotaPago(e.target.value)}
-          className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-white placeholder-slate-500 focus:outline-none focus:border-orange-500 text-sm"
-        />
-
-        <button
-          type="button"
-          onClick={handleAgregarPago}
-          disabled={!montoPago || parseFloat(montoPago) <= 0 || agregandoPago}
-          className="w-full py-2 rounded-lg text-sm font-medium transition-all bg-slate-700 hover:bg-slate-600 text-white disabled:opacity-40"
-        >
-          {agregandoPago ? 'Registrando…' : '+ Agregar pago'}
-        </button>
-      </div>
-
-      {/* Historial */}
-      {historialPagosLocal.length > 0 && (
-        <div className="flex flex-col gap-2">
-          <p className="text-xs text-slate-400 font-medium uppercase tracking-wide">
-            Historial de pagos
-          </p>
-          {historialPagosLocal.map((p, i) => (
-            <div
-              key={i}
-              className="flex items-center justify-between bg-slate-800/60 rounded-lg px-3 py-2"
-            >
-              <div>
-                <p className="text-sm text-white font-medium">{formatMonto(p.monto)}</p>
-                <p className="text-xs text-slate-500">
-                  {METODOS_PAGO.find(m => m.value === p.metodoPago)?.label}
-                  {p.nota ? ` · ${p.nota}` : ''}
-                </p>
-              </div>
-              <Badge texto="✓" color="#10b981" />
-            </div>
-          ))}
-          <div className="flex justify-between items-center pt-1 border-t border-slate-700">
-            <span className="text-xs text-slate-400">Total cobrado</span>
-            <span className="text-sm font-bold text-orange-400">{formatMonto(montoTotal)}</span>
-          </div>
-        </div>
-      )}
-
-      <BtnConfirmar
-        label="Confirmar cobro"
-        disabled={!puedeAvanzar()}
-        guardando={guardando}
-        onClick={onConfirmar}
-      />
-    </div>
-  )
-}
-
-// ─── PASO 3: DOCUMENTACIÓN DEL TITULAR ───────────────────────────────────────
-
-function Paso3({
-  datosLocales,
-  actualizarDato,
-  fotosLocales,
-  agregarFotoLocal,
-  removerFoto,
-  necesitaObservacion,
-  puedeAvanzar,
-  guardando,
-  onConfirmar,
-}: {
-  datosLocales:        Record<string, unknown>
-  actualizarDato:      (k: string, v: unknown) => void
-  fotosLocales:        import('@/hooks/useMultaWorkflow').FotoLocal[]
-  agregarFotoLocal:    (clave: string, archivo: File) => void
-  removerFoto:         (clave: string) => void
-  necesitaObservacion: boolean
-  puedeAvanzar:        () => boolean
-  guardando:           boolean
-  onConfirmar:         () => void
-}) {
-  const fotoFor = (clave: string) => fotosLocales.find(f => f.clave === clave)
-
-  return (
-    <div className="flex flex-col gap-5">
-      {/* Datos de contacto */}
-      <div className="flex flex-col gap-3">
-        <p className="text-sm font-semibold text-slate-300">Datos de contacto</p>
-        <div className="flex flex-col gap-1">
-          <label className="text-xs text-slate-400 font-medium">
-            Nombre y apellido completo <span className="text-orange-400">*</span>
-          </label>
-          <input
-            type="text"
-            placeholder="Ej: Juan Pablo Rodríguez"
-            value={(datosLocales.nombreCompleto as string) ?? ''}
-            onChange={e => actualizarDato('nombreCompleto', e.target.value)}
-            className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2.5 text-white placeholder-slate-500 focus:outline-none focus:border-orange-500 text-sm"
-          />
-        </div>
-        <div className="flex flex-col gap-1">
-          <label className="text-xs text-slate-400 font-medium">
-            Celular <span className="text-orange-400">*</span>
-          </label>
-          <input
-            type="tel"
-            placeholder="Ej: 11 2345-6789"
-            value={(datosLocales.celular as string) ?? ''}
-            onChange={e => actualizarDato('celular', e.target.value)}
-            className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2.5 text-white placeholder-slate-500 focus:outline-none focus:border-orange-500 text-sm"
-          />
-        </div>
-      </div>
-
-      {/* Documentos */}
-      <div className="flex flex-col gap-3">
-        <div className="flex items-center justify-between">
-          <p className="text-sm font-semibold text-slate-300">Documentos</p>
-          <span className="text-xs text-slate-500 italic">Opcionales</span>
-        </div>
-
-        {/* DNI */}
-        <div className="border border-slate-700 rounded-xl p-3 flex flex-col gap-3">
-          <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide">DNI</p>
-          <div className="grid grid-cols-2 gap-3">
-            <FotoUploader
-              clave="dniFrente"
-              label="Frente"
-              foto={fotoFor('dniFrente')}
-              onAgregar={agregarFotoLocal}
-              onRemover={removerFoto}
-            />
-            <FotoUploader
-              clave="dniDorso"
-              label="Dorso"
-              foto={fotoFor('dniDorso')}
-              onAgregar={agregarFotoLocal}
-              onRemover={removerFoto}
-            />
-          </div>
-        </div>
-
-        {/* Cédula */}
-        <div className="border border-slate-700 rounded-xl p-3 flex flex-col gap-3">
-          <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide">Cédula</p>
-          <div className="grid grid-cols-2 gap-3">
-            <FotoUploader
-              clave="cedulaFrente"
-              label="Frente"
-              foto={fotoFor('cedulaFrente')}
-              onAgregar={agregarFotoLocal}
-              onRemover={removerFoto}
-            />
-            <FotoUploader
-              clave="cedulaDorso"
-              label="Dorso"
-              foto={fotoFor('cedulaDorso')}
-              onAgregar={agregarFotoLocal}
-              onRemover={removerFoto}
-            />
-          </div>
-        </div>
-      </div>
-
-      {/* Observación — OBLIGATORIA si falta algún doc */}
-      {necesitaObservacion && (
-        <div className="flex flex-col gap-1">
-          <div className="flex items-center gap-2 mb-1">
-            <span className="text-amber-400 text-sm">⚠️</span>
-            <label className="text-sm font-semibold text-amber-400">
-              Observación obligatoria <span className="text-orange-400">*</span>
-            </label>
-          </div>
-          <p className="text-xs text-slate-500 mb-1">
-            Falta cargar DNI y/o cédula. Es obligatorio dejar una observación explicando el motivo.
-          </p>
-          <textarea
-            rows={3}
-            placeholder="Ej: El cliente no tiene la cédula verde en su poder, ya fue solicitada al RNPA. DNI correcto. / El DNI presentado no coincide con el titular de la infracción…"
-            value={(datosLocales.observacion as string) ?? ''}
-            onChange={e => actualizarDato('observacion', e.target.value)}
-            className="w-full bg-amber-950/30 border border-amber-700 rounded-lg px-3 py-2 text-white placeholder-slate-500 focus:outline-none focus:border-amber-500 text-sm resize-none"
-          />
-        </div>
-      )}
-
-      {/* Observación opcional si tiene todos los docs */}
-      {!necesitaObservacion && (
-        <div className="flex flex-col gap-1">
-          <label className="text-xs text-slate-400 font-medium">Observación (opcional)</label>
-          <textarea
-            rows={2}
-            placeholder="Ej: DNI y cédula en orden, sin observaciones..."
-            value={(datosLocales.observacion as string) ?? ''}
-            onChange={e => actualizarDato('observacion', e.target.value)}
-            className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-white placeholder-slate-500 focus:outline-none focus:border-orange-500 text-sm resize-none"
-          />
-        </div>
-      )}
-
-      <BtnConfirmar
-        label="Confirmar documentación"
-        disabled={!puedeAvanzar()}
-        guardando={guardando}
-        onClick={onConfirmar}
-      />
-    </div>
-  )
-}
-
-// ─── PASO 4: DESCARGO Y SUATS ─────────────────────────────────────────────────
-
-function Paso4({
-  datosLocales,
-  actualizarDato,
-  fotosLocales,
-  agregarFotoLocal,
-  removerFoto,
-  puedeAvanzar,
-  guardando,
-  onConfirmar,
-}: {
-  datosLocales:     Record<string, unknown>
-  actualizarDato:   (k: string, v: unknown) => void
-  fotosLocales:     import('@/hooks/useMultaWorkflow').FotoLocal[]
-  agregarFotoLocal: (clave: string, archivo: File) => void
-  removerFoto:      (clave: string) => void
-  puedeAvanzar:     () => boolean
-  guardando:        boolean
-  onConfirmar:      () => void
-}) {
-  const inputSuatsRef = useRef<HTMLInputElement>(null)
-  const fotosSuats    = fotosLocales.filter(f => f.clave.startsWith('suats'))
-
-  return (
-    <div className="flex flex-col gap-5">
-      <div className="flex flex-col gap-3">
-        <ToggleCheck
-          label="Cartas documento / descargo preparados"
-          checked={!!(datosLocales.descargoPreparado)}
-          onChange={v => actualizarDato('descargoPreparado', v)}
-        />
-        <ToggleCheck
-          label="Informe SUATS obtenido"
-          checked={!!(datosLocales.suatsObtenido)}
-          onChange={v => actualizarDato('suatsObtenido', v)}
-        />
-      </div>
-
-      {/* Fotos SUATS */}
-      <div className="flex flex-col gap-2">
-        <div className="flex items-center justify-between">
-          <p className="text-sm font-semibold text-slate-300">Capturas del SUATS</p>
-          <span className="text-xs text-slate-500 italic">Opcional</span>
-        </div>
-        <div className="grid grid-cols-2 gap-3">
-          {fotosSuats.map((f, i) => (
-            <FotoUploader
-              key={f.clave}
-              clave={f.clave}
-              label={`SUATS ${i + 1}`}
-              foto={f}
-              onAgregar={agregarFotoLocal}
-              onRemover={removerFoto}
-            />
-          ))}
-          {/* Botón agregar nueva */}
-          <button
-            type="button"
-            onClick={() => inputSuatsRef.current?.click()}
-            className="h-24 border-2 border-dashed border-slate-700 rounded-lg flex flex-col items-center justify-center gap-1 text-slate-500 hover:border-orange-500 hover:text-orange-400 transition-colors"
-          >
-            <span className="text-xl">📎</span>
-            <span className="text-xs">Agregar SUATS</span>
-          </button>
-        </div>
-        <input
-          ref={inputSuatsRef}
-          type="file"
-          accept="image/*"
-          capture="environment"
-          className="hidden"
-          onChange={e => {
-            const f = e.target.files?.[0]
-            if (f) agregarFotoLocal(`suats_${Date.now()}`, f)
-          }}
-        />
-      </div>
-
-      <div className="flex flex-col gap-1">
-        <label className="text-xs text-slate-400 font-medium">Nota del descargo (opcional)</label>
-        <textarea
-          rows={2}
-          placeholder="Ej: Descargo presentado ante DNRPA. SUATS indica multa en revisión..."
-          value={(datosLocales.notaDescargo as string) ?? ''}
-          onChange={e => actualizarDato('notaDescargo', e.target.value)}
-          className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-white placeholder-slate-500 focus:outline-none focus:border-orange-500 text-sm resize-none"
-        />
-      </div>
-
-      <BtnConfirmar
-        label="Confirmar SUATS obtenido"
-        disabled={!puedeAvanzar()}
-        guardando={guardando}
-        onClick={onConfirmar}
-      />
-    </div>
-  )
-}
-
-// ─── PASO 5: ENTREGA Y CIERRE ─────────────────────────────────────────────────
-
-function Paso5({
-  datosLocales,
-  actualizarDato,
-  puedeAvanzar,
-  guardando,
-  onConfirmar,
-}: {
-  datosLocales:   Record<string, unknown>
-  actualizarDato: (k: string, v: unknown) => void
-  puedeAvanzar:   () => boolean
-  guardando:      boolean
-  onConfirmar:    () => void
-}) {
-  return (
-    <div className="flex flex-col gap-4">
-      <ToggleCheck
-        label="SUATS entregado al cliente"
-        checked={!!(datosLocales.suatsEntregado)}
-        onChange={v => actualizarDato('suatsEntregado', v)}
-      />
-
-      <div className="grid grid-cols-2 gap-3">
-        <div className="flex flex-col gap-1">
-          <label className="text-xs text-slate-400 font-medium">
-            Fecha de entrega <span className="text-orange-400">*</span>
-          </label>
-          <input
-            type="date"
-            value={(datosLocales.fechaEntrega as string) ?? ''}
-            onChange={e => actualizarDato('fechaEntrega', e.target.value)}
-            className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-orange-500 text-sm"
-          />
-        </div>
-        <div className="flex flex-col gap-1">
-          <label className="text-xs text-slate-400 font-medium">
-            Canal de entrega <span className="text-orange-400">*</span>
-          </label>
-          <select
-            value={(datosLocales.canalEntrega as string) ?? ''}
-            onChange={e => actualizarDato('canalEntrega', e.target.value)}
-            className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-orange-500 text-sm"
-          >
-            <option value="">Seleccioná…</option>
-            {CANALES_ENTREGA.map(c => (
-              <option key={c.value} value={c.value}>{c.label}</option>
-            ))}
-          </select>
-        </div>
-      </div>
-
-      <div className="flex flex-col gap-1">
-        <label className="text-xs text-slate-400 font-medium">Observación final (opcional)</label>
-        <textarea
-          rows={2}
-          placeholder="Ej: Cliente retiró en oficina. Trámite cerrado sin observaciones."
-          value={(datosLocales.observacionFinal as string) ?? ''}
-          onChange={e => actualizarDato('observacionFinal', e.target.value)}
-          className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-white placeholder-slate-500 focus:outline-none focus:border-orange-500 text-sm resize-none"
-        />
-      </div>
-
-      <BtnConfirmar
-        label="✅ Finalizar y archivar trámite"
-        disabled={!puedeAvanzar()}
-        guardando={guardando}
-        onClick={onConfirmar}
-        color="#10b981"
-      />
-    </div>
-  )
-}
-
-// ─── PASO 6: FINALIZADO ───────────────────────────────────────────────────────
-
-function PasoFinalizado({ workflow }: { workflow: import('@/types/multa.types').MultaWorkflow }) {
-  return (
-    <div className="flex flex-col items-center gap-4 py-8 text-center">
-      <div className="w-16 h-16 rounded-full bg-green-500/20 flex items-center justify-center text-3xl">
-        🗂️
-      </div>
-      <div>
-        <h3 className="text-lg font-bold text-green-400">Trámite finalizado y archivado</h3>
-        <p className="text-sm text-slate-400 mt-1">
-          El SUATS fue entregado al cliente. El trámite quedó registrado en el historial.
-        </p>
-      </div>
-      {workflow.paso3 && (
-        <div className="w-full bg-slate-800/60 rounded-xl p-4 text-left">
-          <p className="text-xs text-slate-400 uppercase tracking-wide mb-2">Titular</p>
-          <p className="text-sm text-white font-medium">{workflow.paso3.nombreCompleto}</p>
-          <p className="text-sm text-slate-400">{workflow.paso3.celular}</p>
-        </div>
-      )}
-      {workflow.paso2 && (
-        <div className="w-full bg-slate-800/60 rounded-xl p-4 text-left">
-          <p className="text-xs text-slate-400 uppercase tracking-wide mb-2">Cobro total</p>
-          <p className="text-xl font-bold text-orange-400">
-            {formatMonto(workflow.paso2.montoTotal)}
-          </p>
-        </div>
-      )}
-    </div>
-  )
-}
-
-// ─── BOTÓN CONFIRMAR (reutilizable) ───────────────────────────────────────────
-
-function BtnConfirmar({
-  label,
-  disabled,
-  guardando,
-  onClick,
-  color = '#D4621A',
-}: {
-  label:     string
-  disabled:  boolean
-  guardando: boolean
-  onClick:   () => void
-  color?:    string
-}) {
-  return (
-    <button
-      type="button"
-      disabled={disabled || guardando}
-      onClick={onClick}
-      className="w-full py-3 rounded-xl text-sm font-bold transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed"
-      style={{
-        backgroundColor: disabled || guardando ? undefined : color,
-        background:      disabled || guardando ? '#1e293b' : color,
-        color:           '#fff',
-      }}
-    >
-      {guardando ? (
-        <span className="flex items-center justify-center gap-2">
-          <span className="animate-spin">⏳</span> Guardando…
-        </span>
-      ) : label}
-    </button>
-  )
-}
-
-// ─── TOGGLE CHECK ─────────────────────────────────────────────────────────────
-
-function ToggleCheck({
-  label,
-  checked,
-  onChange,
-}: {
-  label:    string
-  checked:  boolean
-  onChange: (v: boolean) => void
-}) {
-  return (
-    <button
-      type="button"
-      onClick={() => onChange(!checked)}
-      className="flex items-center gap-3 w-full text-left p-3 rounded-xl transition-colors"
-      style={{
-        backgroundColor: checked ? '#10b98115' : '#1e293b',
-        border:          checked ? '1px solid #10b981' : '1px solid #334155',
-      }}
-    >
+    <div>
+      <p className="text-xs font-semibold text-gray-500 mb-1">
+        {label}{required ? ' *' : ' (opcional)'}
+      </p>
       <div
-        className="w-5 h-5 rounded flex items-center justify-center shrink-0 transition-colors"
-        style={{ backgroundColor: checked ? '#10b981' : '#334155' }}
+        onClick={() => inputRef.current?.click()}
+        className="border-2 border-dashed border-gray-200 rounded-xl p-3 flex flex-col
+                   items-center justify-center gap-1 cursor-pointer hover:border-[#D4621A]/40
+                   hover:bg-[#D4621A]/5 transition-all min-h-[80px]"
       >
-        {checked && <span className="text-white text-xs">✓</span>}
+        {preview ? (
+          <div className="relative w-full">
+            <img src={preview} alt={label} className="w-full h-24 object-cover rounded-lg" />
+            <button
+              type="button"
+              onClick={e => { e.stopPropagation(); onChange(undefined) }}
+              className="absolute top-1 right-1 w-5 h-5 bg-red-500 text-white rounded-full flex items-center justify-center"
+            >
+              <X size={10} />
+            </button>
+          </div>
+        ) : (
+          <>
+            <Camera size={20} className="text-gray-300" />
+            <span className="text-xs text-gray-400">Tap para subir foto</span>
+          </>
+        )}
       </div>
-      <span className={`text-sm ${checked ? 'text-green-400' : 'text-slate-300'}`}>
-        {label}
-      </span>
-    </button>
+      <input
+        ref={inputRef} type="file" accept="image/*" capture="environment"
+        className="hidden"
+        onChange={e => onChange(e.target.files?.[0])}
+      />
+    </div>
+  )
+}
+
+function BadgeEstado({ estado }: { estado: keyof typeof ESTADO_MULTA_LABELS }) {
+  return (
+    <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full ${ESTADO_MULTA_COLORS[estado]}`}>
+      {ESTADO_MULTA_LABELS[estado]}
+    </span>
   )
 }
 
 // ─── COMPONENTE PRINCIPAL ─────────────────────────────────────────────────────
 
-interface GestorMultaWorkflowProps {
-  tramiteId: string
-  numeroLITExterno?: string  // si ya viene del trámite cargado
-}
+interface Props { tramiteId: string; numeroLITExterno?: string }
 
-export function GestorMultaWorkflow({ tramiteId, numeroLITExterno }: GestorMultaWorkflowProps) {
+export default function GestorMultaWorkflow({ tramiteId, numeroLITExterno }: Props) {
+  const { user }   = useAuthStore()
+  const { puede }  = usePermisos()
+  const esAdmin    = puede('editarConfiguracion') || user?.rol === 'admin' || user?.rol === 'propietario'
+  // Asesor: cualquier rol NO admin puede hacer pasos 1 y 2 (recepción y documentación)
+  const esAsesor   = !esAdmin || ['vendedor', 'operador', 'gestor'].includes(user?.rol ?? '')
+  const { gestores: gestoresEquipo } = useGestoresEquipo()
+
   const {
-    workflow, pasoActual, cargando, guardando, error,
-    datosLocales, fotosLocales, historialPagosLocal,
-    actualizarDato, agregarFotoLocal, removerFoto,
-    agregarPago, confirmarPaso,
-    puedeAvanzar, necesitaObservacion,
+    workflow, loading, guardando, error, progreso, pasoActual,
+    confirmarPaso1, confirmarPaso2,
+    confirmarPreRevision, resolverRebote, resolverMesaAyuda,
+    confirmarPaso4, confirmarPaso5, confirmarPaso6, confirmarPaso7,
+    asignarAdmin,
   } = useMultaWorkflow(tramiteId)
 
-  const { user } = useAuthStore()
-  const [modalRetroceder, setModalRetroceder] = useState(false)
-  const [motivoRetroceder, setMotivoRetroceder] = useState('')
-  const [pasoObjetivo, setPasoObjetivo] = useState<1|2|3|4|5>(1)
-  const [retrocediendo, setRetrocediendo] = useState(false)
+  // ── Estado local de formularios ───────────────────────────────────────────
 
-  const puedeRetroceder = user?.rol === 'propietario' || user?.rol === 'admin'
+  // Paso 1
+  const [p1, setP1] = useState({
+    patente: '', nombreCompleto: '', dni: '',
+    fechaTramite: '', requiereSUATS: false, observacion: '',
+  })
 
-  const handleRetroceder = async () => {
-    if (!workflow || !user || !motivoRetroceder.trim()) return
-    setRetrocediendo(true)
-    try {
-      const nombre = `${user.nombre ?? ''} ${user.apellido ?? ''}`.trim() || user.email
-      await retrocederPasoMulta(tramiteId, user.uid, nombre, pasoObjetivo, motivoRetroceder.trim(), workflow)
-      setModalRetroceder(false)
-      setMotivoRetroceder('')
-    } finally {
-      setRetrocediendo(false)
+  // Paso 2 — archivos
+  const [archivos, setArchivos] = useState<Record<string, File | undefined>>({})
+  const [previews, setPreviews] = useState<Record<string, string | null>>({})
+  const setArchivo = (campo: string) => (file: File | undefined) => {
+    setArchivos(prev => ({ ...prev, [campo]: file }))
+    setPreviews(prev => ({
+      ...prev,
+      [campo]: file ? URL.createObjectURL(file) : null,
+    }))
+  }
+  const [p2, setP2] = useState({
+    tieneCedula: true, tieneTitulo: false,
+    observacionDocumentacion: '',
+    presupuestoEnviado: false, pagoConfirmado: false,
+    historialPagos: [] as RegistroPago[],
+    montoTotal: 0,
+  })
+  const [nuevoPago, setNuevoPago] = useState({ monto: 0, metodoPago: 'efectivo' as MetodoPago, nota: '' })
+
+  // Paso 3 — pre-revisión
+  const [p3, setP3] = useState({
+    resultado: 'ok' as 'ok' | 'rebotado' | 'mesa_ayuda',
+    observacion: '', motivoRebote: '', motivoMesaAyuda: '',
+    emailMesaAyuda: '', plazoEspera: '48hs' as '24hs' | '48hs' | '72hs',
+  })
+
+  // Rebote resolución
+  const [rebote, setRebote] = useState({
+    requiereInformePersona: false,
+    informePersonaPagado: false,
+    observacion: '',
+  })
+  const [archivosRebote, setArchivosRebote] = useState<Record<string, File | undefined>>({})
+  const [previewsRebote, setPreviewsRebote] = useState<Record<string, string | null>>({})
+
+  // Paso 4
+  const [p4, setP4] = useState({ notasRevision: '', cantidadMultas: 0, borradoresListos: false, observacion: '' })
+
+  // Paso 5 — fotos descargo
+  const [fotosDescargo, setFotosDescargo] = useState<File[]>([])
+  const [p5obs, setP5obs] = useState('')
+
+  // Paso 6
+  const [p6, setP6] = useState({ suatsGenerado: false, observacion: '' })
+  const [fotosSuats, setFotosSuats] = useState<File[]>([])
+
+  // Paso 7
+  const [p7, setP7] = useState({
+    clienteAvisado: false, suatsEntregado: false,
+    canalEntrega: 'whatsapp' as 'presencial' | 'whatsapp' | 'email' | 'otro',
+    observacionFinal: '',
+  })
+
+  const [pasosColapsados, setPasosColapsados] = useState<Record<number, boolean>>({})
+  const toggle = (n: number) => setPasosColapsados(p => ({ ...p, [n]: !p[n] }))
+
+  // ── Agregar pago al historial ─────────────────────────────────────────────
+  const agregarPago = () => {
+    if (!user || nuevoPago.monto <= 0) return
+    const pago: RegistroPago = {
+      ...nuevoPago,
+      registradoPor:       user.uid,
+      registradoPorNombre: `${user.nombre} ${user.apellido}`.trim(),
+      registradoEn:        { toDate: () => new Date() } as any,
     }
+    const hist = [...p2.historialPagos, pago]
+    setP2(prev => ({
+      ...prev,
+      historialPagos: hist,
+      montoTotal: hist.reduce((s, p) => s + p.monto, 0),
+    }))
+    setNuevoPago({ monto: 0, metodoPago: 'efectivo', nota: '' })
   }
 
-  // Si hay un número de LIT del trámite y no hay dato local, pre-rellenarlo
-  const datosConLIT = { ...datosLocales }
-  if (numeroLITExterno && !datosConLIT.numeroLIT) {
-    datosConLIT.numeroLIT = numeroLITExterno
-  }
+  if (loading) return (
+    <div className="flex items-center justify-center py-12">
+      <div className="w-6 h-6 border-2 border-[#D4621A] border-t-transparent rounded-full animate-spin" />
+    </div>
+  )
 
-  if (cargando) {
-    return (
-      <div className="flex items-center justify-center py-12 text-slate-500">
-        <span className="animate-spin mr-2">⏳</span> Cargando workflow…
-      </div>
-    )
-  }
+  if (!workflow) return null
 
-  const pasoConfig = PASOS_MULTA.find(p => p.id === pasoActual)
+  const estadoActual = workflow.estadoWorkflow
+  const esRebotado   = estadoActual === 'rebotado'
+  const esMesa       = estadoActual === 'en_espera_mesa'
+
+  // ── RENDER ────────────────────────────────────────────────────────────────
 
   return (
-    <div className="flex gap-6 w-full">
-      {/* Stepper lateral */}
-      <div className="hidden md:block w-52 shrink-0 pt-2">
-        <StepperLateral pasoActual={pasoActual} />
+    <div className="space-y-4">
+
+      {/* Header estado */}
+      <div className="flex items-center justify-between p-4 bg-[#1A1A1A] rounded-2xl">
+        <div>
+          <p className="text-white font-bold text-sm">Workflow de Multas</p>
+          <p className="text-gray-400 text-xs mt-0.5">
+            Paso {Math.min(pasoActual, 7)} de 7 · Iniciado por {workflow.iniciadoPorNombre}
+          </p>
+        </div>
+        <BadgeEstado estado={estadoActual} />
       </div>
 
-      {/* Panel principal */}
-      <div className="flex-1 min-w-0">
-        {/* Header del paso */}
-        {pasoActual < 6 && pasoConfig && (
-          <div
-            className="rounded-xl p-4 mb-5"
-            style={{ backgroundColor: `${pasoConfig.color}15`, border: `1px solid ${pasoConfig.color}40` }}
+      {/* Alerta rebote */}
+      {esRebotado && (
+        <div className="bg-red-50 border border-red-200 rounded-2xl p-4">
+          <div className="flex items-center gap-2 mb-2">
+            <RotateCcw size={16} className="text-red-600" />
+            <p className="text-sm font-bold text-red-700">Trámite rebotado por el Admin</p>
+          </div>
+          <p className="text-xs text-red-600 mb-1">
+            <strong>Motivo:</strong> {workflow.paso3?.motivoRebote ?? 'Ver observación del Admin'}
+          </p>
+          <p className="text-xs text-red-500">
+            Resolvé la documentación solicitada y reenvíalo al Admin.
+          </p>
+        </div>
+      )}
+
+      {/* Alerta mesa de ayuda */}
+      {esMesa && (
+        <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4">
+          <div className="flex items-center gap-2 mb-2">
+            <Clock size={16} className="text-amber-600" />
+            <p className="text-sm font-bold text-amber-700">En espera — Mesa de ayuda externa</p>
+          </div>
+          <p className="text-xs text-amber-600 mb-1">
+            <strong>Motivo:</strong> {workflow.paso3?.motivoMesaAyuda}
+          </p>
+          <p className="text-xs text-amber-600 mb-1">
+            <strong>Plazo estimado:</strong> {workflow.paso3?.plazoEspera ?? '48hs'} hábiles
+          </p>
+          {workflow.paso3?.emailMesaAyuda && (
+            <p className="text-xs text-amber-500">Email enviado a: {workflow.paso3.emailMesaAyuda}</p>
+          )}
+          {esAdmin && (
+            <button
+              onClick={() => resolverMesaAyuda()}
+              className="mt-3 w-full py-2 bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold rounded-xl transition-colors"
+            >
+              ✅ Respuesta recibida — Continuar gestión
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* Asignar Admin */}
+      {!workflow.asignadoAdminId && pasoActual >= 3 && esAdmin && (
+        <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
+          <p className="text-xs font-semibold text-blue-700 mb-2">Asignar Admin de Multas</p>
+          <select
+            onChange={e => {
+              const g = gestoresEquipo.find((g: any) => g.uid === e.target.value)
+              if (g) asignarAdmin(g.uid, `${g.nombre} ${g.apellido}`.trim())
+            }}
+            defaultValue=""
+            className="w-full px-3 py-2 border border-blue-200 rounded-xl text-sm outline-none focus:border-[#D4621A]"
           >
-            <div className="flex items-center gap-3">
-              <span className="text-2xl">{pasoConfig.icono}</span>
+            <option value="">— Seleccioná un Admin —</option>
+            {gestoresEquipo.map((g: any) => (
+              <option key={g.uid} value={g.uid}>{g.nombre} {g.apellido} ({g.rol})</option>
+            ))}
+          </select>
+        </div>
+      )}
+      {workflow.asignadoAdminId && (
+        <div className="flex items-center gap-2 text-xs text-gray-500 bg-gray-50 rounded-xl px-3 py-2">
+          <User size={12} />
+          <span>Admin asignado: <strong>{workflow.asignadoAdminNombre}</strong></span>
+        </div>
+      )}
+
+      {/* ── PASO 1 ── */}
+      {renderPasoHeader(1, pasoActual, pasosColapsados, toggle)}
+      {!pasosColapsados[1] && pasoActual >= 1 && (
+        <div className="bg-white border border-gray-100 rounded-2xl p-5 space-y-4">
+          {pasoActual === 1 ? (
+            <>
+              {/* Advertencia fecha */}
+              <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 flex items-start gap-2">
+                <AlertTriangle size={14} className="text-amber-600 mt-0.5 shrink-0" />
+                <p className="text-xs text-amber-700">
+                  <strong>Importante:</strong> La fecha del trámite es crítica. Una fecha incorrecta puede
+                  generar conflictos con multas sentenciadas. Verificar con el cliente antes de confirmar.
+                </p>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                {[
+                  { label: 'Patente *', key: 'patente', placeholder: 'AB 123 CD' },
+                  { label: 'DNI *', key: 'dni', placeholder: '20123456' },
+                ].map(f => (
+                  <div key={f.key}>
+                    <label className="text-xs font-semibold text-gray-500 mb-1 block">{f.label}</label>
+                    <input
+                      value={(p1 as any)[f.key]}
+                      onChange={e => setP1(prev => ({ ...prev, [f.key]: e.target.value }))}
+                      placeholder={f.placeholder}
+                      className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm outline-none focus:border-[#D4621A] uppercase"
+                    />
+                  </div>
+                ))}
+              </div>
               <div>
-                <p className="font-bold text-white text-sm">{pasoConfig.titulo}</p>
-                <p className="text-xs mt-0.5" style={{ color: pasoConfig.color }}>
-                  Paso {pasoActual} de 5 — {pasoConfig.subtitulo}
+                <label className="text-xs font-semibold text-gray-500 mb-1 block">Nombre completo *</label>
+                <input
+                  value={p1.nombreCompleto}
+                  onChange={e => setP1(prev => ({ ...prev, nombreCompleto: e.target.value }))}
+                  placeholder="Apellido, Nombre"
+                  className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm outline-none focus:border-[#D4621A]"
+                />
+              </div>
+              <div>
+                <label className="text-xs font-semibold text-gray-500 mb-1 block">
+                  Fecha del trámite * <span className="text-amber-600">(verificar con el cliente)</span>
+                </label>
+                <input
+                  type="date"
+                  value={p1.fechaTramite}
+                  onChange={e => setP1(prev => ({ ...prev, fechaTramite: e.target.value }))}
+                  className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm outline-none focus:border-[#D4621A]"
+                />
+              </div>
+              <label className="flex items-center gap-3 p-3 border border-gray-200 rounded-xl cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={p1.requiereSUATS}
+                  onChange={e => setP1(prev => ({ ...prev, requiereSUATS: e.target.checked }))}
+                  className="w-4 h-4 accent-[#D4621A]"
+                />
+                <div>
+                  <p className="text-sm font-medium text-gray-800">El cliente requiere informe SUATS</p>
+                  <p className="text-xs text-gray-400">Se generará al finalizar el descargo</p>
+                </div>
+              </label>
+              <div>
+                <label className="text-xs font-semibold text-gray-500 mb-1 block">Observaciones (opcional)</label>
+                <textarea
+                  value={p1.observacion}
+                  onChange={e => setP1(prev => ({ ...prev, observacion: e.target.value }))}
+                  placeholder="Notas adicionales del caso..."
+                  rows={2}
+                  className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm outline-none focus:border-[#D4621A] resize-none"
+                />
+              </div>
+              <button
+                disabled={!p1.patente || !p1.nombreCompleto || !p1.dni || !p1.fechaTramite || guardando}
+                onClick={() => confirmarPaso1(p1)}
+                className="w-full py-3 bg-[#D4621A] hover:bg-[#b8541a] text-white font-semibold rounded-xl
+                           text-sm transition-colors disabled:opacity-50"
+              >
+                {guardando ? 'Guardando...' : 'Confirmar recepción →'}
+              </button>
+            </>
+          ) : (
+            <ResumenPaso datos={[
+              { label: 'Patente',     val: workflow.paso1?.patente ?? '—' },
+              { label: 'Titular',     val: workflow.paso1?.nombreCompleto ?? '—' },
+              { label: 'DNI',         val: workflow.paso1?.dni ?? '—' },
+              { label: 'Fecha',       val: workflow.paso1?.fechaTramite ?? '—' },
+              { label: 'SUATS',       val: workflow.paso1?.requiereSUATS ? 'Sí, requerido' : 'No requerido' },
+            ]} />
+          )}
+        </div>
+      )}
+
+      {/* ── PASO 2 — Documentación + Honorarios ── */}
+      {pasoActual >= 2 && renderPasoHeader(2, pasoActual, pasosColapsados, toggle)}
+      {pasoActual >= 2 && !pasosColapsados[2] && (
+        <div className="bg-white border border-gray-100 rounded-2xl p-5 space-y-5">
+          {pasoActual === 2 || esRebotado ? (
+            <>
+              {/* Tipo de documento secundario */}
+              <div className="flex gap-3">
+                {[
+                  { key: 'tieneCedula', label: 'Tiene Cédula' },
+                  { key: 'tieneTitulo', label: 'Tiene Título (sin cédula)' },
+                ].map(opt => (
+                  <label key={opt.key} className="flex-1 flex items-center gap-2 p-3 border border-gray-200 rounded-xl cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={(p2 as any)[opt.key]}
+                      onChange={e => setP2(prev => ({ ...prev, [opt.key]: e.target.checked }))}
+                      className="accent-[#D4621A]"
+                    />
+                    <span className="text-sm text-gray-700">{opt.label}</span>
+                  </label>
+                ))}
+              </div>
+
+              {/* Fotos DNI */}
+              <div>
+                <p className="text-xs font-bold text-gray-600 mb-2 flex items-center gap-1">
+                  <FileText size={12} /> DNI del titular
+                </p>
+                <div className="grid grid-cols-2 gap-3">
+                  <FotoUploader label="DNI Frente" required onChange={setArchivo('fotoDniFrente')} preview={previews['fotoDniFrente']} />
+                  <FotoUploader label="DNI Dorso"  required onChange={setArchivo('fotoDniDorso')} preview={previews['fotoDniDorso']} />
+                </div>
+              </div>
+
+              {/* Fotos Cédula */}
+              {p2.tieneCedula && (
+                <div>
+                  <p className="text-xs font-bold text-gray-600 mb-2">Cédula del vehículo</p>
+                  <div className="grid grid-cols-2 gap-3">
+                    <FotoUploader label="Cédula Frente" onChange={setArchivo('fotoCedulaFrente')} preview={previews['fotoCedulaFrente']} />
+                    <FotoUploader label="Cédula Dorso"  onChange={setArchivo('fotoCedulaDorso')}  preview={previews['fotoCedulaDorso']} />
+                  </div>
+                </div>
+              )}
+
+              {/* Fotos Título */}
+              {p2.tieneTitulo && (
+                <div>
+                  <p className="text-xs font-bold text-gray-600 mb-2">Título del vehículo</p>
+                  <div className="grid grid-cols-2 gap-3">
+                    <FotoUploader label="Título Frente" onChange={setArchivo('fotoTituloFrente')} preview={previews['fotoTituloFrente']} />
+                    <FotoUploader label="Título Dorso"  onChange={setArchivo('fotoTituloDorso')}  preview={previews['fotoTituloDorso']} />
+                  </div>
+                </div>
+              )}
+
+              {/* Observación si falta algo */}
+              {(!p2.tieneCedula && !p2.tieneTitulo) && (
+                <div className="bg-amber-50 border border-amber-200 rounded-xl p-3">
+                  <p className="text-xs font-semibold text-amber-700 mb-2">
+                    ⚠️ Sin cédula ni título — observación obligatoria
+                  </p>
+                  <textarea
+                    value={p2.observacionDocumentacion}
+                    onChange={e => setP2(prev => ({ ...prev, observacionDocumentacion: e.target.value }))}
+                    placeholder="Aclará por qué no se pudo obtener la documentación..."
+                    rows={2}
+                    className="w-full px-3 py-2 border border-amber-300 rounded-xl text-sm outline-none resize-none bg-white"
+                  />
+                </div>
+              )}
+              {(p2.tieneCedula || p2.tieneTitulo) && (
+                <textarea
+                  value={p2.observacionDocumentacion}
+                  onChange={e => setP2(prev => ({ ...prev, observacionDocumentacion: e.target.value }))}
+                  placeholder="Observaciones sobre la documentación (opcional)..."
+                  rows={2}
+                  className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm outline-none resize-none"
+                />
+              )}
+
+              {/* Progreso de subida */}
+              {progreso > 0 && progreso < 100 && (
+                <div>
+                  <div className="flex justify-between text-xs text-gray-500 mb-1">
+                    <span>Subiendo fotos...</span><span>{progreso}%</span>
+                  </div>
+                  <div className="h-2 bg-gray-100 rounded-full">
+                    <div className="h-full bg-[#D4621A] rounded-full transition-all" style={{ width: `${progreso}%` }} />
+                  </div>
+                </div>
+              )}
+
+              {/* ── Honorarios ── */}
+              <div className="border-t border-gray-100 pt-4">
+                <p className="text-xs font-bold text-gray-600 mb-3 flex items-center gap-1">
+                  <DollarSign size={12} /> Honorarios y cobros
+                </p>
+                <div className="space-y-2 mb-3">
+                  {p2.historialPagos.map((pago, i) => (
+                    <div key={i} className="flex items-center justify-between bg-gray-50 rounded-xl px-3 py-2 text-sm">
+                      <span className="text-gray-700">{METODOS_PAGO_LABELS[pago.metodoPago]}</span>
+                      <span className="font-bold text-emerald-700">{formatARS(pago.monto)}</span>
+                    </div>
+                  ))}
+                  {p2.historialPagos.length > 0 && (
+                    <div className="flex justify-between px-3 py-2 font-bold text-sm border-t border-gray-200">
+                      <span>Total cobrado</span>
+                      <span className="text-emerald-700">{formatARS(p2.montoTotal)}</span>
+                    </div>
+                  )}
+                </div>
+                <div className="grid grid-cols-3 gap-2">
+                  <input
+                    type="number" placeholder="Monto $" value={nuevoPago.monto || ''}
+                    onChange={e => setNuevoPago(prev => ({ ...prev, monto: Number(e.target.value) }))}
+                    className="px-3 py-2 border border-gray-200 rounded-xl text-sm outline-none focus:border-[#D4621A]"
+                  />
+                  <select
+                    value={nuevoPago.metodoPago}
+                    onChange={e => setNuevoPago(prev => ({ ...prev, metodoPago: e.target.value as MetodoPago }))}
+                    className="px-3 py-2 border border-gray-200 rounded-xl text-sm outline-none focus:border-[#D4621A]"
+                  >
+                    {Object.entries(METODOS_PAGO_LABELS).map(([k, v]) => (
+                      <option key={k} value={k}>{v}</option>
+                    ))}
+                  </select>
+                  <button onClick={agregarPago} className="py-2 bg-emerald-600 text-white text-xs font-bold rounded-xl hover:bg-emerald-700 transition-colors">
+                    + Agregar pago
+                  </button>
+                </div>
+                <div className="flex gap-3 mt-3">
+                  {[
+                    { key: 'presupuestoEnviado', label: 'Presupuesto enviado al cliente' },
+                    { key: 'pagoConfirmado',     label: 'Pago confirmado' },
+                  ].map(opt => (
+                    <label key={opt.key} className="flex-1 flex items-center gap-2 p-3 border border-gray-200 rounded-xl cursor-pointer text-sm">
+                      <input
+                        type="checkbox"
+                        checked={(p2 as any)[opt.key]}
+                        onChange={e => setP2(prev => ({ ...prev, [opt.key]: e.target.checked }))}
+                        className="accent-[#D4621A]"
+                      />
+                      {opt.label}
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              <button
+                disabled={!archivos['fotoDniFrente'] || !archivos['fotoDniDorso'] || guardando ||
+                  ((!p2.tieneCedula && !p2.tieneTitulo) && !p2.observacionDocumentacion.trim())}
+                onClick={() => confirmarPaso2(p2 as any, archivos as any)}
+                className="w-full py-3 bg-[#D4621A] hover:bg-[#b8541a] text-white font-semibold rounded-xl text-sm transition-colors disabled:opacity-50"
+              >
+                {guardando ? `Subiendo fotos... ${progreso}%` : 'Confirmar documentación →'}
+              </button>
+            </>
+          ) : (
+            <ResumenPaso datos={[
+              { label: 'DNI',     val: workflow.paso2?.fotoDniFrente ? '✅ Cargado' : '—' },
+              { label: 'Cédula',  val: workflow.paso2?.fotoCedulaFrente ? '✅ Cargado' : 'No cargada' },
+              { label: 'Título',  val: workflow.paso2?.fotoTituloFrente ? '✅ Cargado' : 'No cargado' },
+              { label: 'Total cobrado', val: formatARS(workflow.paso2?.montoTotal ?? 0) },
+              { label: 'Obs.',    val: workflow.paso2?.observacionDocumentacion ?? '—' },
+            ]} />
+          )}
+        </div>
+      )}
+
+      {/* ── PASO 3 — Pre-revisión (Admin) ── */}
+      {pasoActual >= 3 && renderPasoHeader(3, pasoActual, pasosColapsados, toggle)}
+      {pasoActual >= 3 && !pasosColapsados[3] && (
+        <div className="bg-white border border-gray-100 rounded-2xl p-5 space-y-4">
+
+          {/* Resolución del rebote (Asesor) */}
+          {esRebotado && (
+            <div className="space-y-4">
+              <p className="text-sm font-bold text-red-700">Resolver el rebote del Admin</p>
+              <div className="flex gap-3">
+                <label className="flex-1 flex items-center gap-2 p-3 border border-gray-200 rounded-xl cursor-pointer text-sm">
+                  <input type="radio" name="tipoRebote" checked={!rebote.requiereInformePersona}
+                    onChange={() => setRebote(prev => ({ ...prev, requiereInformePersona: false }))}
+                    className="accent-[#D4621A]"
+                  />
+                  Tengo el DNI del infractor
+                </label>
+                <label className="flex-1 flex items-center gap-2 p-3 border border-gray-200 rounded-xl cursor-pointer text-sm">
+                  <input type="radio" name="tipoRebote" checked={rebote.requiereInformePersona}
+                    onChange={() => setRebote(prev => ({ ...prev, requiereInformePersona: true }))}
+                    className="accent-[#D4621A]"
+                  />
+                  Requiere informe de persona
+                </label>
+              </div>
+              {!rebote.requiereInformePersona ? (
+                <div className="grid grid-cols-2 gap-3">
+                  <FotoUploader label="DNI Infractor Frente" onChange={f => { setArchivosRebote(prev => ({ ...prev, fotoDniInfractorFrente: f })); setPreviewsRebote(prev => ({ ...prev, fotoDniInfractorFrente: f ? URL.createObjectURL(f) : null })) }} preview={previewsRebote['fotoDniInfractorFrente']} />
+                  <FotoUploader label="DNI Infractor Dorso"  onChange={f => { setArchivosRebote(prev => ({ ...prev, fotoDniInfractorDorso:  f })); setPreviewsRebote(prev => ({ ...prev, fotoDniInfractorDorso:  f ? URL.createObjectURL(f) : null })) }} preview={previewsRebote['fotoDniInfractorDorso']} />
+                </div>
+              ) : (
+                <label className="flex items-center gap-2 p-3 border border-amber-200 bg-amber-50 rounded-xl text-sm cursor-pointer">
+                  <input type="checkbox" checked={rebote.informePersonaPagado}
+                    onChange={e => setRebote(prev => ({ ...prev, informePersonaPagado: e.target.checked }))}
+                    className="accent-[#D4621A]"
+                  />
+                  <span>Informe de persona abonado — esperando 24hs para continuar</span>
+                </label>
+              )}
+              <textarea
+                value={rebote.observacion}
+                onChange={e => setRebote(prev => ({ ...prev, observacion: e.target.value }))}
+                placeholder="Observaciones sobre la resolución..."
+                rows={2}
+                className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm outline-none resize-none"
+              />
+              <button
+                onClick={() => resolverRebote(
+                  { ...rebote, resueltoBy: '', resueltoPorNombre: '', resueltoEn: null as any } as any,
+                  archivosRebote as any,
+                )}
+                disabled={guardando || (rebote.requiereInformePersona && !rebote.informePersonaPagado) ||
+                  (!rebote.requiereInformePersona && !archivosRebote['fotoDniInfractorFrente'])}
+                className="w-full py-3 bg-[#D4621A] text-white font-semibold rounded-xl text-sm disabled:opacity-50"
+              >
+                {guardando ? 'Enviando...' : 'Enviar resolución al Admin →'}
+              </button>
+            </div>
+          )}
+
+          {/* Pre-revisión (Admin) */}
+          {!esRebotado && pasoActual === 3 && esAdmin && (
+            <div className="space-y-4">
+              <p className="text-sm font-bold text-gray-700">Resultado de la pre-revisión</p>
+              <div className="space-y-2">
+                {([
+                  { val: 'ok',         label: '✅ Sin irregularidades — continuar gestión', cls: 'border-emerald-200' },
+                  { val: 'rebotado',   label: '↩️ Rebotar al asesor (falta/error documentación)', cls: 'border-amber-200' },
+                  { val: 'mesa_ayuda', label: '📧 Derivar a mesa de ayuda externa', cls: 'border-red-200' },
+                ] as const).map(opt => (
+                  <label key={opt.val} className={`flex items-center gap-3 p-3 border rounded-xl cursor-pointer text-sm ${p3.resultado === opt.val ? 'bg-gray-50 ' + opt.cls : 'border-gray-200'}`}>
+                    <input type="radio" name="resultado" value={opt.val} checked={p3.resultado === opt.val}
+                      onChange={() => setP3(prev => ({ ...prev, resultado: opt.val }))}
+                      className="accent-[#D4621A]"
+                    />
+                    {opt.label}
+                  </label>
+                ))}
+              </div>
+
+              {p3.resultado === 'rebotado' && (
+                <textarea value={p3.motivoRebote}
+                  onChange={e => setP3(prev => ({ ...prev, motivoRebote: e.target.value }))}
+                  placeholder="Describí qué documentación falta o está incorrecta..."
+                  rows={2} required
+                  className="w-full px-3 py-2 border border-red-200 rounded-xl text-sm outline-none resize-none bg-red-50"
+                />
+              )}
+
+              {p3.resultado === 'mesa_ayuda' && (
+                <div className="space-y-3 bg-amber-50 border border-amber-200 rounded-xl p-4">
+                  <textarea value={p3.motivoMesaAyuda}
+                    onChange={e => setP3(prev => ({ ...prev, motivoMesaAyuda: e.target.value }))}
+                    placeholder="Descripción de la discrepancia (ej: género incorrecto en la multa)..."
+                    rows={2}
+                    className="w-full px-3 py-2 border border-amber-300 rounded-xl text-sm outline-none resize-none bg-white"
+                  />
+                  <input value={p3.emailMesaAyuda}
+                    onChange={e => setP3(prev => ({ ...prev, emailMesaAyuda: e.target.value }))}
+                    placeholder="Email de mesa de ayuda externa"
+                    type="email"
+                    className="w-full px-3 py-2 border border-amber-300 rounded-xl text-sm outline-none bg-white"
+                  />
+                  <div>
+                    <label className="text-xs font-semibold text-amber-700 mb-1 block">Plazo estimado de respuesta</label>
+                    <div className="flex gap-2">
+                      {(['24hs', '48hs', '72hs'] as const).map(p => (
+                        <button key={p} type="button"
+                          onClick={() => setP3(prev => ({ ...prev, plazoEspera: p }))}
+                          className={`flex-1 py-2 rounded-xl text-xs font-bold border transition-all ${p3.plazoEspera === p ? 'bg-amber-500 border-amber-500 text-white' : 'border-amber-300 text-amber-700'}`}
+                        >
+                          {p} hábiles
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              <textarea value={p3.observacion}
+                onChange={e => setP3(prev => ({ ...prev, observacion: e.target.value }))}
+                placeholder="Observaciones de la revisión..."
+                rows={2}
+                className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm outline-none resize-none"
+              />
+
+              <button
+                disabled={guardando ||
+                  (p3.resultado === 'rebotado'   && !p3.motivoRebote.trim()) ||
+                  (p3.resultado === 'mesa_ayuda' && !p3.motivoMesaAyuda.trim())}
+                onClick={() => confirmarPreRevision(p3)}
+                className="w-full py-3 bg-[#D4621A] text-white font-semibold rounded-xl text-sm disabled:opacity-50"
+              >
+                {guardando ? 'Guardando...' : 'Confirmar pre-revisión →'}
+              </button>
+            </div>
+          )}
+
+          {pasoActual > 3 && !esRebotado && (
+            <ResumenPaso datos={[
+              { label: 'Resultado', val: workflow.paso3?.resultado === 'ok' ? '✅ Sin irregularidades' : workflow.paso3?.resultado ?? '—' },
+              { label: 'Obs.',      val: workflow.paso3?.observacion ?? '—' },
+            ]} />
+          )}
+        </div>
+      )}
+
+      {/* ── PASO 4 — Revisión profunda ── */}
+      {pasoActual >= 4 && !esMesa && renderPasoHeader(4, pasoActual, pasosColapsados, toggle)}
+      {pasoActual >= 4 && !esMesa && !pasosColapsados[4] && (
+        <div className="bg-white border border-gray-100 rounded-2xl p-5 space-y-4">
+          {pasoActual === 4 && esAdmin ? (
+            <>
+              <div>
+                <label className="text-xs font-semibold text-gray-500 mb-1 block">Notas de revisión multa x multa *</label>
+                <textarea value={p4.notasRevision}
+                  onChange={e => setP4(prev => ({ ...prev, notasRevision: e.target.value }))}
+                  placeholder="Documentá la revisión de cada multa, inconsistencias encontradas, decisiones tomadas..."
+                  rows={5}
+                  className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm outline-none resize-none"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs font-semibold text-gray-500 mb-1 block">Cantidad de multas</label>
+                  <input type="number" value={p4.cantidadMultas || ''}
+                    onChange={e => setP4(prev => ({ ...prev, cantidadMultas: Number(e.target.value) }))}
+                    className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm outline-none"
+                  />
+                </div>
+                <label className="flex items-center gap-2 p-3 border border-gray-200 rounded-xl cursor-pointer self-end">
+                  <input type="checkbox" checked={p4.borradoresListos}
+                    onChange={e => setP4(prev => ({ ...prev, borradoresListos: e.target.checked }))}
+                    className="accent-[#D4621A]"
+                  />
+                  <span className="text-sm">Borradores listos para cargar</span>
+                </label>
+              </div>
+              <button
+                disabled={!p4.notasRevision.trim() || !p4.borradoresListos || guardando}
+                onClick={() => confirmarPaso4(p4)}
+                className="w-full py-3 bg-[#D4621A] text-white font-semibold rounded-xl text-sm disabled:opacity-50"
+              >
+                {guardando ? 'Guardando...' : 'Confirmar borradores listos →'}
+              </button>
+            </>
+          ) : (
+            <ResumenPaso datos={[
+              { label: 'Multas',    val: `${workflow.paso4?.cantidadMultas ?? '—'} multas revisadas` },
+              { label: 'Notas',     val: (workflow.paso4?.notasRevision ? workflow.paso4.notasRevision.slice(0, 80) + '...' : '—') },
+              { label: 'Borradores', val: workflow.paso4?.borradoresListos ? '✅ Listos' : '—' },
+            ]} />
+          )}
+        </div>
+      )}
+
+      {/* ── PASO 5 — Carga del descargo ── */}
+      {pasoActual >= 5 && renderPasoHeader(5, pasoActual, pasosColapsados, toggle)}
+      {pasoActual >= 5 && !pasosColapsados[5] && (
+        <div className="bg-white border border-gray-100 rounded-2xl p-5 space-y-4">
+          {pasoActual === 5 && esAdmin ? (
+            <>
+              <p className="text-xs text-gray-500">Subí las capturas/fotos del descargo cargado en el sistema.</p>
+              <div>
+                <label className="border-2 border-dashed border-gray-200 rounded-xl p-4 flex flex-col items-center gap-2 cursor-pointer hover:border-[#D4621A]/40 hover:bg-[#D4621A]/5 transition-all">
+                  <Upload size={20} className="text-gray-300" />
+                  <span className="text-xs text-gray-400">Seleccioná fotos del descargo</span>
+                  <input type="file" accept="image/*" multiple className="hidden"
+                    onChange={e => setFotosDescargo(Array.from(e.target.files ?? []))}
+                  />
+                </label>
+                {fotosDescargo.length > 0 && (
+                  <p className="text-xs text-emerald-600 mt-1">{fotosDescargo.length} archivo(s) seleccionado(s)</p>
+                )}
+              </div>
+              <textarea value={p5obs} onChange={e => setP5obs(e.target.value)}
+                placeholder="Observaciones del descargo..."
+                rows={2} className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm outline-none resize-none"
+              />
+              {progreso > 0 && progreso < 100 && (
+                <div>
+                  <div className="flex justify-between text-xs text-gray-500 mb-1">
+                    <span>Subiendo...</span><span>{progreso}%</span>
+                  </div>
+                  <div className="h-2 bg-gray-100 rounded-full">
+                    <div className="h-full bg-[#D4621A] rounded-full" style={{ width: `${progreso}%` }} />
+                  </div>
+                </div>
+              )}
+              <button disabled={fotosDescargo.length === 0 || guardando}
+                onClick={() => confirmarPaso5({ observacion: p5obs }, fotosDescargo)}
+                className="w-full py-3 bg-[#D4621A] text-white font-semibold rounded-xl text-sm disabled:opacity-50"
+              >
+                {guardando ? `Subiendo... ${progreso}%` : 'Confirmar descargo subido →'}
+              </button>
+            </>
+          ) : (
+            <ResumenPaso datos={[
+              { label: 'Fotos cargadas', val: `${workflow.paso5?.fotosDescargo?.length ?? 0} archivos` },
+              { label: 'Obs.',           val: workflow.paso5?.observacion ?? '—' },
+            ]} />
+          )}
+        </div>
+      )}
+
+      {/* ── PASO 6 — SUATS / Resolución ── */}
+      {pasoActual >= 6 && renderPasoHeader(6, pasoActual, pasosColapsados, toggle)}
+      {pasoActual >= 6 && !pasosColapsados[6] && (
+        <div className="bg-white border border-gray-100 rounded-2xl p-5 space-y-4">
+          {pasoActual === 6 && esAdmin ? (
+            <>
+              {workflow.paso1?.requiereSUATS ? (
+                <>
+                  <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-3 text-xs text-emerald-700">
+                    ✅ El cliente solicitó informe SUATS. Adjuntá las capturas del informe.
+                  </div>
+                  <label className="border-2 border-dashed border-gray-200 rounded-xl p-4 flex flex-col items-center gap-2 cursor-pointer hover:border-emerald-400 transition-all">
+                    <Upload size={20} className="text-gray-300" />
+                    <span className="text-xs text-gray-400">Subir capturas del SUATS</span>
+                    <input type="file" accept="image/*" multiple className="hidden"
+                      onChange={e => setFotosSuats(Array.from(e.target.files ?? []))}
+                    />
+                  </label>
+                  {fotosSuats.length > 0 && (
+                    <p className="text-xs text-emerald-600">{fotosSuats.length} captura(s) del SUATS</p>
+                  )}
+                  <button
+                    disabled={fotosSuats.length === 0 || guardando}
+                    onClick={() => confirmarPaso6({ ...p6, suatsGenerado: true }, fotosSuats)}
+                    className="w-full py-3 bg-[#D4621A] text-white font-semibold rounded-xl text-sm disabled:opacity-50"
+                  >
+                    {guardando ? `Subiendo... ${progreso}%` : 'SUATS generado — Notificar asesor →'}
+                  </button>
+                </>
+              ) : (
+                <>
+                  <div className="bg-teal-50 border border-teal-200 rounded-xl p-3 text-xs text-teal-700">
+                    El cliente no requirió SUATS. Confirmá la resolución para notificar al asesor.
+                  </div>
+                  <textarea value={p6.observacion} onChange={e => setP6(prev => ({ ...prev, observacion: e.target.value }))}
+                    placeholder="Observaciones de cierre..."
+                    rows={2} className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm outline-none resize-none"
+                  />
+                  <button disabled={guardando}
+                    onClick={() => confirmarPaso6({ ...p6, suatsGenerado: false }, [])}
+                    className="w-full py-3 bg-[#D4621A] text-white font-semibold rounded-xl text-sm disabled:opacity-50"
+                  >
+                    {guardando ? 'Guardando...' : 'Confirmar resolución — sin SUATS →'}
+                  </button>
+                </>
+              )}
+            </>
+          ) : (
+            <ResumenPaso datos={[
+              { label: 'SUATS',  val: workflow.paso6?.suatsGenerado ? '✅ Generado' : 'No requerido' },
+              { label: 'Fotos',  val: `${workflow.paso6?.fotosSuats?.length ?? 0} capturas` },
+            ]} />
+          )}
+        </div>
+      )}
+
+      {/* ── PASO 7 — Cierre y entrega ── */}
+      {pasoActual >= 7 && renderPasoHeader(7, pasoActual, pasosColapsados, toggle)}
+      {pasoActual >= 7 && !pasosColapsados[7] && (
+        <div className="bg-white border border-gray-100 rounded-2xl p-5 space-y-4">
+          {pasoActual === 7 ? (
+            <>
+              {pasoActual === 7 && (
+                <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-3 text-xs text-emerald-700 font-semibold">
+                  🔔 El trámite está resuelto. Avisá al cliente y cerrá la gestión.
+                </div>
+              )}
+              <div className="space-y-2">
+                {[
+                  { key: 'clienteAvisado', label: 'Cliente avisado de la resolución' },
+                  ...(workflow.paso1?.requiereSUATS ? [{ key: 'suatsEntregado', label: 'SUATS entregado al cliente' }] : []),
+                ].map(opt => (
+                  <label key={opt.key} className="flex items-center gap-2 p-3 border border-gray-200 rounded-xl cursor-pointer text-sm">
+                    <input type="checkbox" checked={(p7 as any)[opt.key]}
+                      onChange={e => setP7(prev => ({ ...prev, [opt.key]: e.target.checked }))}
+                      className="accent-[#D4621A]"
+                    />
+                    {opt.label}
+                  </label>
+                ))}
+              </div>
+              <div>
+                <label className="text-xs font-semibold text-gray-500 mb-1 block">Canal de entrega</label>
+                <div className="grid grid-cols-4 gap-2">
+                  {([
+                    { val: 'whatsapp', label: 'WhatsApp' },
+                    { val: 'email', label: 'Email' },
+                    { val: 'presencial', label: 'Presencial' },
+                    { val: 'otro', label: 'Otro' },
+                  ] as const).map(opt => (
+                    <button key={opt.val} type="button"
+                      onClick={() => setP7(prev => ({ ...prev, canalEntrega: opt.val }))}
+                      className={`py-2 rounded-xl text-xs font-semibold border transition-all ${p7.canalEntrega === opt.val ? 'bg-[#D4621A] border-[#D4621A] text-white' : 'border-gray-200 text-gray-600'}`}
+                    >
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <textarea value={p7.observacionFinal} onChange={e => setP7(prev => ({ ...prev, observacionFinal: e.target.value }))}
+                placeholder="Observaciones finales del cierre..."
+                rows={2} className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm outline-none resize-none"
+              />
+              <button
+                disabled={!p7.clienteAvisado || (!!workflow.paso1?.requiereSUATS && !p7.suatsEntregado) || guardando}
+                onClick={() => confirmarPaso7(p7)}
+                className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-sm disabled:opacity-50 transition-colors"
+              >
+                {guardando ? 'Archivando...' : '🗂️ Finalizar y archivar trámite'}
+              </button>
+            </>
+          ) : (
+            <div className="flex items-center gap-3 py-4">
+              <CheckCircle2 size={28} className="text-emerald-500 shrink-0" />
+              <div>
+                <p className="font-semibold text-gray-800">Trámite completado y archivado</p>
+                <p className="text-xs text-gray-400 mt-0.5">
+                  Canal: {workflow.paso7?.canalEntrega} · Por: {workflow.paso7?.completadoPorNombre}
                 </p>
               </div>
             </div>
-            <p className="text-xs text-slate-400 mt-2">{pasoConfig.descripcion}</p>
-          </div>
-        )}
-
-        {/* Error */}
-        {error && (
-          <div className="mb-4 p-3 bg-red-900/40 border border-red-700 rounded-lg text-sm text-red-300">
-            {error}
-          </div>
-        )}
-
-        {/* Stepper mobile */}
-        <div className="md:hidden mb-4">
-          <div className="flex gap-1">
-            {PASOS_MULTA.slice(0, 5).map(p => (
-              <div
-                key={p.id}
-                className="flex-1 h-1 rounded-full transition-colors duration-300"
-                style={{
-                  backgroundColor:
-                    pasoActual > p.id ? '#10b981'
-                    : pasoActual === p.id ? p.color
-                    : '#1e293b',
-                }}
-              />
-            ))}
-          </div>
-          <p className="text-xs text-slate-500 mt-1">Paso {Math.min(pasoActual, 5)} de 5</p>
+          )}
         </div>
+      )}
 
-        {/* Contenido por paso */}
-        {pasoActual === 1 && (
-          <Paso1
-            datosLocales={datosConLIT}
-            actualizarDato={actualizarDato}
-            puedeAvanzar={puedeAvanzar}
-            guardando={guardando}
-            onConfirmar={confirmarPaso}
-          />
-        )}
-        {pasoActual === 2 && (
-          <Paso2
-            datosLocales={datosLocales}
-            actualizarDato={actualizarDato}
-            historialPagosLocal={historialPagosLocal}
-            agregarPago={agregarPago}
-            puedeAvanzar={puedeAvanzar}
-            guardando={guardando}
-            onConfirmar={confirmarPaso}
-          />
-        )}
-        {pasoActual === 3 && (
-          <Paso3
-            datosLocales={datosLocales}
-            actualizarDato={actualizarDato}
-            fotosLocales={fotosLocales}
-            agregarFotoLocal={agregarFotoLocal}
-            removerFoto={removerFoto}
-            necesitaObservacion={necesitaObservacion}
-            puedeAvanzar={puedeAvanzar}
-            guardando={guardando}
-            onConfirmar={confirmarPaso}
-          />
-        )}
-        {pasoActual === 4 && (
-          <Paso4
-            datosLocales={datosLocales}
-            actualizarDato={actualizarDato}
-            fotosLocales={fotosLocales}
-            agregarFotoLocal={agregarFotoLocal}
-            removerFoto={removerFoto}
-            puedeAvanzar={puedeAvanzar}
-            guardando={guardando}
-            onConfirmar={confirmarPaso}
-          />
-        )}
-        {pasoActual === 5 && (
-          <Paso5
-            datosLocales={datosLocales}
-            actualizarDato={actualizarDato}
-            puedeAvanzar={puedeAvanzar}
-            guardando={guardando}
-            onConfirmar={confirmarPaso}
-          />
-        )}
-        {pasoActual === 6 && workflow && (
-          <PasoFinalizado workflow={workflow} />
-        )}
+      {/* Error global */}
+      {error && (
+        <div className="bg-red-50 border border-red-200 rounded-xl p-3 text-xs text-red-700">
+          {error}
+        </div>
+      )}
+    </div>
+  )
+}
 
-        {/* Botón retroceder paso — solo propietario/admin, solo en pasos 2-6 */}
-        {puedeRetroceder && pasoActual >= 2 && (
-          <div className="mt-6 pt-4 border-t border-white/10">
-            <button
-              onClick={() => {
-                setPasoObjetivo(Math.max(1, pasoActual - 1) as 1|2|3|4|5)
-                setModalRetroceder(true)
-              }}
-              className="text-xs text-slate-500 hover:text-amber-400 transition-colors flex items-center gap-1"
-            >
-              ↩ Corregir paso anterior
-            </button>
-          </div>
-        )}
+// ─── SUBCOMPONENTES ───────────────────────────────────────────────────────────
 
-        {/* Modal retroceder */}
-        {modalRetroceder && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60">
-            <div className="bg-[#0f1623] border border-white/10 rounded-xl p-5 w-full max-w-sm">
-              <p className="text-sm font-semibold text-white mb-1">Corregir paso anterior</p>
-              <p className="text-xs text-slate-400 mb-4">
-                Esta acción retrocede el workflow al paso indicado y queda registrada en la auditoría.
-              </p>
-              <div className="mb-3">
-                <label className="text-xs text-slate-400 block mb-1">Retroceder al paso</label>
-                <select
-                  value={pasoObjetivo}
-                  onChange={e => setPasoObjetivo(Number(e.target.value) as 1|2|3|4|5)}
-                  className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white"
-                >
-                  {PASOS_MULTA.filter(p => p.id < pasoActual).map(p => (
-                    <option key={p.id} value={p.id}>Paso {p.id} — {p.titulo}</option>
-                  ))}
-                </select>
-              </div>
-              <div className="mb-4">
-                <label className="text-xs text-slate-400 block mb-1">Motivo *</label>
-                <textarea
-                  value={motivoRetroceder}
-                  onChange={e => setMotivoRetroceder(e.target.value)}
-                  placeholder="Ej: Cliente presentó documentación incompleta..."
-                  rows={3}
-                  className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white placeholder:text-slate-600 resize-none"
-                />
-              </div>
-              <div className="flex gap-2">
-                <button
-                  onClick={handleRetroceder}
-                  disabled={!motivoRetroceder.trim() || retrocediendo}
-                  className="flex-1 bg-amber-600 hover:bg-amber-500 disabled:opacity-40 text-white text-sm font-medium py-2 rounded-lg transition-colors"
-                >
-                  {retrocediendo ? 'Guardando…' : 'Confirmar'}
-                </button>
-                <button
-                  onClick={() => { setModalRetroceder(false); setMotivoRetroceder('') }}
-                  className="flex-1 bg-white/5 hover:bg-white/10 text-slate-300 text-sm py-2 rounded-lg transition-colors"
-                >
-                  Cancelar
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
+function renderPasoHeader(
+  paso: number, pasoActual: number,
+  colapsados: Record<number, boolean>,
+  toggle: (n: number) => void,
+) {
+  const config     = PASOS_MULTA_CONFIG.find(p => p.id === paso)
+  const completado = pasoActual > paso
+  const activo     = pasoActual === paso
+  const pendiente  = pasoActual < paso
+
+  return (
+    <button
+      onClick={() => toggle(paso)}
+      className={`w-full flex items-center gap-3 p-4 rounded-2xl border text-left transition-all ${
+        activo     ? 'border-[#D4621A]/40 bg-[#D4621A]/5' :
+        completado ? 'border-emerald-200 bg-emerald-50/50' :
+        'border-gray-100 bg-gray-50/50 opacity-50'
+      }`}
+    >
+      <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold shrink-0 ${
+        completado ? 'bg-emerald-500 text-white' :
+        activo     ? 'bg-[#D4621A] text-white' :
+        'bg-gray-200 text-gray-500'
+      }`}>
+        {completado ? '✓' : paso}
       </div>
+      <div className="flex-1 min-w-0">
+        <p className="text-sm font-semibold text-gray-800">{config?.titulo}</p>
+        <p className="text-xs text-gray-400">{config?.subtitulo}</p>
+      </div>
+      <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+        completado ? 'bg-emerald-100 text-emerald-700' :
+        activo     ? 'bg-[#D4621A]/10 text-[#D4621A]' :
+        'bg-gray-100 text-gray-400'
+      }`}>
+        {completado ? 'Completado' : activo ? 'En curso' : 'Pendiente'}
+      </span>
+      {colapsados[paso] ? <ChevronDown size={14} className="text-gray-400 shrink-0" /> : <ChevronUp size={14} className="text-gray-400 shrink-0" />}
+    </button>
+  )
+}
+
+function ResumenPaso({ datos }: { datos: { label: string; val: string }[] }) {
+  return (
+    <div className="space-y-2">
+      {datos.map(d => (
+        <div key={d.label} className="flex justify-between text-sm border-b border-gray-50 pb-1 last:border-0">
+          <span className="text-gray-500">{d.label}</span>
+          <span className="font-medium text-gray-800 text-right max-w-[65%] truncate">{d.val}</span>
+        </div>
+      ))}
     </div>
   )
 }

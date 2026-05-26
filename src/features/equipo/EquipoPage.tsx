@@ -113,7 +113,7 @@ function ModalNuevoMiembro({
   const [creado,   setCreado]   = useState<{ nombre: string; email: string; password: string } | null>(null)
   const [error,    setError]    = useState('')
 
-  const rolOpciones: Rol[] = ['admin', 'vendedor', 'operador', 'gestor']
+  const rolOpciones: Rol[] = ['admin', 'vendedor', 'operador', 'gestor', 'asesor_comercial']
 
   const handleCrear = async () => {
     if (!nombre.trim() || !apellido.trim()) { setError('Completá nombre y apellido'); return }
@@ -349,7 +349,7 @@ function ModalEditarMiembro({
         <Input label="Teléfono" value={telefono} onChange={e => setTelefono(e.target.value)} />
 
         <Select label="Rol" value={rol} onChange={e => setRol(e.target.value as Rol)}>
-          {(['propietario', 'admin', 'vendedor', 'operador', 'gestor'] as Rol[]).map(r => (
+          {(['propietario', 'admin', 'vendedor', 'operador', 'gestor', 'asesor_comercial'] as Rol[]).map(r => (
             <option key={r} value={r} disabled={esMiMismo && r !== miembro.rol}>
               {ROL_LABELS[r]}
             </option>
@@ -524,8 +524,8 @@ export default function EquipoPage() {
       <IndicadorUso actual={totalUsuarios} maximo={maxUsuarios} planLabel={planLabel} />
 
       {/* Resumen por rol */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-        {(['propietario', 'admin', 'vendedor', 'operador', 'gestor'] as Rol[]).map(r => {
+      <div className="grid grid-cols-2 md:grid-cols-6 gap-3">
+        {(['propietario', 'admin', 'vendedor', 'operador', 'gestor', 'asesor_comercial'] as Rol[]).map(r => {
           const n = activos.filter(m => m.rol === r).length
           return (
             <div key={r} className="bg-white border border-gray-100 rounded-2xl p-4 shadow-sm">
@@ -608,7 +608,8 @@ export default function EquipoPage() {
             <p className="text-sm font-semibold text-gray-800 mb-1">Sobre los roles y permisos</p>
             <p className="text-xs text-gray-600 leading-relaxed">
               Cada rol define exactamente a qué módulos puede acceder el miembro.
-              Los <strong>vendedores</strong> pueden gestionar clientes y el pipeline pero no ven honorarios.
+              Los <strong>asesores comerciales</strong> gestionan trámites, pipeline, WhatsApp y ven la Torre de Control completa; tienen acceso a su panel de Premios & Objetivos.
+              Los <strong>vendedores</strong> pueden gestionar clientes y el pipeline pero no ven honorarios ni trámites avanzados.
               Los <strong>operadores</strong> gestionan trámites y turnos pero no el CRM.
               Solo <strong>propietarios y admins</strong> ven cobranzas, reportes y configuración.
             </p>

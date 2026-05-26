@@ -46,7 +46,7 @@ export const PLAN_CONFIG: Record<PlanGestoria, {
 
 // ─── ENUMS ────────────────────────────────────────────────────────────────────
 
-export type Rol = 'admin' | 'propietario' | 'vendedor' | 'operador' | 'cliente' | 'superadmin' | 'gestor'
+export type Rol = 'propietario' | 'admin' | 'vendedor' | 'operador' | 'superadmin' | 'gestor' | 'cliente' | 'asesor_comercial'
 
 export type TipoVehiculo = 'auto' | 'moto' | 'camion' | 'utilitario' | 'otro'
 
@@ -327,7 +327,19 @@ export interface Configuracion {
   // Meta
   actualizadoEn:    Timestamp
   actualizadoPor:   string
+
+  premiosConfig?: {
+  montoPremioA:       number
+  tramitesPorPremioA: number
+  hitosMultas: Array<{
+    id:          number
+    montoUmbral: number
+    premioMonto: number
+    descripcion: string
+  }>
 }
+}
+
 
 // ─── LABELS ───────────────────────────────────────────────────────────────────
 

@@ -61,6 +61,8 @@ export default function NuevoTurnoForm({
   const [tipo,       setTipo]       = useState<TipoTramite>('transferencia')
   const [franja,     setFranja]     = useState('')
   const [notas,      setNotas]      = useState('')
+  const [modalidad,   setModalidad]  = useState<'presencial' | 'virtual'>('presencial')
+  const [linkVirtual, setLinkVirtual] = useState('')
   const [loading,    setLoading]    = useState(false)
   const [error,      setError]      = useState('')
   const [confirmado, setConfirmado] = useState<{
@@ -318,6 +320,30 @@ export default function NuevoTurnoForm({
           clientes={clientes}
         />
       )}
+
+      {/* Modalidad */}
+      <div>
+        <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">
+          Modalidad
+        </label>
+        <div className="grid grid-cols-2 gap-2 mb-2">
+          {(['presencial', 'virtual'] as const).map(m => (
+            <button key={m} type="button" onClick={() => setModalidad(m)}
+              className={`py-2.5 rounded-xl text-sm font-semibold border transition-all ${
+                modalidad === m ? 'bg-[#D4621A] border-[#D4621A] text-white' : 'border-gray-200 text-gray-600'
+              }`}
+            >
+              {m === 'presencial' ? '🏢 Presencial' : '💻 Virtual'}
+            </button>
+          ))}
+        </div>
+        {modalidad === 'virtual' && (
+          <input value={linkVirtual} onChange={e => setLinkVirtual(e.target.value)}
+            placeholder="Link de Meet / Zoom / Teams..."
+            className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm outline-none focus:border-[#D4621A]"
+          />
+        )}
+      </div>
 
       {/* Notas */}
       <div className="space-y-1.5">

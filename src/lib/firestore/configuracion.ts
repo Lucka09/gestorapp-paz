@@ -55,6 +55,23 @@ export const CONFIG_DEFAULT: Omit<Configuracion,'actualizadoEn'|'actualizadoPor'
   mensajeBienvenida:   '¡Bienvenido al portal de Gestoría Paz! Aquí podés seguir tus trámites y reservar turnos.',
   mensajeTurnoConfirm: 'Tu turno fue confirmado. Te esperamos el {fecha} a las {hora} hs.',
   mensajeListoRetirar: 'Tu trámite de {tipo} ya está listo para retirar. ¡Pasá cuando quieras!',
+
+  // ─── PREMIOS & OBJETIVOS — Asesor Comercial ───────────────────────────────
+  // Configurables por el propietario desde ConfiguracionPage > tab Premios
+  premiosConfig: {
+    // Premio A — por trámites (baja + transferencia) completados y pagados
+    montoPremioA:      50_000,   // pesos por cada grupo de 3 trámites
+    tramitesPorPremioA: 3,       // cuántos trámites hacen falta
+
+    // Premio B — hitos de facturación acumulada en multas gestionadas
+    // premioMonto = 0 significa "aún sin definir por el propietario"
+    hitosMultas: [
+      { id: 1, montoUmbral: 10_000_000, premioMonto: 0, descripcion: 'Primer hito — $10M en multas' },
+      { id: 2, montoUmbral: 15_000_000, premioMonto: 0, descripcion: 'Segundo hito — $15M en multas' },
+      { id: 3, montoUmbral: 17_000_000, premioMonto: 0, descripcion: 'Tercer hito — $17M en multas' },
+      { id: 4, montoUmbral: 20_000_000, premioMonto: 0, descripcion: 'Hito máximo — $20M en multas' },
+    ],
+  },
 }
 
 // ─── LEER ─────────────────────────────────────────────────────────────────────

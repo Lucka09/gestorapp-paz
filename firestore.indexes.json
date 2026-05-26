@@ -385,6 +385,92 @@
           "order": "DESCENDING"
         }
       ]
+    },
+    {
+      "collectionGroup": "conversacionesWA",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "gestoriaId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "estado",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "ultimaActividad",
+          "order": "DESCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "conversacionesWA",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "gestoriaId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "asignadoA",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "estado",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "ultimaActividad",
+          "order": "DESCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "conversacionesWA",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "gestoriaId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "telefono",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "campanas",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "gestoriaId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "creadoEn",
+          "order": "DESCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "envios",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "campanaId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "estado",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "enviadoEn",
+          "order": "DESCENDING"
+        }
+      ]
     }
   ],
   "fieldOverrides": []

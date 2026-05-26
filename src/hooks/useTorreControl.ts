@@ -7,12 +7,13 @@ import { useState, useEffect, useMemo } from 'react'
 import { useGestoriaId }    from '@/context/GestoriaContext'
 import { useAuthStore }     from '@/store/authStore'
 import { useTramites }      from '@/hooks/useTramites'
+import { usePermisos }     from '@/hooks/usePermisos'
 import { getWorkflowsGestoria, subscribeWorkflowsGestoria } from '@/lib/firestore/inscripcionworkflow'
 import type { Tramite }     from '@/types'
 import type {
   InscripcionWorkflow, TramiteEnriquecido, AlertaTorre,
   NivelAlerta, EstadisticasMandatario,
-} from '@/types/torre.types'
+} from '@/torre_types'
 
 const HIDDEN_POLL_MS = 60_000
 
@@ -20,7 +21,10 @@ const HIDDEN_POLL_MS = 60_000
 
 export function useTorreControl() {
   const gestoriaId          = useGestoriaId()
-  const { user } = useAuthStore()
+  const { user }   = useAuthStore()
+  const { puede }  = usePermisos()
+  const soloPropia = puede('verTorreSoloPropia')
+  const verTodo    = puede('verTorreCompleta')
   const { tramites, loading: loadingTramites } = useTramites({ whenHidden: 'poll', hiddenPollMs: HIDDEN_POLL_MS })
 
   const [workflows, setWorkflows]           = useState<InscripcionWorkflow[]>([])
@@ -77,12 +81,17 @@ export function useTorreControl() {
     return map
   }, [workflows])
 
-  // Si el usuario es gestor, solo ve trámites propios.
+  // Filtro por visibilidad según permiso del rol
   const tramitesVisibles = useMemo(() => {
     const base = tramites.filter(t => t.estado !== 'cancelado')
-    if (user?.rol !== 'gestor') return base
-    const uid = user.uid
-    return base.filter(t => t.asignadoA === uid || t.creadoPor === uid)
+    // Propietario y Admin ven todo
+    if (verTodo) return base
+    // Gestor/Mandatario solo ve los suyos
+    if (soloPropia) {
+      const uid = user?.uid
+      return base.filter(t => t.asignadoA === uid || t.creadoPor === uid)
+    }
+    return base
   }, [tramites, user])
 
   // ── Enriquecimiento: tramites + alertLevel + alertas ──────────────────────
@@ -212,6 +221,9 @@ export function useEstadisticasMandatarios(
       estadoCarga: calcularEstadoCarga(s.tramitesActivos),
     }))
   }, [tramitesEnriquecidos, gestores])
+
+  // Performance de gestores — solo visible para propietario/admin
+  // Para gestores individuales se omite para no exponer datos de compañeros
 }
 
 // ─── LÓGICA DE ALERTAS ────────────────────────────────────────────────────────

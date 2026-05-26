@@ -7,12 +7,12 @@ import {
   CollectionReference,
   DocumentReference,
 } from 'firebase/firestore'
-import { db } from '../firebase'
+import { db } from '@/lib/firebase'
 import type {
   Usuario, Cliente, Vehiculo, Tramite,
   Turno, Notificacion, Configuracion,
 } from '@/types'
-
+import type { ConversacionWA } from '@/wa_types'
 // ─── COLECCIONES ──────────────────────────────────────────────────────────────
 
 export const usersCol         = collection(db, 'users')         as CollectionReference<Usuario>
@@ -21,7 +21,7 @@ export const vehiculosCol     = collection(db, 'vehiculos')     as CollectionRef
 export const tramitesCol      = collection(db, 'tramites')      as CollectionReference<Tramite>
 export const turnosCol        = collection(db, 'turnos')        as CollectionReference<Turno>
 export const notificacionesCol= collection(db, 'notificaciones')as CollectionReference<Notificacion>
-
+export const conversacionesWACol = collection(db, 'conversacionesWA') as CollectionReference<ConversacionWA>
 // ─── DOCS DE CONFIGURACIÓN ────────────────────────────────────────────────────
 
 export const configuracionDoc = doc(db, 'configuracion', 'gestor') as DocumentReference<Configuracion>
@@ -35,10 +35,37 @@ export const tramiteDoc      = (id: string)       => doc(tramitesCol, id)
 export const turnoDoc        = (id: string)       => doc(turnosCol, id)
 export const notificacionDoc = (id: string)       => doc(notificacionesCol, id)
 
-// ─── GENERADOR DE NÚMERO DE TRÁMITE ──────────────────────────────────────────
+// ─── CÓDIGOS DE TIPO DE TRÁMITE ──────────────────────────────────────────────
 
-export function generarNumeroTramite(): string {
-  const year = new Date().getFullYear()
-  const rand = Math.floor(Math.random() * 9000) + 1000
-  return `TRM-${year}-${rand}`
+export const CODIGO_TRAMITE: Record<string, string> = {
+  transferencia:            'TRF',
+  alta:                     'ALT',
+  baja:                     'BAJ',
+  tramite_08:               'T08',
+  duplicado_titulo:         'DTI',
+  duplicado_cedula:         'DCE',
+  cambio_radicacion:        'RAD',
+  informe_dominio:          'IND',
+  certificado_dominio:      'CED',
+  inscripcion_inicial:      'INS',
+  prenda:                   'PRE',
+  descargo_multa:           'MUL',
+  inhibicion:               'INH',
+  levantamiento_inhibicion: 'LEV',
+  vtv:                      'VTV',
+  otro:                     'OTR',
+}
+
+// ─── GENERADOR DE NÚMERO DE TRÁMITE ──────────────────────────────────────────
+// Formato: [TIPO]-[AÑO2D]-[SEQ4]  →  ej: TRF-26-0001 · MUL-26-0042
+// El secuencial se pasa desde tramites.ts donde se cuenta el total del año.
+// Si no se proporciona secuencial, usa timestamp como fallback seguro.
+
+export function generarNumeroTramite(tipo?: string, secuencial?: number): string {
+  const año = new Date().getFullYear().toString().slice(-2)
+  const cod = tipo ? (CODIGO_TRAMITE[tipo] ?? 'OTR') : 'TRM'
+  const seq = secuencial != null
+    ? String(secuencial).padStart(4, '0')
+    : String(Math.floor(Date.now() / 1000) % 10000).padStart(4, '0')
+  return `${cod}-${año}-${seq}`
 }

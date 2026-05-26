@@ -9,11 +9,16 @@ import {
   TowerControl, MonitorDot, Bell, ShieldAlert,
 } from 'lucide-react'
 import { useTorreControl, useEstadisticasMandatarios } from '@/hooks/useTorreControl'
+import { usePermisos } from '@/hooks/usePermisos'
+import { useAuth }     from '@/hooks/useAuth'
 import { useGestoresEquipo } from '@/hooks/useEquipo'
 import { usePageTitle }  from '@/hooks/usePageTitle'
 import { formatRelativo, formatFecha } from '@/utils'
-import type { TramiteEnriquecido, AlertaTorre, NivelAlerta } from '@/types/torre.types'
-import { PASOS_INSCRIPCION } from '@/types/torre.types'
+import type { TramiteEnriquecido, AlertaTorre, NivelAlerta } from '@/torre_types'
+import { PASOS_INSCRIPCION }   from '@/torre_types'
+import { PASOS_MULTA_CONFIG }  from '@/multa_types'
+import { PASOS_TRANSFERENCIA } from '@/transferencia_types'
+import PanelPremiosAsesor      from '@/components/shared/PanelPremiosAsesor'
 
 // ─── HELPERS VISUALES ────────────────────────────────────────────────────────
 
@@ -243,6 +248,53 @@ function TramiteDrawer({
           {/* ── TIMELINE ── */}
           {tab === 'timeline' && (
             <div>
+
+              {/* Multa o Transferencia: botón al workflow + lista de pasos */}
+              {(tramite.tipo === 'descargo_multa' || tramite.tipo === 'transferencia') && (
+                <>
+                  <button
+                    onClick={() => { onClose(); navigate(`/admin/tramites/${tramite.id}`) }}
+                    className="w-full mb-4 py-2.5 rounded-xl text-xs font-bold text-white
+                               flex items-center justify-center gap-1.5 hover:opacity-90 transition-all"
+                    style={{ background: '#D4621A' }}
+                  >
+                    📋 Gestionar trámite — ir al workflow completo →
+                  </button>
+                  {(tramite.tipo === 'descargo_multa'
+                    ? (PASOS_MULTA_CONFIG as readonly { id: number; titulo: string; subtitulo: string; icono: string; rol: string }[])
+                    : (PASOS_TRANSFERENCIA as readonly { id: number; titulo: string; icono: string; rol: string }[])
+                  ).map((paso, i, arr) => (
+                    <div key={paso.id} className="flex gap-3 mb-1">
+                      <div className="flex flex-col items-center">
+                        <div
+                          className="w-7 h-7 rounded-full flex items-center justify-center
+                                     text-xs shrink-0 border-2"
+                          style={{ background: 'rgba(255,255,255,0.04)', borderColor: 'rgba(255,255,255,0.08)', color: '#64748b' }}
+                        >
+                          {paso.icono}
+                        </div>
+                        {i < arr.length - 1 && (
+                          <div className="w-px flex-1 min-h-4 my-1"
+                            style={{ background: 'rgba(255,255,255,0.06)' }} />
+                        )}
+                      </div>
+                      <div className="flex-1 pb-2 px-2 py-1">
+                        <span className="text-xs font-semibold text-gray-400">{paso.titulo}</span>
+                        <p className="text-[10px] text-gray-600 capitalize">
+                          {'subtitulo' in paso ? (paso as any).subtitulo : paso.rol}
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                  <p className="text-[10px] text-gray-600 text-center mt-2">
+                    Usá el botón de arriba para avanzar los pasos del workflow
+                  </p>
+                </>
+              )}
+
+              {/* Inscripción y otros — timeline original */}
+              {tramite.tipo !== 'descargo_multa' && tramite.tipo !== 'transferencia' && (
+                <>
               {PASOS_INSCRIPCION.map((paso, i) => {
                 if (!wf) return null
                 const completado = pasoActual !== null && i < pasoActual - 1
@@ -300,7 +352,6 @@ function TramiteDrawer({
                 )
               })}
 
-              {/* Próximo paso recomendado */}
               {wf && pasoActual && pasoActual <= 7 && (
                 <div className="mt-4 bg-[#D4621A]/08 border border-[#D4621A]/20 rounded-lg p-3">
                   <p className="text-[10px] font-bold text-[#D4621A] uppercase tracking-wide mb-1">
@@ -311,6 +362,9 @@ function TramiteDrawer({
                   </p>
                 </div>
               )}
+                </>
+              )}
+
             </div>
           )}
 
@@ -427,7 +481,16 @@ function TramiteDrawer({
 
 export default function TorreDeControlPage() {
   usePageTitle('Torre de Control')
+  const navigate    = useNavigate()
   const { gestores: gestoresEquipo } = useGestoresEquipo()
+  const { puede }   = usePermisos()
+  const { user }    = useAuth()
+  const verTodo     = puede('verTorreCompleta')
+  const soloPropia  = puede('verTorreSoloPropia')
+  // Panel de premios: visible para asesor_comercial (sus propios) y propietario (los del asesor)
+  const verPremiosTorre      = puede('verPremiosTorre')
+  const esPropietario        = user?.rol === 'propietario'
+  const esAsesorComercial    = user?.rol === 'asesor_comercial'
 
   const {
     tramitesEnriquecidos, kpis, alertasActivas, etapasPipeline, loading,
@@ -491,6 +554,13 @@ export default function TorreDeControlPage() {
   const renderDashboard = () => (
     <div className="space-y-5">
 
+      {soloPropia && (
+        <div className="flex items-center gap-2 bg-blue-500/10 border border-blue-500/25 rounded-xl px-4 py-2.5 mb-2">
+          <Eye size={13} className="text-blue-400 shrink-0" />
+          <p className="text-xs text-blue-300">Estás viendo solo tus trámites asignados.</p>
+        </div>
+      )}
+
       {/* KPI Cards */}
       <div className="grid grid-cols-5 gap-3">
         <KPICard icon={Radar}        label="Activos"        value={kpis.activos}       sub={`${kpis.inscripciones} inscripciones`}  color="blue"   onClick={() => setFiltroTipo('todos')} />
@@ -538,7 +608,7 @@ export default function TorreDeControlPage() {
             {[
               { val: filtroTipo,  set: setFiltroTipo,  opts: [['todos','Todos los tipos'],['inscripcion_inicial','🏍️ Inscripciones'],['transferencia','🔄 Transferencias'],['descargo_multa','📋 Multas']] },
               { val: filtroNivel, set: setFiltroNivel, opts: [['todos','Criticidad'],['critico','🚨 Crítico'],['rojo','🔴 Rojo'],['naranja','🟠 Naranja'],['amarillo','⚠️ Amarillo']] },
-              { val: filtroMand,  set: setFiltroMand,  opts: [['todos','Todos los gestores'], ...mandatariosUnicos.map(m => [m.uid, m.nombre])] },
+              ...(verTodo ? [{ val: filtroMand, set: setFiltroMand, opts: [['todos','Todos los gestores'], ...mandatariosUnicos.map(m => [m.uid, m.nombre])] }] : []),
             ].map((f, i) => (
               <select
                 key={i}
@@ -583,7 +653,7 @@ export default function TorreDeControlPage() {
                     return (
                       <tr
                         key={t.id}
-                        onClick={() => setDetalle(t)}
+                        onClick={() => (t.tipo === 'descargo_multa' || t.tipo === 'transferencia') ? navigate(`/admin/tramites/${t.id}`) : setDetalle(t)}
                         className={`border-b border-white/5 cursor-pointer transition-colors hover:bg-white/3 ${s.row}`}
                       >
                         <td className="px-3 py-2.5 font-mono text-[10px] text-gray-600">{t.numero?.slice(-6) ?? t.id.slice(-6)}</td>
@@ -710,7 +780,7 @@ export default function TorreDeControlPage() {
                       <div
                         key={t.id}
                         className="flex items-center gap-2 px-3 py-2 border-b border-white/5 cursor-pointer hover:bg-white/3 transition-colors"
-                        onClick={() => setDetalle(t)}
+                        onClick={() => (t.tipo === 'descargo_multa' || t.tipo === 'transferencia') ? navigate(`/admin/tramites/${t.id}`) : setDetalle(t)}
                       >
                         <div className="flex-1 min-w-0">
                           <p className="text-[10px] font-mono text-gray-600 truncate">{t.numero ?? t.id}</p>
@@ -774,7 +844,7 @@ export default function TorreDeControlPage() {
                 return (
                   <div
                     key={t.id}
-                    onClick={() => setDetalle(t)}
+                    onClick={() => (t.tipo === 'descargo_multa' || t.tipo === 'transferencia') ? navigate(`/admin/tramites/${t.id}`) : setDetalle(t)}
                     className={`grid grid-cols-[90px_1fr_130px_100px_60px_65px] gap-2 px-3 py-2
                                border-b border-white/5 cursor-pointer hover:bg-white/3 transition-colors items-center
                                ${s.row}`}
@@ -895,7 +965,12 @@ export default function TorreDeControlPage() {
                     className={`text-[10px] px-2.5 py-1 rounded border cursor-pointer transition-all ${s.badge}`}>
                     ✓ ACK
                   </button>
-                  <button onClick={() => setDetalle(tramitesEnriquecidos.find(t => t.id === a.tramiteId) ?? null)}
+                  <button onClick={() => {
+                      const _t = tramitesEnriquecidos.find(t => t.id === a.tramiteId)
+                      if (_t && (_t.tipo === 'descargo_multa' || _t.tipo === 'transferencia')) {
+                        navigate(`/admin/tramites/${a.tramiteId}`)
+                      } else { setDetalle(_t ?? null) }
+                    }}
                     className="text-[10px] px-2.5 py-1 rounded border border-white/10 bg-white/4 text-gray-500 hover:text-gray-300 cursor-pointer transition-all">
                     Ver →
                   </button>
@@ -921,7 +996,7 @@ export default function TorreDeControlPage() {
           {([
             ['dashboard',   <TowerControl size={13} />, 'Dashboard'],
             ['monitor',     <MonitorDot  size={13} />, 'Monitor'],
-            ['mandatarios', <Users       size={13} />, 'Gestores'],
+            ...(verTodo ? [['mandatarios', <Users size={13} />, 'Gestores'] as const] : []),
             ['alertas',     <Bell        size={13} />, `Alertas${alertasFiltradas.length > 0 ? ` (${alertasFiltradas.length})` : ''}`],
           ] as const).map(([id, icon, lbl]) => (
             <button key={id} onClick={() => setVista(id as typeof vistaActiva)}
@@ -945,12 +1020,27 @@ export default function TorreDeControlPage() {
       <div className="p-5">
         {vistaActiva === 'dashboard'   && renderDashboard()}
         {vistaActiva === 'monitor'     && renderMonitor()}
-        {vistaActiva === 'mandatarios' && renderMandatarios()}
+        {vistaActiva === 'mandatarios' && verTodo && renderMandatarios()}
         {vistaActiva === 'alertas'     && renderAlertas()}
       </div>
 
       {/* Drawer detalle */}
       {detalle && <TramiteDrawer tramite={detalle} onClose={() => setDetalle(null)} />}
+
+      {/* Panel Premios — visible solo para asesor_comercial (propio) y propietario */}
+      {verPremiosTorre && (esAsesorComercial || esPropietario) && vistaActiva === 'dashboard' && (
+        <div className="px-5 pb-8">
+          {esAsesorComercial && (
+            <PanelPremiosAsesor />
+          )}
+          {esPropietario && (
+            // El propietario ve el resumen de todos los asesores comerciales del equipo
+            // Por ahora mostramos el primer asesor_comercial del equipo si existe
+            // (En versiones futuras: iterar sobre todos los asesores)
+            <PanelPremiosAsesor />
+          )}
+        </div>
+      )}
     </div>
   )
 }

@@ -1,4 +1,3 @@
-// src/features/tramites/TramiteForm.tsx
 import { useState, useEffect } from 'react'
 import { z }                   from 'zod'
 import { Input, Select, Textarea, Button } from '@/components/ui'
@@ -8,30 +7,23 @@ import ClienteCombobox           from '@/components/shared/ClienteCombobox'
 import { TIPO_TRAMITE_LABELS, type TipoTramite } from '@/types'
 import type { TramiteInput }     from '@/lib/firestore/tramites'
 
-// ─── SCHEMA ───────────────────────────────────────────────────────────────────
+// ─── SCHEMA — gestoriaId excluido: se inyecta desde el padre, no del usuario ──
 
 const tramiteSchema = z.object({
-  gestoriaId:           z.string().min(1, 'Gestoría no válida'),
   tipo:                  z.string().min(1),
   clienteId:             z.string().min(1, 'Seleccioná un cliente'),
   vehiculoId:            z.string().min(1, 'Seleccioná un vehículo'),
   patente:               z.string().max(10),
   descripcion:           z.string().max(300),
   observacionesInternas: z.string().max(300),
-  honorarios:            z.number()
-                           .min(0, 'Debe ser ≥ 0')
-                           .max(9_999_999, 'Monto demasiado alto'),
+  honorarios:            z.number().min(0, 'Debe ser ≥ 0').max(9_999_999),
   asignadoA:             z.string().nullable(),
 })
 
-export type TramiteFormData = z.infer<typeof tramiteSchema>
+type FormData  = z.infer<typeof tramiteSchema>
+type FormErrors = Partial<Record<keyof FormData, string>>
 
-type Errors = Partial<Record<keyof TramiteFormData, string>>
-
-// ─── DATOS INICIALES ──────────────────────────────────────────────────────────
-
-const EMPTY: TramiteInput = {
-  gestoriaId:           '',
+const EMPTY: FormData = {
   tipo:                  'transferencia',
   clienteId:             '',
   vehiculoId:            '',
@@ -45,7 +37,8 @@ const EMPTY: TramiteInput = {
 // ─── PROPS ────────────────────────────────────────────────────────────────────
 
 interface Props {
-  initial?:        Partial<TramiteInput>
+  gestoriaId:      string           // requerido — viene del contexto del padre
+  initial?:        Partial<FormData>
   clienteIdFijo?:  string
   vehiculoIdFijo?: string
   onSubmit:        (data: TramiteInput) => Promise<void>
@@ -56,16 +49,16 @@ interface Props {
 // ─── COMPONENTE ───────────────────────────────────────────────────────────────
 
 export default function TramiteForm({
-  initial, clienteIdFijo, vehiculoIdFijo,
+  gestoriaId, initial, clienteIdFijo, vehiculoIdFijo,
   onSubmit, onCancel, submitLabel = 'Crear trámite',
 }: Props) {
   const { clientes }    = useClientes()
-  const [form, setForm] = useState<TramiteInput>({
+  const [form, setForm] = useState<FormData>({
     ...EMPTY, ...(initial ?? {}),
     clienteId:  clienteIdFijo  ?? initial?.clienteId  ?? '',
     vehiculoId: vehiculoIdFijo ?? initial?.vehiculoId ?? '',
   })
-  const [errors, setErrors]   = useState<Errors>({})
+  const [errors, setErrors]   = useState<FormErrors>({})
   const [loading, setLoading] = useState(false)
 
   const { vehiculos } = useVehiculosPorCliente(form.clienteId || undefined)
@@ -75,7 +68,7 @@ export default function TramiteForm({
     if (!clienteIdFijo && !vehiculoIdFijo) {
       setForm(prev => ({ ...prev, vehiculoId: '', patente: '' }))
     }
-  }, [form.clienteId])
+  }, [form.clienteId, clienteIdFijo, vehiculoIdFijo])
 
   // Autocompletar patente al seleccionar vehículo
   useEffect(() => {
@@ -85,16 +78,13 @@ export default function TramiteForm({
     }
   }, [form.vehiculoId, vehiculos])
 
-  // Detectar tipo multa para adaptar la UI
   const esMulta = form.tipo === 'descargo_multa'
 
-  const set = (field: keyof TramiteInput) =>
+  const set = (field: keyof FormData) =>
     (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
       const val = field === 'honorarios' ? Number(e.target.value) : e.target.value
       setForm(prev => ({ ...prev, [field]: val }))
-      if (errors[field as keyof Errors]) {
-        setErrors(prev => ({ ...prev, [field]: undefined }))
-      }
+      if (errors[field]) setErrors(prev => ({ ...prev, [field]: undefined }))
     }
 
   const setClienteId = (id: string) => {
@@ -106,9 +96,9 @@ export default function TramiteForm({
     const result = tramiteSchema.safeParse(form)
     if (result.success) { setErrors({}); return true }
     const flat = result.error.flatten().fieldErrors
-    const errs: Errors = {}
+    const errs: FormErrors = {}
     for (const [k, v] of Object.entries(flat)) {
-      if (v?.[0]) errs[k as keyof Errors] = v[0]
+      if (v?.[0]) errs[k as keyof FormErrors] = v[0]
     }
     setErrors(errs)
     return false
@@ -116,10 +106,18 @@ export default function TramiteForm({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    if (!gestoriaId) {
+      console.error('[TramiteForm] gestoriaId vacío — no se puede crear el trámite')
+      return
+    }
     if (!validate()) return
     setLoading(true)
-    try { await onSubmit(form) }
-    finally { setLoading(false) }
+    try {
+      // Inyectar gestoriaId aquí — no viene del form input
+      await onSubmit({ ...form, gestoriaId, tipo: form.tipo as import("@/types").TipoTramite })
+    } finally {
+      setLoading(false)
+    }
   }
 
   return (
@@ -132,7 +130,7 @@ export default function TramiteForm({
         ))}
       </Select>
 
-      {/* Cliente — combobox buscable */}
+      {/* Cliente */}
       {!clienteIdFijo && (
         <ClienteCombobox
           label="Cliente"
@@ -168,7 +166,7 @@ export default function TramiteForm({
         </Select>
       )}
 
-      {/* Patente (readonly, se completa sola) */}
+      {/* Patente (readonly) */}
       <Input
         label="Patente"
         value={form.patente}
@@ -178,34 +176,30 @@ export default function TramiteForm({
         readOnly={!!form.vehiculoId}
       />
 
-      {/* Descripción / N° LIT según tipo */}
+      {/* Descripción */}
       <Textarea
-        label={esMulta ? 'N° de LIT *' : 'Descripción / Detalle'}
+        label={esMulta ? 'Observaciones / Detalle (opcional)' : 'Descripción / Detalle'}
         value={form.descripcion}
         onChange={set('descripcion')}
         placeholder={esMulta
-          ? 'Ej: LIT-2025-00123456 — Número de expediente de la infracción'
+          ? 'Notas del caso de multa (opcional)'
           : 'Detalle específico del trámite...'}
         rows={esMulta ? 2 : 3}
       />
       {esMulta && (
-        <p className="text-xs text-amber-600 -mt-3 flex items-center gap-1">
-          <span>⚠️</span>
-          El cobro de honorarios se gestiona en el workflow paso a paso de multa.
+        <p className="text-xs text-blue-600 -mt-3 flex items-center gap-1">
+          <span>ℹ️</span>
+          Los honorarios y cobros se gestionan dentro del workflow de multa paso a paso.
         </p>
       )}
 
-      {/* Honorarios — ocultar para descargo_multa (lo gestiona el workflow) */}
+      {/* Honorarios */}
       {!esMulta && (
         <Input
           label="Honorarios ($)"
           type="number"
           value={form.honorarios}
           onChange={set('honorarios')}
-          onBlur={() => {
-            const r = tramiteSchema.shape.honorarios.safeParse(form.honorarios)
-            if (!r.success) setErrors(prev => ({ ...prev, honorarios: r.error.issues[0]?.message }))
-          }}
           error={errors.honorarios}
           min={0}
           placeholder="0"

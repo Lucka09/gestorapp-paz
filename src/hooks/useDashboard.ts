@@ -40,9 +40,16 @@ export function useUltimosTramites() {
   const [loading,  setLoading]  = useState(true)
   const gestoriaId = useGestoriaId()
   useEffect(() => {
-    if (!gestoriaId) return  // guard: evita permission-denied antes de auth
-    const unsub = subscribeUltimosTramites(gestoriaId, data => { setTramites(data); setLoading(false) })
-    return () => unsub()
+    if (!gestoriaId) return
+    let unsub: (() => void) | null = null
+    let alive = true
+    const t = setTimeout(() => {
+      if (!alive) return
+      unsub = subscribeUltimosTramites(gestoriaId, data => {
+        if (alive) { setTramites(data); setLoading(false) }
+      })
+    }, 200)
+    return () => { alive = false; clearTimeout(t); try { unsub?.() } catch {} }
   }, [gestoriaId])
   return { tramites, loading }
 }
@@ -53,9 +60,16 @@ export function useTurnosHoy() {
   const [loading, setLoading] = useState(true)
   const gestoriaId = useGestoriaId()
   useEffect(() => {
-    if (!gestoriaId) return  // guard: evita permission-denied antes de auth
-    const unsub = subscribeTurnosHoy(gestoriaId, data => { setTurnos(data); setLoading(false) })
-    return () => unsub()
+    if (!gestoriaId) return
+    let unsub: (() => void) | null = null
+    let alive = true
+    const t = setTimeout(() => {
+      if (!alive) return
+      unsub = subscribeTurnosHoy(gestoriaId, data => {
+        if (alive) { setTurnos(data); setLoading(false) }
+      })
+    }, 200)
+    return () => { alive = false; clearTimeout(t); try { unsub?.() } catch {} }
   }, [gestoriaId])
   return { turnos, loading }
 }

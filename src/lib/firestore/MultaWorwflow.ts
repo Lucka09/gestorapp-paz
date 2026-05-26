@@ -1,274 +1,239 @@
-// src/lib/firestore/multaWorkflow.ts
-// ─── FIRESTORE — MULTA WORKFLOW ───────────────────────────────────────────────
-// Colección: `multaWorkflow`
-// Un documento por trámite (id = tramiteId)
-// Sigue el mismo patrón que inscripcionWorkflow.ts
-
+// src/lib/firestore/MultaWorwflow.ts  (nombre original preservado)
 import {
-  doc, getDoc, setDoc, updateDoc, onSnapshot,
-  serverTimestamp, Timestamp, query, where, collection,
-  type Unsubscribe,
+  doc, setDoc, collection, addDoc, updateDoc, getDoc,
+  serverTimestamp, Timestamp,
+  type CollectionReference,
 } from 'firebase/firestore'
-import { db } from '@/lib/firebase'
-import { registrarActividad } from '@/lib/firestore/audit'
+import { db }           from '@/lib/firebase'
+import { crearNotificacion } from '@/lib/firestore/notificaciones'
 import type {
-  MultaWorkflow,
-  MultaPaso1Data,
-  MultaPaso2Data,
-  MultaPaso3Data,
-  MultaPaso4Data,
-  MultaPaso5Data,
-  RegistroPago,
-} from '@/types/multa.types'
-import { calcularMontoTotal } from '@/types/multa.types'
+  MultaWorkflow, MultaPaso1Data, MultaPaso2Data,
+  MultaPaso3Data, MultaReboteResolucion,
+  MultaPaso4Data, MultaPaso5Data, MultaPaso6Data, MultaPaso7Data,
+  EstadoMultaWorkflow,
+} from '@/multa_types'
 
-// ─── COLLECTION REF ───────────────────────────────────────────────────────────
+// ─── REFS ─────────────────────────────────────────────────────────────────────
 
-const multaWorkflowsCol = collection(db, 'multaWorkflow')
-const workflowDoc       = (tramiteId: string) => doc(multaWorkflowsCol, tramiteId)
+const workflowsCol = collection(db, 'multaWorkflow') as CollectionReference<MultaWorkflow>
+const workflowDoc  = (id: string) => doc(workflowsCol, id)
 
-// ─── READ ─────────────────────────────────────────────────────────────────────
+// ─── CREAR WORKFLOW ───────────────────────────────────────────────────────────
 
-/** Suscripción en tiempo real a un workflow de multa */
-export function subscribeMultaWorkflow(
-  tramiteId: string,
-  callback:  (w: MultaWorkflow | null) => void,
-): Unsubscribe {
-  return onSnapshot(workflowDoc(tramiteId), snap => {
-    callback(snap.exists() ? ({ ...snap.data(), id: snap.id } as MultaWorkflow) : null)
-  })
-}
-
-/** Suscripción a todos los workflows de multas de una gestoría */
-export function subscribeMultaWorkflowsGestoria(
-  gestoriaId: string,
-  callback:   (workflows: MultaWorkflow[]) => void,
-): Unsubscribe {
-  const q = query(multaWorkflowsCol, where('gestoriaId', '==', gestoriaId))
-  return onSnapshot(q, snap =>
-    callback(snap.docs.map(d => ({ ...d.data(), id: d.id }) as MultaWorkflow))
-  )
-}
-
-/** Lectura única */
-export async function getMultaWorkflow(tramiteId: string): Promise<MultaWorkflow | null> {
-  const snap = await getDoc(workflowDoc(tramiteId))
-  return snap.exists() ? ({ ...snap.data(), id: snap.id } as MultaWorkflow) : null
-}
-
-// ─── CREATE ───────────────────────────────────────────────────────────────────
-
-/**
- * Crea el documento de workflow al iniciar un trámite de multa.
- * Idempotente: si ya existe, no sobreescribe.
- */
 export async function crearMultaWorkflow(
-  tramiteId:       string,
-  gestoriaId:      string,
-  creadoPor:       string,
-  creadoPorNombre: string = creadoPor,  // default al UID si no se pasa (retrocompatible)
+  tramiteId:   string,
+  gestoriaId:  string,
+  iniciadoPor: string,
+  iniciadoPorNombre: string,
 ): Promise<void> {
-  const ref  = workflowDoc(tramiteId)
+  const ref = workflowDoc(tramiteId)
   const snap = await getDoc(ref)
-  if (snap.exists()) return
+  if (snap.exists()) return  // idempotente
 
-  await setDoc(ref, {
+  await setDoc(workflowDoc(tramiteId), {
+    id:                tramiteId,
     tramiteId,
     gestoriaId,
-    pasoActual:    1,
-    creadoPor,
-    creadoEn:      serverTimestamp(),
+    pasoActual:        1,
+    estadoWorkflow:    'recepcion',
+    iniciadoPor,
+    iniciadoPorNombre,
+    creadoEn:          serverTimestamp() as unknown as Timestamp,
+    actualizadoEn:     serverTimestamp() as unknown as Timestamp,
+  } as any)
+}
+
+// ─── PASO 1: Recepción ────────────────────────────────────────────────────────
+
+export async function confirmarPaso1Multa(
+  tramiteId: string,
+  data: Omit<MultaPaso1Data, 'completadoEn'>,
+): Promise<void> {
+  await updateDoc(workflowDoc(tramiteId), {
+    paso1:          { ...data, completadoEn: Timestamp.now() },
+    pasoActual:     2,
+    estadoWorkflow: 'recepcion',
+    actualizadoEn:  serverTimestamp(),
+  })
+}
+
+// ─── PASO 2: Documentación + Honorarios ──────────────────────────────────────
+
+export async function confirmarPaso2Multa(
+  tramiteId: string,
+  data: Omit<MultaPaso2Data, 'completadoEn'>,
+): Promise<void> {
+  await updateDoc(workflowDoc(tramiteId), {
+    paso2:          { ...data, completadoEn: Timestamp.now() },
+    pasoActual:     3,
+    estadoWorkflow: 'en_revision',
+    actualizadoEn:  serverTimestamp(),
+  })
+}
+
+// ─── PASO 3: Pre-revisión Admin ───────────────────────────────────────────────
+
+export async function confirmarPreRevision(
+  tramiteId:  string,
+  gestoriaId: string,
+  data: Omit<MultaPaso3Data, 'completadoEn'>,
+): Promise<void> {
+  let estadoWorkflow: EstadoMultaWorkflow = 'en_gestion'
+  const extra: Record<string, unknown>    = {}
+
+  if (data.resultado === 'rebotado') {
+    estadoWorkflow = 'rebotado'
+    // Notificar al asesor que inició el trámite
+    if (data.rebotadoAUid) {
+      await crearNotificacion({
+        destinatarioId: data.rebotadoAUid,
+        gestoriaId,
+        tipo:       'estado_tramite',
+        titulo:     '⚠️ Trámite de multa rebotado',
+        mensaje:    `El Admin rebotó el trámite de multa. Motivo: ${data.motivoRebote ?? 'Ver detalle'}`,
+        tramiteId,
+      })
+    }
+  } else if (data.resultado === 'mesa_ayuda') {
+    estadoWorkflow = 'en_espera_mesa'
+    // Calcular fecha límite según el plazo elegido
+    if (data.plazoEspera) {
+      const horas = data.plazoEspera === '24hs' ? 24 : data.plazoEspera === '48hs' ? 48 : 72
+      const limite = new Date()
+      limite.setHours(limite.getHours() + horas)
+      extra['recordatorioMesaAyuda'] = Timestamp.fromDate(limite)
+      extra['paso3.fechaLimiteEspera'] = Timestamp.fromDate(limite)
+    }
+  }
+
+  await updateDoc(workflowDoc(tramiteId), {
+    paso3:          { ...data, completadoEn: Timestamp.now() },
+    pasoActual:     data.resultado === 'ok' ? 4 : 3,
+    estadoWorkflow,
+    ...extra,
+    actualizadoEn:  serverTimestamp(),
+  })
+}
+
+// ─── REBOTE: Asesor resuelve y reenvía ───────────────────────────────────────
+
+export async function resolverRebote(
+  tramiteId:  string,
+  gestoriaId: string,
+  data: Omit<MultaReboteResolucion, 'resueltoEn'>,
+  adminId?:   string,
+  adminNombre?: string,
+): Promise<void> {
+  await updateDoc(workflowDoc(tramiteId), {
+    reboteResolucion: { ...data, resueltoEn: Timestamp.now() },
+    pasoActual:       3,
+    estadoWorkflow:   'en_revision',
+    actualizadoEn:    serverTimestamp(),
+  })
+
+  // Notificar al admin que el asesor resolvió el rebote
+  if (adminId) {
+    await crearNotificacion({
+      destinatarioId: adminId,
+      gestoriaId,
+      tipo:       'estado_tramite',
+      titulo:     '✅ Rebote resuelto por el asesor',
+      mensaje:    `El asesor resolvió la documentación solicitada. El trámite está listo para re-revisión.`,
+      tramiteId,
+    })
+  }
+}
+
+// ─── MESA DE AYUDA: Resolver espera y continuar ───────────────────────────────
+
+export async function resolverEsperaMesaAyuda(
+  tramiteId: string,
+  observacion?: string,
+): Promise<void> {
+  await updateDoc(workflowDoc(tramiteId), {
+    'paso3.observacion': observacion,
+    pasoActual:          4,
+    estadoWorkflow:      'en_gestion',
+    recordatorioMesaAyuda: null,
+    actualizadoEn:       serverTimestamp(),
+  })
+}
+
+// ─── PASO 4: Revisión profunda ────────────────────────────────────────────────
+
+export async function confirmarPaso4Multa(
+  tramiteId: string,
+  data: Omit<MultaPaso4Data, 'completadoEn'>,
+): Promise<void> {
+  await updateDoc(workflowDoc(tramiteId), {
+    paso4:          { ...data, completadoEn: Timestamp.now() },
+    pasoActual:     5,
+    estadoWorkflow: 'borradores_listos',
+    actualizadoEn:  serverTimestamp(),
+  })
+}
+
+// ─── PASO 5: Carga del descargo ───────────────────────────────────────────────
+
+export async function confirmarPaso5Multa(
+  tramiteId: string,
+  data: Omit<MultaPaso5Data, 'completadoEn'>,
+): Promise<void> {
+  await updateDoc(workflowDoc(tramiteId), {
+    paso5:          { ...data, completadoEn: Timestamp.now() },
+    pasoActual:     6,
+    estadoWorkflow: 'descargo_subido',
+    actualizadoEn:  serverTimestamp(),
+  })
+}
+
+// ─── PASO 6: SUATS / Resolución ───────────────────────────────────────────────
+
+export async function confirmarPaso6Multa(
+  tramiteId: string,
+  data: Omit<MultaPaso6Data, 'completadoEn'>,
+): Promise<void> {
+  const estadoWorkflow: EstadoMultaWorkflow = data.suatsGenerado
+    ? 'suats_generado'
+    : 'resuelto_sin_suats'
+
+  await updateDoc(workflowDoc(tramiteId), {
+    paso6:          { ...data, completadoEn: Timestamp.now() },
+    pasoActual:     7,
+    estadoWorkflow,
+    actualizadoEn:  serverTimestamp(),
+  })
+}
+
+// ─── PASO 7: Cierre ───────────────────────────────────────────────────────────
+
+export async function confirmarPaso7Multa(
+  tramiteId:  string,
+  gestoriaId: string,
+  data: Omit<MultaPaso7Data, 'completadoEn'>,
+): Promise<void> {
+  await updateDoc(workflowDoc(tramiteId), {
+    paso7:          { ...data, completadoEn: Timestamp.now() },
+    pasoActual:     8,
+    estadoWorkflow: 'completado',
+    actualizadoEn:  serverTimestamp(),
+  })
+}
+
+// ─── ASIGNAR ADMIN ────────────────────────────────────────────────────────────
+
+export async function asignarAdminMulta(
+  tramiteId:          string,
+  asignadoAdminId:    string,
+  asignadoAdminNombre: string,
+): Promise<void> {
+  await updateDoc(workflowDoc(tramiteId), {
+    asignadoAdminId,
+    asignadoAdminNombre,
     actualizadoEn: serverTimestamp(),
   })
-
-  await registrarActividad({
-    accion:        'crear',
-    entidad:       'tramite',
-    entidadId:     tramiteId,
-    entidadLabel:  `Workflow multa — ${tramiteId}`,
-    usuarioId:     creadoPor,
-    usuarioNombre: creadoPorNombre,
-    usuarioRol:    'propietario',
-    nota:          'Workflow de multa/infracción creado',
-  })
 }
 
-// ─── PASO 1: INGRESO LIT ──────────────────────────────────────────────────────
+// ─── SUBSCRIBE ────────────────────────────────────────────────────────────────
 
-export async function confirmarMultaPaso1(
-  tramiteId:    string,
-  gestorId:     string,
-  gestorNombre: string,
-  numeroLIT:    string,
-  observacionInicial?: string,
-): Promise<void> {
-  const paso1: MultaPaso1Data = {
-    numeroLIT,
-    observacionInicial,
-    completadoPor:       gestorId,
-    completadoPorNombre: gestorNombre,
-    completadoEn:        Timestamp.now(),
-  }
-  await updateDoc(workflowDoc(tramiteId), {
-    paso1,
-    pasoActual:    2,
-    actualizadoEn: serverTimestamp(),
-  })
-}
-
-// ─── PASO 2: PRESUPUESTO Y COBRO ─────────────────────────────────────────────
-
-/**
- * Registra un pago en el historial.
- * Se puede llamar múltiples veces (anticipo + saldo, por ejemplo).
- * No avanza de paso automáticamente — se avanza con confirmarMultaPaso2.
- */
-export async function agregarPagoMulta(
-  tramiteId:   string,
-  gestorId:    string,
-  gestorNombre: string,
-  pago: Pick<RegistroPago, 'monto' | 'metodoPago' | 'nota'>,
-  historialActual: RegistroPago[],
-): Promise<void> {
-  const nuevoPago: RegistroPago = {
-    ...pago,
-    registradoPor:       gestorId,
-    registradoPorNombre: gestorNombre,
-    registradoEn:        Timestamp.now(),
-  }
-  const historialNuevo = [...historialActual, nuevoPago]
-  await updateDoc(workflowDoc(tramiteId), {
-    'paso2.historialPagos': historialNuevo,
-    'paso2.montoTotal':     calcularMontoTotal(historialNuevo),
-    actualizadoEn:          serverTimestamp(),
-  })
-}
-
-export async function confirmarMultaPaso2(
-  tramiteId:    string,
-  gestorId:     string,
-  gestorNombre: string,
-  datos: {
-    presupuestoEnviado: boolean
-    pagoConfirmado:     boolean
-    historialPagos:     RegistroPago[]
-  },
-): Promise<void> {
-  const paso2: MultaPaso2Data = {
-    ...datos,
-    montoTotal:          calcularMontoTotal(datos.historialPagos),
-    completadoPor:       gestorId,
-    completadoPorNombre: gestorNombre,
-    completadoEn:        Timestamp.now(),
-  }
-  await updateDoc(workflowDoc(tramiteId), {
-    paso2,
-    pasoActual:    3,
-    actualizadoEn: serverTimestamp(),
-  })
-}
-
-// ─── PASO 3: DATOS DEL TITULAR + DOCUMENTACIÓN ───────────────────────────────
-
-export async function confirmarMultaPaso3(
-  tramiteId:    string,
-  gestorId:     string,
-  gestorNombre: string,
-  datos: Omit<MultaPaso3Data, keyof import('@/types/torre.types').PasoWorkflowBase>,
-): Promise<void> {
-  const paso3: MultaPaso3Data = {
-    ...datos,
-    completadoPor:       gestorId,
-    completadoPorNombre: gestorNombre,
-    completadoEn:        Timestamp.now(),
-  }
-  await updateDoc(workflowDoc(tramiteId), {
-    paso3,
-    pasoActual:    4,
-    actualizadoEn: serverTimestamp(),
-  })
-}
-
-// ─── PASO 4: DESCARGO Y SUATS ─────────────────────────────────────────────────
-
-export async function confirmarMultaPaso4(
-  tramiteId:    string,
-  gestorId:     string,
-  gestorNombre: string,
-  datos: Pick<MultaPaso4Data, 'descargoPreparado' | 'suatsObtenido' | 'fotosSuats' | 'notaDescargo'>,
-): Promise<void> {
-  const paso4: MultaPaso4Data = {
-    ...datos,
-    completadoPor:       gestorId,
-    completadoPorNombre: gestorNombre,
-    completadoEn:        Timestamp.now(),
-  }
-  await updateDoc(workflowDoc(tramiteId), {
-    paso4,
-    pasoActual:    5,
-    actualizadoEn: serverTimestamp(),
-  })
-}
-
-// ─── PASO 5: ENTREGA Y CIERRE ─────────────────────────────────────────────────
-
-export async function confirmarMultaPaso5(
-  tramiteId:    string,
-  gestorId:     string,
-  gestorNombre: string,
-  datos: Pick<MultaPaso5Data, 'suatsEntregado' | 'fechaEntrega' | 'canalEntrega' | 'observacionFinal'>,
-): Promise<void> {
-  const paso5: MultaPaso5Data = {
-    ...datos,
-    completadoPor:       gestorId,
-    completadoPorNombre: gestorNombre,
-    completadoEn:        Timestamp.now(),
-  }
-  // pasoActual = 6 → FINALIZADO
-  await updateDoc(workflowDoc(tramiteId), {
-    paso5,
-    pasoActual:    6,
-    actualizadoEn: serverTimestamp(),
-  })
-
-  await registrarActividad({
-    accion:        'editar',
-    entidad:       'tramite',
-    entidadId:     tramiteId,
-    entidadLabel:  `Workflow multa — ${tramiteId}`,
-    usuarioId:     gestorId,
-    usuarioNombre: gestorNombre,
-    usuarioRol:    'gestor',
-    nota:          'Trámite de multa/infracción finalizado y archivado',
-  })
-}
-
-// ─── ADMIN: RETROCEDER PASO ───────────────────────────────────────────────────
-
-/**
- * Permite a un admin/propietario retroceder el workflow a un paso anterior
- * con trazabilidad de auditoría.
- */
-export async function retrocederPasoMulta(
-  tramiteId:    string,
-  adminId:      string,
-  adminNombre:  string,
-  pasoObjetivo: 1 | 2 | 3 | 4 | 5,
-  motivo:       string,
-  workflow:     MultaWorkflow,
-): Promise<void> {
-  const entrada = {
-    campo:             'pasoActual',
-    valorAnterior:     workflow.pasoActual,
-    valorNuevo:        pasoObjetivo,
-    modificadoPor:     adminId,
-    modificadoPorNombre: adminNombre,
-    modificadoEn:      Timestamp.now(),
-    nota:              motivo,
-  }
-  await updateDoc(workflowDoc(tramiteId), {
-    pasoActual:    pasoObjetivo,
-    auditoria:     [...(workflow.auditoria ?? []), entrada],
-    actualizadoEn: serverTimestamp(),
-  })
-}
+export { workflowDoc as multaWorkflowDoc }

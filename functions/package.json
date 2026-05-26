@@ -1,21 +1,22 @@
 {
   "name": "gestorapp-functions",
-  "description": "Cloud Functions de GestorApp — proxy seguro para la API de Claude",
+  "description": "GestorApp Firebase Cloud Functions",
   "scripts": {
     "build":  "tsc",
-    "watch":  "tsc --watch",
     "serve":  "npm run build && firebase emulators:start --only functions",
-    "deploy": "firebase deploy --only functions"
+    "deploy": "firebase deploy --only functions",
+    "logs":   "firebase functions:log"
   },
   "engines": { "node": "20" },
   "main": "lib/index.js",
   "dependencies": {
-    "firebase-admin":     "^13.4.0",
-    "firebase-functions": "^7.2.5"
+    "axios":            "^1.7.2",
+    "firebase-admin":   "^12.3.1",
+    "firebase-functions": "^6.0.1"
   },
   "devDependencies": {
-    "typescript": "~5.5.0",
-    "@types/node": "^20.0.0"
+    "typescript": "^5.4.5",
+    "@types/node": "^20.14.0"
   },
   "private": true
 }

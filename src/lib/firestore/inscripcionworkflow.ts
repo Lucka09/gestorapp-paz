@@ -10,13 +10,15 @@ import {
   type Unsubscribe,
 } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
-import { registrarActividad } from '@/lib/firestore/audit'
+import { registrarActividad }   from '@/lib/firestore/audit'
+import { cambiarEstadoTramite } from '@/lib/firestore/tramites'
+import { tramitesCol }          from '@/lib/firestore/collections'
 import type {
   InscripcionWorkflow, Paso1Data, Paso2Data, Paso3Data,
   Paso4Data, Paso5Data, Paso6Data, Paso7Data,
   IntentoRetiroChapa, AuditModificacion, AlertaChapaEnviada,
   GeoRegistro,
-} from '@/types/torre.types'
+} from '@/torre_types'
 import type { Rol } from '@/types'
 
 // ─── COLLECTION REF ───────────────────────────────────────────────────────────
@@ -27,6 +29,13 @@ const workflowDoc  = (tramiteId: string) => doc(workflowsCol, tramiteId)
 // ─── READ ─────────────────────────────────────────────────────────────────────
 
 /** Suscripción en tiempo real a un workflow por tramiteId */
+// Toca actualizadoEn del trámite para que la Torre de Control muestre actividad reciente
+async function tocarTramite(tramiteId: string): Promise<void> {
+  try {
+    await updateDoc(doc(tramitesCol, tramiteId), { actualizadoEn: serverTimestamp() })
+  } catch { /* no bloquear el flujo si falla */ }
+}
+
 export function subscribeWorkflow(
   tramiteId: string,
   callback:  (w: InscripcionWorkflow | null) => void,
@@ -115,6 +124,8 @@ export async function confirmarPaso1(
     pasoActual:    2,
     actualizadoEn: serverTimestamp(),
   })
+  // Marcar trámite como en proceso al arrancar el workflow
+  await cambiarEstadoTramite(tramiteId, 'en_proceso')
 }
 
 /** Paso 2: Documentación del titular + fotos */
@@ -137,6 +148,7 @@ export async function confirmarPaso2(
     pasoActual:    3,
     actualizadoEn: serverTimestamp(),
   })
+  void tocarTramite(tramiteId)
 }
 
 /** Paso 3: Captura de precarga */
@@ -157,6 +169,7 @@ export async function confirmarPaso3(
     pasoActual:    4,
     actualizadoEn: serverTimestamp(),
   })
+  void tocarTramite(tramiteId)
 }
 
 /** Paso 4: Turno obtenido + datos + fotos */
@@ -184,6 +197,7 @@ export async function confirmarPaso4(
     pasoActual:    5,
     actualizadoEn: serverTimestamp(),
   })
+  void tocarTramite(tramiteId)
 }
 
 /** Paso 5: Recibo de presentación — NO avanza a paso 7 directamente */
@@ -206,6 +220,7 @@ export async function confirmarPaso5(
     pasoActual:    6,
     actualizadoEn: serverTimestamp(),
   })
+  void tocarTramite(tramiteId)
 }
 
 /**
@@ -241,6 +256,7 @@ export async function iniciarPaso6(
     paso6,
     actualizadoEn: serverTimestamp(),
   })
+  void tocarTramite(tramiteId)
 }
 
 /**
@@ -284,6 +300,11 @@ export async function confirmarRetiroChapa(
     pasoActual:               7,
     actualizadoEn:            serverTimestamp(),
   })
+  // Cerrar el trámite en la colección tramites
+  await cambiarEstadoTramite(tramiteId, 'completado', {
+    completadoPor:       gestorId,
+    completadoPorNombre: gestorNombre,
+  })
 }
 
 /**
@@ -326,6 +347,7 @@ export async function postergarRetiroChapa(
     'paso6.intentos':             [...(workflow.paso6?.intentos ?? []), intento],
     actualizadoEn:                serverTimestamp(),
   })
+  void tocarTramite(tramiteId)
 }
 
 /**
@@ -397,6 +419,7 @@ export async function registrarAlertaChapaEnviada(
     'paso6.alertasEnviadas': alertasEnviadas,
     actualizadoEn:           serverTimestamp(),
   })
+  void tocarTramite(tramiteId)
 }
 
 /** Marcar paso 6 como atrasado (sin confirmación del gestor en la fecha) */
@@ -405,6 +428,7 @@ export async function marcarChapaAtrasada(tramiteId: string): Promise<void> {
     'paso6.estado': 'atrasada',
     actualizadoEn:  serverTimestamp(),
   })
+  void tocarTramite(tramiteId)
 }
 
 // ─── ADMIN: SOLICITAR RESUBIDA DE FOTO ───────────────────────────────────────
