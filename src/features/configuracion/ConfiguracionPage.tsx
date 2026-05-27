@@ -356,7 +356,7 @@ function TabBanco({
             label="Titular de la cuenta"
             value={banco.titular}
             onChange={e => setBanco('titular', e.target.value)}
-            placeholder="Ezequiel Paz"
+            placeholder="Matias Paz"
           />
           <Input
             label="Banco"

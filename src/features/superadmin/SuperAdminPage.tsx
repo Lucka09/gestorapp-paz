@@ -153,12 +153,12 @@ function ModalNuevaGestoria({
           <Input label="Nombre comercial *" value={nombre}
             onChange={e => setNombre(e.target.value)} placeholder="Gestoría Paz" />
           <Input label="Nombre legal" value={nombreLegal}
-            onChange={e => setNombreLegal(e.target.value)} placeholder="Paz Ezequiel J." />
+            onChange={e => setNombreLegal(e.target.value)} placeholder="Paz Matias" />
         </div>
 
         <div className="grid grid-cols-2 gap-3">
           <Input label="Responsable *" value={responsable}
-            onChange={e => setResponsable(e.target.value)} placeholder="Ezequiel Paz" />
+            onChange={e => setResponsable(e.target.value)} placeholder="Matias Paz" />
           <Input label="Email *" type="email" value={email}
             onChange={e => setEmail(e.target.value)} placeholder="info@gestoriapaz.com" />
         </div>

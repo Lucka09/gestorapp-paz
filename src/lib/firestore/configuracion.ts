@@ -13,7 +13,7 @@ const DIAS_SEMANA = ['lunes','martes','miercoles','jueves','viernes','sabado']
 export const CONFIG_DEFAULT: Omit<Configuracion,'actualizadoEn'|'actualizadoPor'> = {
   nombre:           'Gestoría Paz',
   nombreComercial:  'Gestoría Paz',
-  responsable:      'Ezequiel Paz',
+  responsable:      'Matias Paz',
   email:            'info@gestoriapaz.com',
   emailSecundario:  'abigail@gestoriapaz.com',
   telefono1:        '1136141431',

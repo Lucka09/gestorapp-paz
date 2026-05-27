@@ -183,7 +183,7 @@ function ModalNuevoMiembro({
       {!creado ? (
         <div className="space-y-4">
           <div className="grid grid-cols-2 gap-3">
-            <Input label="Nombre *"   value={nombre}   onChange={e => setNombre(e.target.value)}   placeholder="Ezequiel" />
+            <Input label="Nombre *"   value={nombre}   onChange={e => setNombre(e.target.value)}   placeholder="Matias" />
             <Input label="Apellido *" value={apellido} onChange={e => setApellido(e.target.value)} placeholder="Paz" />
           </div>
           <Input label="Email *" type="email" value={email}

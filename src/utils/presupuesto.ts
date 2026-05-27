@@ -326,7 +326,7 @@ export async function generarPresupuestoPDF(
   y += 4
   rect(margin, y, W - margin * 2, 22, GRIS3, 2)
   txt('DATOS PARA TRANSFERENCIA', margin + 4, y + 6, { size: 7, bold: true, color: GRIS1 })
-  txt('Titular:   Gestoría Paz — Ezequiel Paz', margin + 4, y + 12, { size: 8, color: NEGRO })
+  txt('Titular:   Gestoría Paz — Matias Paz', margin + 4, y + 12, { size: 8, color: NEGRO })
   txt('CUIT:  20-XXXXXXXX-X   ·   CBU:  0000000000000000000000', margin + 4, y + 17, { size: 8, color: NEGRO })
   txt('Concepto al transferir:  PRES + ' + numero, margin + 4, y + 22, { size: 8, color: GRIS1 })
   y += 28
