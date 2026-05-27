@@ -109,7 +109,7 @@ export async function crearVehiculo(data: VehiculoInput): Promise<string> {
     patente: data.patente?.trim() ? data.patente.toUpperCase().trim() : '',
     historialTitulares: [{
       clienteId: data.clienteId,
-      desde:     serverTimestamp(),
+      desde:     Timestamp.now(),   // serverTimestamp() no permitido en arrays
       hasta:     null,
     }],
     tramitesIds: [],
