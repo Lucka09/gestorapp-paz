@@ -1,6 +1,6 @@
 import {
   getDocs, getDoc, addDoc, updateDoc, deleteDoc,
-  query, where, orderBy, serverTimestamp, limit,
+  query, where, orderBy, serverTimestamp, Timestamp, limit,
   onSnapshot, type Unsubscribe,
 } from 'firebase/firestore'
 import { vehiculosCol, vehiculoDoc, clienteDoc } from './collections'
