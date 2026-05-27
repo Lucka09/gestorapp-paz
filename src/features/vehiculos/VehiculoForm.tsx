@@ -17,8 +17,12 @@ const PATENTE_RE = /^[A-Za-z]{2,3}[\s-]?\d{3}[\s-]?[A-Za-z]{0,2}$/
 
 const vehiculoSchema = z.object({
   patente:   z.string()
-               .min(1,  'Requerido')
-               .regex(PATENTE_RE, 'Formato inválido — ej: AB 123 CD o ABC 123'),
+               .refine(
+                 v => v === '' || PATENTE_RE.test(v),
+                 'Formato inválido — ej: AB 123 CD o ABC 123'
+               )
+               .optional()
+               .default(''),
   tipo:      z.enum(['auto','moto','camion','utilitario','otro']),
   marca:     z.string().max(60),
   modelo:    z.string().max(60),
@@ -105,7 +109,7 @@ export default function VehiculoForm({
     if (!validate()) return
     setLoading(true)
     try {
-      await onSubmit({ ...form, patente: formatPatente(form.patente) })
+      await onSubmit({ ...form, patente: form.patente ? formatPatente(form.patente) : '' })
     } finally {
       setLoading(false)
     }
@@ -116,14 +120,22 @@ export default function VehiculoForm({
 
       {/* Patente y Tipo */}
       <div className="grid grid-cols-2 gap-4">
-        <Input
-          label="Patente *" value={form.patente} placeholder="AB 123 CD"
-          disabled={esEdicion}
-          className={`uppercase ${esEdicion ? 'bg-gray-50' : ''}`}
-          onChange={set('patente')}
-          onBlur={() => !esEdicion && validateField('patente')}
-          error={errors.patente}
-        />
+        <div>
+          <Input
+            label="Patente" value={form.patente} placeholder="AB 123 CD"
+            disabled={esEdicion}
+            className={`uppercase ${esEdicion ? 'bg-gray-50' : ''}`}
+            onChange={set('patente')}
+            onBlur={() => !esEdicion && validateField('patente')}
+            error={errors.patente}
+          />
+          {!esEdicion && (
+            <p className="text-xs text-gray-400 mt-1">
+              Opcional — en Inscripción Inicial el vehículo aún no tiene patente asignada.
+              Se puede completar al finalizar el trámite.
+            </p>
+          )}
+        </div>
         <Select label="Tipo *" value={form.tipo} onChange={set('tipo')}>
           {(Object.entries(TIPO_VEHICULO_LABELS) as [TipoVehiculo, string][]).map(([v, l]) => (
             <option key={v} value={v}>{l}</option>
