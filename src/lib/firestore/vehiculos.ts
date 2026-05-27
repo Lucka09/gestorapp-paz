@@ -69,6 +69,7 @@ export async function buscarVehiculoPorPatente(
   patente:    string,
   gestoriaId: string
 ): Promise<Vehiculo | null> {
+  if (!patente?.trim()) return null
   const q = query(
     vehiculosCol,
     where('gestoriaId', '==', gestoriaId),
@@ -97,13 +98,15 @@ export type VehiculoInput = {
 }
 
 export async function crearVehiculo(data: VehiculoInput): Promise<string> {
-  // Verificar que no exista esa patente dentro de la misma gestoría
-  const existe = await buscarVehiculoPorPatente(data.patente, data.gestoriaId)
-  if (existe) throw new Error('YA_EXISTE')
+  // Verificar duplicado solo si se ingresó patente
+  if (data.patente?.trim()) {
+    const existe = await buscarVehiculoPorPatente(data.patente, data.gestoriaId)
+    if (existe) throw new Error('YA_EXISTE')
+  }
 
   const ref = await addDoc(vehiculosCol, {
     ...data,
-    patente:data.patente.toUpperCase().trim(),
+    patente: data.patente?.trim() ? data.patente.toUpperCase().trim() : '',
     historialTitulares: [{
       clienteId: data.clienteId,
       desde:     serverTimestamp(),
