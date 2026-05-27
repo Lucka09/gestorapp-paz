@@ -20,9 +20,7 @@ const vehiculoSchema = z.object({
                .refine(
                  v => v === '' || PATENTE_RE.test(v),
                  'Formato inválido — ej: AB 123 CD o ABC 123'
-               )
-               .optional()
-               .default(''),
+               ),
   tipo:      z.enum(['auto','moto','camion','utilitario','otro']),
   marca:     z.string().max(60),
   modelo:    z.string().max(60),
@@ -109,7 +107,7 @@ export default function VehiculoForm({
     if (!validate()) return
     setLoading(true)
     try {
-      await onSubmit({ ...form, patente: form.patente ? formatPatente(form.patente) : '' })
+      await onSubmit({ ...form, patente: (form.patente ?? '').trim() ? formatPatente(form.patente) : '' })
     } finally {
       setLoading(false)
     }
