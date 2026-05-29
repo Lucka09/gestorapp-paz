@@ -1,5 +1,6 @@
 // src/components/GestorMultaWorkflow.tsx
 import { useState, useRef, useCallback } from 'react'
+import toast from 'react-hot-toast'
 import { useMultaWorkflow }  from '@/hooks/useMultaWorkflow'
 import { useAuthStore }      from '@/store/authStore'
 import { usePermisos }       from '@/hooks/usePermisos'
