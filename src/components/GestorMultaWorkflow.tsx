@@ -12,7 +12,7 @@ import type { MetodoPago, RegistroPago } from '@/multa_types'
 import {
   AlertTriangle, CheckCircle2, Clock, RotateCcw,
   Upload, X, Eye, ChevronDown, ChevronUp,
-  DollarSign, User, FileText, Camera,
+  DollarSign, User, FileText, Camera, Download, ZoomIn,
 } from 'lucide-react'
 
 // ─── HELPERS ──────────────────────────────────────────────────────────────────
@@ -72,6 +72,118 @@ function BadgeEstado({ estado }: { estado: keyof typeof ESTADO_MULTA_LABELS }) {
     <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full ${ESTADO_MULTA_COLORS[estado]}`}>
       {ESTADO_MULTA_LABELS[estado]}
     </span>
+  )
+}
+
+
+// ─── VISOR DE DOCUMENTACIÓN — para Admin en paso 3 ───────────────────────────
+
+interface FotoDoc {
+  label: string
+  foto?: { url: string; nombre?: string; storageRef?: string }
+}
+
+function VisorDocumentacion({ fotos }: { fotos: FotoDoc[] }) {
+  const [ampliada, setAmpliada] = useState<string | null>(null)
+  const disponibles = fotos.filter(f => f.foto?.url)
+
+  if (!disponibles.length) {
+    return (
+      <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-sm text-amber-700">
+        ⚠️ No hay documentación adjunta en este trámite.
+      </div>
+    )
+  }
+
+  return (
+    <>
+      {/* Lightbox */}
+      {ampliada && (
+        <div
+          className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-4"
+          onClick={() => setAmpliada(null)}
+        >
+          <div className="relative max-w-2xl w-full" onClick={e => e.stopPropagation()}>
+            <img src={ampliada} alt="Documento" className="w-full rounded-xl shadow-2xl" />
+            <div className="flex gap-2 mt-3 justify-center">
+              <a
+                href={ampliada}
+                download
+                target="_blank"
+                rel="noreferrer"
+                className="flex items-center gap-2 px-4 py-2 bg-white text-gray-800 rounded-xl text-sm font-semibold hover:bg-gray-100"
+                onClick={e => e.stopPropagation()}
+              >
+                <Download size={14} /> Descargar
+              </a>
+              <button
+                onClick={() => setAmpliada(null)}
+                className="flex items-center gap-2 px-4 py-2 bg-gray-700 text-white rounded-xl text-sm font-semibold hover:bg-gray-600"
+              >
+                <X size={14} /> Cerrar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Grid de fotos */}
+      <div className="space-y-2">
+        <p className="text-xs font-bold text-gray-600 flex items-center gap-1.5">
+          <Eye size={12} /> Documentación adjunta ({disponibles.length} archivos)
+        </p>
+        <div className="grid grid-cols-2 gap-2">
+          {disponibles.map(({ label, foto }) => (
+            <div key={label} className="relative group rounded-xl overflow-hidden border border-gray-200 bg-gray-50">
+              <img
+                src={foto!.url}
+                alt={label}
+                className="w-full h-28 object-cover"
+              />
+              {/* Overlay con acciones */}
+              <div className="absolute inset-0 bg-black/0 group-hover:bg-black/50 transition-all flex items-center justify-center gap-2 opacity-0 group-hover:opacity-100">
+                <button
+                  onClick={() => setAmpliada(foto!.url)}
+                  className="w-8 h-8 bg-white rounded-full flex items-center justify-center hover:bg-gray-100"
+                  title="Ver ampliado"
+                >
+                  <ZoomIn size={14} className="text-gray-800" />
+                </button>
+                <a
+                  href={foto!.url}
+                  download
+                  target="_blank"
+                  rel="noreferrer"
+                  className="w-8 h-8 bg-white rounded-full flex items-center justify-center hover:bg-gray-100"
+                  title="Descargar"
+                >
+                  <Download size={14} className="text-gray-800" />
+                </a>
+              </div>
+              {/* Label */}
+              <div className="absolute bottom-0 left-0 right-0 bg-black/60 px-2 py-1">
+                <span className="text-white text-[10px] font-semibold">{label}</span>
+              </div>
+            </div>
+          ))}
+        </div>
+        {/* Links de descarga individual */}
+        <div className="flex flex-wrap gap-1 mt-1">
+          {disponibles.map(({ label, foto }) => (
+            <a
+              key={label}
+              href={foto!.url}
+              target="_blank"
+              rel="noreferrer"
+              download
+              className="flex items-center gap-1 text-[11px] font-semibold text-[#D4621A] hover:underline"
+            >
+              <Download size={10} /> {label}
+            </a>
+          ))}
+        </div>
+      </div>
+    </>
   )
 }
 
@@ -601,6 +713,27 @@ export default function GestorMultaWorkflow({ tramiteId, numeroLITExterno }: Pro
           {/* Pre-revisión (Admin) */}
           {!esRebotado && pasoActual === 3 && esAdmin && (
             <div className="space-y-4">
+              {/* Visor de documentación — el Admin verifica las fotos antes de aprobar/rebotar */}
+              <div className="bg-gray-50 border border-gray-200 rounded-xl p-4">
+                <p className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3">
+                  Documentación cargada por el asesor
+                </p>
+                <VisorDocumentacion fotos={[
+                  { label: 'DNI Frente',     foto: workflow.paso2?.fotoDniFrente },
+                  { label: 'DNI Dorso',      foto: workflow.paso2?.fotoDniDorso },
+                  { label: 'Cédula Frente',  foto: workflow.paso2?.fotoCedulaFrente },
+                  { label: 'Cédula Dorso',   foto: workflow.paso2?.fotoCedulaDorso },
+                  { label: 'Título Frente',  foto: workflow.paso2?.fotoTituloFrente },
+                  { label: 'Título Dorso',   foto: workflow.paso2?.fotoTituloDorso },
+                ]} />
+                {workflow.paso2?.observacionDocumentacion && (
+                  <div className="mt-3 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2">
+                    <p className="text-xs font-bold text-amber-700 mb-0.5">Observación del asesor:</p>
+                    <p className="text-sm text-amber-800">{workflow.paso2.observacionDocumentacion}</p>
+                  </div>
+                )}
+              </div>
+
               <p className="text-sm font-bold text-gray-700">Resultado de la pre-revisión</p>
               <div className="space-y-2">
                 {([
