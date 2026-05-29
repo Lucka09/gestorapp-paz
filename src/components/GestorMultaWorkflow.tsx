@@ -3,7 +3,7 @@ import { useState, useRef, useCallback } from 'react'
 import { useMultaWorkflow }  from '@/hooks/useMultaWorkflow'
 import { useAuthStore }      from '@/store/authStore'
 import { usePermisos }       from '@/hooks/usePermisos'
-import { useGestoresEquipo } from '@/hooks/useEquipo'
+import { useGestoresEquipo, useGestoresMulta } from '@/hooks/useEquipo'
 import {
   PASOS_MULTA_CONFIG, ESTADO_MULTA_LABELS, ESTADO_MULTA_COLORS,
   METODOS_PAGO_LABELS, documentacionCompleta,
@@ -194,10 +194,14 @@ interface Props { tramiteId: string; numeroLITExterno?: string }
 export default function GestorMultaWorkflow({ tramiteId, numeroLITExterno }: Props) {
   const { user }   = useAuthStore()
   const { puede }  = usePermisos()
-  const esAdmin    = puede('editarConfiguracion') || user?.rol === 'admin' || user?.rol === 'propietario'
-  // Asesor: cualquier rol NO admin puede hacer pasos 1 y 2 (recepción y documentación)
-  const esAsesor   = !esAdmin || ['vendedor', 'operador', 'gestor'].includes(user?.rol ?? '')
+  const esAdmin           = puede('editarConfiguracion') || user?.rol === 'admin' || user?.rol === 'propietario'
+  const esAsesorComercial = user?.rol === 'asesor_comercial'
+  // Asesor: roles que hacen recepción y documentación (pasos 1 y 2)
+  const esAsesor          = esAsesorComercial || ['vendedor', 'operador'].includes(user?.rol ?? '') || !esAdmin
+  // Puede asignar responsable: el asesor_comercial que creó el trámite O el admin/propietario
+  const puedeAsignar      = esAsesorComercial || esAdmin
   const { gestores: gestoresEquipo } = useGestoresEquipo()
+  const { gestores: gestoresMulta }  = useGestoresMulta()
 
   const {
     workflow, loading, guardando, error, progreso, pasoActual,
@@ -360,29 +364,56 @@ export default function GestorMultaWorkflow({ tramiteId, numeroLITExterno }: Pro
         </div>
       )}
 
-      {/* Asignar Admin */}
-      {!workflow.asignadoAdminId && pasoActual >= 3 && esAdmin && (
-        <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
-          <p className="text-xs font-semibold text-blue-700 mb-2">Asignar Admin de Multas</p>
+      {/* Asignar responsable de verificación — asesor_comercial O admin */}
+      {!workflow.asignadoAdminId && pasoActual >= 3 && puedeAsignar && (
+        <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 space-y-3">
+          <div>
+            <p className="text-xs font-bold text-blue-800 mb-0.5">
+              Asignar responsable de verificación
+            </p>
+            <p className="text-xs text-blue-600">
+              Seleccioná el Admin o Gestor/Mandatario que va a verificar la documentación
+              y continuar la gestión de la multa.
+            </p>
+          </div>
           <select
             onChange={e => {
-              const g = gestoresEquipo.find((g: any) => g.uid === e.target.value)
-              if (g) asignarAdmin(g.uid, `${g.nombre} ${g.apellido}`.trim())
+              const g = gestoresMulta.find((g: any) => g.uid === e.target.value)
+              if (g) asignarAdmin(g.uid, `${(g as any).nombre} ${(g as any).apellido}`.trim())
             }}
             defaultValue=""
-            className="w-full px-3 py-2 border border-blue-200 rounded-xl text-sm outline-none focus:border-[#D4621A]"
+            className="w-full px-3 py-2 border border-blue-200 rounded-xl text-sm outline-none
+                       focus:border-[#D4621A] bg-white"
           >
-            <option value="">— Seleccioná un Admin —</option>
-            {gestoresEquipo.map((g: any) => (
-              <option key={g.uid} value={g.uid}>{g.nombre} {g.apellido} ({g.rol})</option>
-            ))}
+            <option value="">— Seleccioná el responsable —</option>
+            {gestoresMulta.filter((g: any) => g.activo !== false).map((g: any) => {
+              const rolLabel: Record<string, string> = {
+                propietario: 'Propietario',
+                admin:       'Administrador',
+                gestor:      'Gestor / Mandatario',
+              }
+              return (
+                <option key={g.uid} value={g.uid}>
+                  {g.nombre} {g.apellido} — {rolLabel[g.rol] ?? g.rol}
+                </option>
+              )
+            })}
           </select>
+          {gestoresMulta.length === 0 && (
+            <p className="text-xs text-amber-600">
+              No hay admins ni gestores disponibles en el equipo.
+            </p>
+          )}
         </div>
       )}
       {workflow.asignadoAdminId && (
-        <div className="flex items-center gap-2 text-xs text-gray-500 bg-gray-50 rounded-xl px-3 py-2">
-          <User size={12} />
-          <span>Admin asignado: <strong>{workflow.asignadoAdminNombre}</strong></span>
+        <div className="flex items-center gap-2 text-xs text-gray-600 bg-blue-50
+                        border border-blue-100 rounded-xl px-3 py-2">
+          <User size={12} className="text-blue-500 shrink-0" />
+          <span>
+            Responsable asignado:{' '}
+            <strong className="text-blue-800">{workflow.asignadoAdminNombre}</strong>
+          </span>
         </div>
       )}
 

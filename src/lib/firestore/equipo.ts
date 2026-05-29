@@ -85,6 +85,30 @@ export function subscribeGestores(
 
 // ─── CREATE ───────────────────────────────────────────────────────────────────
 
+export function subscribeGestoresMulta(
+  gestoriaId: string,
+  callback:   (miembros: MiembroEquipo[]) => void
+): Unsubscribe {
+  // Trae roles que pueden verificar y gestionar multas: admin, propietario, gestor
+  const q = query(
+    usersCol,
+    where('gestoriaId', '==', gestoriaId),
+    where('rol', 'in', ['propietario', 'admin', 'gestor']),
+    orderBy('creadoEn', 'asc')
+  )
+  return onSnapshot(q, snap =>
+    callback(
+      snap.docs.map(d => {
+        const data = d.data() as Usuario
+        return {
+          ...data,
+          iniciales: `${data.nombre?.[0] ?? ''}${data.apellido?.[0] ?? ''}`.toUpperCase(),
+        }
+      })
+    )
+  )
+}
+
 export async function crearMiembro(
   data:        NuevoMiembroInput,
   creadoPor:   string,
