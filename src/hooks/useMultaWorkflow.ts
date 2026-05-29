@@ -13,6 +13,7 @@ import {
   confirmarPaso4Multa,  confirmarPaso5Multa,
   confirmarPaso6Multa,  confirmarPaso7Multa,
   asignarAdminMulta,
+  agregarPagoMulta,
 } from '@/lib/firestore/MultaWorwflow'
 import { getDownloadURL, ref as storageRef, uploadBytesResumable } from 'firebase/storage'
 import { storage }         from '@/lib/firebase'
@@ -371,6 +372,33 @@ export function useMultaWorkflow(tramiteId: string) {
       .catch(() => toast.error('Error al asignar'))
   }, [tramiteId])
 
+  // ── AGREGAR PAGO POST-CONFIRMACIÓN ──────────────────────────────────────
+  const agregarPagoFn = useCallback(async (
+    monto:      number,
+    metodoPago: import('@/multa_types').MetodoPago,
+    nota?:      string,
+  ) => {
+    if (!user || !workflow) return
+    setGuardando(true)
+    try {
+      const pago: import('@/multa_types').RegistroPago = {
+        monto,
+        metodoPago,
+        nota,
+        registradoPor:       user.uid,
+        registradoPorNombre: `${user.nombre} ${user.apellido}`.trim(),
+        registradoEn:        Timestamp.now(),
+      }
+      await agregarPagoMulta(tramiteId, pago, workflow.paso2?.historialPagos ?? [])
+      toast.success('Pago registrado')
+    } catch (e: any) {
+      toast.error('Error al registrar el pago')
+      console.error('[agregarPago]', e)
+    } finally {
+      setGuardando(false)
+    }
+  }, [tramiteId, user, workflow])
+
   const pasoActual = workflow?.pasoActual ?? 1
 
   return {
@@ -385,5 +413,6 @@ export function useMultaWorkflow(tramiteId: string) {
     confirmarPaso6,
     confirmarPaso7,
     asignarAdmin,
+    agregarPago: agregarPagoFn,
   }
 }

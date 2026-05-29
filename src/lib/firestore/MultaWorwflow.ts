@@ -1,7 +1,7 @@
 // src/lib/firestore/MultaWorwflow.ts  (nombre original preservado)
 import {
   doc, setDoc, collection, addDoc, updateDoc, getDoc,
-  serverTimestamp, Timestamp,
+  serverTimestamp, Timestamp, arrayUnion,
   type CollectionReference,
 } from 'firebase/firestore'
 import { db }           from '@/lib/firebase'
@@ -10,16 +10,16 @@ import type {
   MultaWorkflow, MultaPaso1Data, MultaPaso2Data,
   MultaPaso3Data, MultaReboteResolucion,
   MultaPaso4Data, MultaPaso5Data, MultaPaso6Data, MultaPaso7Data,
-  EstadoMultaWorkflow,
+  EstadoMultaWorkflow, RegistroPago,
 } from '@/multa_types'
-
+ 
 // ─── REFS ─────────────────────────────────────────────────────────────────────
-
+ 
 const workflowsCol = collection(db, 'multaWorkflow') as CollectionReference<MultaWorkflow>
 const workflowDoc  = (id: string) => doc(workflowsCol, id)
-
+ 
 // ─── CREAR WORKFLOW ───────────────────────────────────────────────────────────
-
+ 
 export async function crearMultaWorkflow(
   tramiteId:   string,
   gestoriaId:  string,
@@ -29,7 +29,7 @@ export async function crearMultaWorkflow(
   const ref = workflowDoc(tramiteId)
   const snap = await getDoc(ref)
   if (snap.exists()) return  // idempotente
-
+ 
   await setDoc(workflowDoc(tramiteId), {
     id:                tramiteId,
     tramiteId,
@@ -42,9 +42,9 @@ export async function crearMultaWorkflow(
     actualizadoEn:     serverTimestamp() as unknown as Timestamp,
   } as any)
 }
-
+ 
 // ─── PASO 1: Recepción ────────────────────────────────────────────────────────
-
+ 
 export async function confirmarPaso1Multa(
   tramiteId: string,
   data: Omit<MultaPaso1Data, 'completadoEn'>,
@@ -56,9 +56,9 @@ export async function confirmarPaso1Multa(
     actualizadoEn:  serverTimestamp(),
   })
 }
-
+ 
 // ─── PASO 2: Documentación + Honorarios ──────────────────────────────────────
-
+ 
 export async function confirmarPaso2Multa(
   tramiteId: string,
   data: Omit<MultaPaso2Data, 'completadoEn'>,
@@ -70,9 +70,9 @@ export async function confirmarPaso2Multa(
     actualizadoEn:  serverTimestamp(),
   })
 }
-
+ 
 // ─── PASO 3: Pre-revisión Admin ───────────────────────────────────────────────
-
+ 
 export async function confirmarPreRevision(
   tramiteId:  string,
   gestoriaId: string,
@@ -80,7 +80,7 @@ export async function confirmarPreRevision(
 ): Promise<void> {
   let estadoWorkflow: EstadoMultaWorkflow = 'en_gestion'
   const extra: Record<string, unknown>    = {}
-
+ 
   if (data.resultado === 'rebotado') {
     estadoWorkflow = 'rebotado'
     // Notificar al asesor que inició el trámite
@@ -105,13 +105,13 @@ export async function confirmarPreRevision(
       extra['paso3.fechaLimiteEspera'] = Timestamp.fromDate(limite)
     }
   }
-
+ 
   // Eliminar campos undefined antes de guardar — Firestore no los acepta
   const paso3Clean: Record<string, unknown> = {}
   for (const [k, v] of Object.entries({ ...data, completadoEn: Timestamp.now() })) {
     if (v !== undefined) paso3Clean[k] = v
   }
-
+ 
   await updateDoc(workflowDoc(tramiteId), {
     paso3:         paso3Clean,
     pasoActual:    data.resultado === 'ok' ? 4 : 3,
@@ -120,9 +120,9 @@ export async function confirmarPreRevision(
     actualizadoEn: serverTimestamp(),
   })
 }
-
+ 
 // ─── REBOTE: Asesor resuelve y reenvía ───────────────────────────────────────
-
+ 
 export async function resolverRebote(
   tramiteId:  string,
   gestoriaId: string,
@@ -136,7 +136,7 @@ export async function resolverRebote(
     estadoWorkflow:   'en_revision',
     actualizadoEn:    serverTimestamp(),
   })
-
+ 
   // Notificar al admin que el asesor resolvió el rebote
   if (adminId) {
     await crearNotificacion({
@@ -149,9 +149,9 @@ export async function resolverRebote(
     })
   }
 }
-
+ 
 // ─── MESA DE AYUDA: Resolver espera y continuar ───────────────────────────────
-
+ 
 export async function resolverEsperaMesaAyuda(
   tramiteId: string,
   observacion?: string,
@@ -164,9 +164,9 @@ export async function resolverEsperaMesaAyuda(
     actualizadoEn:       serverTimestamp(),
   })
 }
-
+ 
 // ─── PASO 4: Revisión profunda ────────────────────────────────────────────────
-
+ 
 export async function confirmarPaso4Multa(
   tramiteId: string,
   data: Omit<MultaPaso4Data, 'completadoEn'>,
@@ -178,9 +178,9 @@ export async function confirmarPaso4Multa(
     actualizadoEn:  serverTimestamp(),
   })
 }
-
+ 
 // ─── PASO 5: Carga del descargo ───────────────────────────────────────────────
-
+ 
 export async function confirmarPaso5Multa(
   tramiteId: string,
   data: Omit<MultaPaso5Data, 'completadoEn'>,
@@ -192,9 +192,9 @@ export async function confirmarPaso5Multa(
     actualizadoEn:  serverTimestamp(),
   })
 }
-
+ 
 // ─── PASO 6: SUATS / Resolución ───────────────────────────────────────────────
-
+ 
 export async function confirmarPaso6Multa(
   tramiteId: string,
   data: Omit<MultaPaso6Data, 'completadoEn'>,
@@ -202,7 +202,7 @@ export async function confirmarPaso6Multa(
   const estadoWorkflow: EstadoMultaWorkflow = data.suatsGenerado
     ? 'suats_generado'
     : 'resuelto_sin_suats'
-
+ 
   await updateDoc(workflowDoc(tramiteId), {
     paso6:          { ...data, completadoEn: Timestamp.now() },
     pasoActual:     7,
@@ -210,9 +210,9 @@ export async function confirmarPaso6Multa(
     actualizadoEn:  serverTimestamp(),
   })
 }
-
+ 
 // ─── PASO 7: Cierre ───────────────────────────────────────────────────────────
-
+ 
 export async function confirmarPaso7Multa(
   tramiteId:  string,
   gestoriaId: string,
@@ -225,9 +225,27 @@ export async function confirmarPaso7Multa(
     actualizadoEn:  serverTimestamp(),
   })
 }
-
+ 
+// ─── AGREGAR PAGO POST-PASO2 ─────────────────────────────────────────────────
+// Permite registrar pagos en cualquier momento del workflow sin rehacer el paso 2.
+ 
+export async function agregarPagoMulta(
+  tramiteId:  string,
+  pago:       RegistroPago,
+  pagosPrevios: RegistroPago[],
+): Promise<void> {
+  const nuevoTotal = [...pagosPrevios, pago].reduce((s, p) => s + p.monto, 0)
+ 
+  await updateDoc(workflowDoc(tramiteId), {
+    'paso2.historialPagos': arrayUnion(pago),
+    'paso2.montoTotal':     nuevoTotal,
+    'paso2.pagoConfirmado': true,
+    actualizadoEn:          serverTimestamp(),
+  })
+}
+ 
 // ─── ASIGNAR ADMIN ────────────────────────────────────────────────────────────
-
+ 
 export async function asignarAdminMulta(
   tramiteId:          string,
   asignadoAdminId:    string,
@@ -239,7 +257,7 @@ export async function asignarAdminMulta(
     actualizadoEn: serverTimestamp(),
   })
 }
-
+ 
 // ─── SUBSCRIBE ────────────────────────────────────────────────────────────────
-
+ 
 export { workflowDoc as multaWorkflowDoc }

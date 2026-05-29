@@ -12,7 +12,7 @@ import type { MetodoPago, RegistroPago } from '@/multa_types'
 import {
   AlertTriangle, CheckCircle2, Clock, RotateCcw,
   Upload, X, Eye, ChevronDown, ChevronUp,
-  DollarSign, User, FileText, Camera, Download, ZoomIn,
+  DollarSign, User, FileText, Camera, Download, ZoomIn, PlusCircle, CreditCard,
 } from 'lucide-react'
 
 // ─── HELPERS ──────────────────────────────────────────────────────────────────
@@ -209,9 +209,26 @@ export default function GestorMultaWorkflow({ tramiteId, numeroLITExterno }: Pro
     confirmarPreRevision, resolverRebote, resolverMesaAyuda,
     confirmarPaso4, confirmarPaso5, confirmarPaso6, confirmarPaso7,
     asignarAdmin,
+    agregarPago,
   } = useMultaWorkflow(tramiteId)
 
   // ── Estado local de formularios ───────────────────────────────────────────
+
+  // Modal de pago
+  const [modalPago, setModalPago] = useState(false)
+  const [nuevoPagoModal, setNuevoPagoModal] = useState<{
+    monto: number; metodoPago: MetodoPago; nota: string
+  }>({ monto: 0, metodoPago: 'efectivo', nota: '' })
+
+  const handleAgregarPago = async () => {
+    if (!nuevoPagoModal.monto || nuevoPagoModal.monto <= 0) {
+      toast.error('Ingresá un monto válido')
+      return
+    }
+    await agregarPago(nuevoPagoModal.monto, nuevoPagoModal.metodoPago, nuevoPagoModal.nota || undefined)
+    setNuevoPagoModal({ monto: 0, metodoPago: 'efectivo', nota: '' })
+    setModalPago(false)
+  }
 
   // Paso 1
   const [p1, setP1] = useState({
@@ -276,7 +293,7 @@ export default function GestorMultaWorkflow({ tramiteId, numeroLITExterno }: Pro
   const toggle = (n: number) => setPasosColapsados(p => ({ ...p, [n]: !p[n] }))
 
   // ── Agregar pago al historial ─────────────────────────────────────────────
-  const agregarPago = () => {
+  const agregarPagoLocal = () => {
     if (!user || nuevoPago.monto <= 0) return
     const pago: RegistroPago = {
       ...nuevoPago,
@@ -414,6 +431,142 @@ export default function GestorMultaWorkflow({ tramiteId, numeroLITExterno }: Pro
             Responsable asignado:{' '}
             <strong className="text-blue-800">{workflow.asignadoAdminNombre}</strong>
           </span>
+        </div>
+      )}
+
+      {/* ── PANEL DE PAGOS — disponible desde paso 2 en adelante ── */}
+      {workflow.paso2 && (
+        <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-sm">
+          <div className="flex items-center justify-between px-4 py-3 bg-gray-50 border-b border-gray-100">
+            <div className="flex items-center gap-2">
+              <CreditCard size={14} className="text-emerald-600" />
+              <span className="text-xs font-bold text-gray-700 uppercase tracking-wider">
+                Historial de pagos
+              </span>
+            </div>
+            <div className="flex items-center gap-3">
+              <span className="text-sm font-bold text-emerald-700">
+                Total: {formatARS(workflow.paso2?.montoTotal ?? 0)}
+              </span>
+              <button
+                onClick={() => setModalPago(true)}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700
+                           text-white text-xs font-bold rounded-xl transition-colors"
+              >
+                <PlusCircle size={12} /> Registrar pago
+              </button>
+            </div>
+          </div>
+          <div className="px-4 py-3">
+            {(!workflow.paso2?.historialPagos || workflow.paso2.historialPagos.length === 0) ? (
+              <p className="text-xs text-gray-400 text-center py-2">
+                Sin pagos registrados — usá el botón para agregar el primero
+              </p>
+            ) : (
+              <div className="space-y-2">
+                {workflow.paso2.historialPagos.map((pago, i) => (
+                  <div key={i} className="flex items-center justify-between bg-gray-50 rounded-xl px-3 py-2">
+                    <div>
+                      <span className="text-xs font-semibold text-gray-700">
+                        {METODOS_PAGO_LABELS[pago.metodoPago]}
+                      </span>
+                      {pago.nota && <span className="text-xs text-gray-400"> — {pago.nota}</span>}
+                      {pago.registradoPorNombre && (
+                        <p className="text-[10px] text-gray-400">{pago.registradoPorNombre}</p>
+                      )}
+                    </div>
+                    <span className="text-sm font-bold text-emerald-700">{formatARS(pago.monto)}</span>
+                  </div>
+                ))}
+                <div className="flex justify-between pt-2 border-t border-gray-100 px-1">
+                  <span className="text-xs font-bold text-gray-500">Total acumulado</span>
+                  <span className="text-sm font-bold text-emerald-700">
+                    {formatARS(workflow.paso2.montoTotal ?? 0)}
+                  </span>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ── MODAL REGISTRAR PAGO ── */}
+      {modalPago && (
+        <div className="fixed inset-0 z-50 bg-black/60 flex items-end sm:items-center justify-center p-4"
+          onClick={() => setModalPago(false)}>
+          <div className="bg-white rounded-2xl w-full max-w-sm shadow-2xl p-5 space-y-4"
+            onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between">
+              <h3 className="font-bold text-gray-900 flex items-center gap-2">
+                <CreditCard size={16} className="text-emerald-600" />
+                Registrar pago
+              </h3>
+              <button onClick={() => setModalPago(false)}
+                className="w-7 h-7 rounded-full bg-gray-100 flex items-center justify-center hover:bg-gray-200">
+                <X size={14} className="text-gray-600" />
+              </button>
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">
+                Monto ($)
+              </label>
+              <input
+                type="number" min={1} step={100}
+                value={nuevoPagoModal.monto || ''}
+                onChange={e => setNuevoPagoModal(p => ({ ...p, monto: Number(e.target.value) }))}
+                placeholder="Ej: 15000"
+                className="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 text-lg font-bold
+                           outline-none focus:border-emerald-500 text-gray-900"
+                autoFocus
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">
+                Método de pago
+              </label>
+              <div className="grid grid-cols-2 gap-2">
+                {(Object.entries(METODOS_PAGO_LABELS) as [MetodoPago, string][]).map(([k, v]) => (
+                  <button key={k} type="button"
+                    onClick={() => setNuevoPagoModal(p => ({ ...p, metodoPago: k }))}
+                    className={`py-2 px-3 rounded-xl border-2 text-xs font-semibold transition-all text-left
+                      ${nuevoPagoModal.metodoPago === k
+                        ? 'border-emerald-500 bg-emerald-50 text-emerald-800'
+                        : 'border-gray-200 text-gray-600 hover:border-gray-300'
+                      }`}>
+                    {v}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">
+                Nota / concepto <span className="font-normal text-gray-400">(opcional)</span>
+              </label>
+              <input
+                type="text"
+                value={nuevoPagoModal.nota}
+                onChange={e => setNuevoPagoModal(p => ({ ...p, nota: e.target.value }))}
+                placeholder="Ej: Seña, saldo final, 1er cuota..."
+                className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm
+                           outline-none focus:border-emerald-400 text-gray-700"
+              />
+            </div>
+
+            <button
+              onClick={handleAgregarPago}
+              disabled={guardando || !nuevoPagoModal.monto || nuevoPagoModal.monto <= 0}
+              className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold
+                         rounded-xl text-sm transition-colors disabled:opacity-50 flex items-center
+                         justify-center gap-2"
+            >
+              {guardando ? 'Guardando...' : (
+                <><CheckCircle2 size={15} /> Confirmar — {formatARS(nuevoPagoModal.monto || 0)}</>
+              )}
+            </button>
+          </div>
         </div>
       )}
 
@@ -638,7 +791,7 @@ export default function GestorMultaWorkflow({ tramiteId, numeroLITExterno }: Pro
                       <option key={k} value={k}>{v}</option>
                     ))}
                   </select>
-                  <button onClick={agregarPago} className="py-2 bg-emerald-600 text-white text-xs font-bold rounded-xl hover:bg-emerald-700 transition-colors">
+                  <button onClick={agregarPagoLocal} className="py-2 bg-emerald-600 text-white text-xs font-bold rounded-xl hover:bg-emerald-700 transition-colors">
                     + Agregar pago
                   </button>
                 </div>
