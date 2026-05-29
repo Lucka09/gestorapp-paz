@@ -106,12 +106,18 @@ export async function confirmarPreRevision(
     }
   }
 
+  // Eliminar campos undefined antes de guardar — Firestore no los acepta
+  const paso3Clean: Record<string, unknown> = {}
+  for (const [k, v] of Object.entries({ ...data, completadoEn: Timestamp.now() })) {
+    if (v !== undefined) paso3Clean[k] = v
+  }
+
   await updateDoc(workflowDoc(tramiteId), {
-    paso3:          { ...data, completadoEn: Timestamp.now() },
-    pasoActual:     data.resultado === 'ok' ? 4 : 3,
+    paso3:         paso3Clean,
+    pasoActual:    data.resultado === 'ok' ? 4 : 3,
     estadoWorkflow,
     ...extra,
-    actualizadoEn:  serverTimestamp(),
+    actualizadoEn: serverTimestamp(),
   })
 }
 

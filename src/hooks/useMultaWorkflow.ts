@@ -187,14 +187,17 @@ export function useMultaWorkflow(tramiteId: string) {
     setGuardando(true)
     setError(null)
     try {
-      await confirmarPreRevision(tramiteId, gestoriaId, {
+      // Construir payload sin campos undefined — Firestore los rechaza
+      const paso3Payload: Record<string, unknown> = {
         ...campos,
-        // Asignar rebote al asesor que inició
-        rebotadoAUid:    campos.resultado === 'rebotado' ? (workflow?.iniciadoPor ?? '') : undefined,
-        rebotadoANombre: campos.resultado === 'rebotado' ? (workflow?.iniciadoPorNombre ?? '') : undefined,
         completadoPor:       user.uid,
         completadoPorNombre: `${user.nombre} ${user.apellido}`.trim(),
-      })
+      }
+      if (campos.resultado === 'rebotado') {
+        paso3Payload.rebotadoAUid    = workflow?.iniciadoPor    ?? ''
+        paso3Payload.rebotadoANombre = workflow?.iniciadoPorNombre ?? ''
+      }
+      await confirmarPreRevision(tramiteId, gestoriaId, paso3Payload as any)
       const msgs = {
         ok:          'Pre-revisión aprobada — avanzando a gestión',
         rebotado:    'Trámite rebotado al asesor',
