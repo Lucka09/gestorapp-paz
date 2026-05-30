@@ -221,7 +221,7 @@ export default function ClienteDetallePage() {
                          : t.tipo}
                       </span>
                       <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0 ${
-                        t.estado === 'entregado' || t.estado === 'completado'
+                        t.estado === 'entregado'
                           ? 'bg-emerald-100 text-emerald-700'
                           : t.estado === 'cancelado'
                           ? 'bg-red-100 text-red-600'
