@@ -66,10 +66,71 @@ export function formatPesos(amount: number): string {
 
 // ─── MISC ─────────────────────────────────────────────────────────────────────
 
+/** @deprecated usar generarNumeroCorrelativo */
 export function generarNumeroTramite(): string {
   const year = new Date().getFullYear()
   const rand = String(Math.floor(Math.random() * 9000) + 1000)
   return `TRM-${year}-${rand}`
+}
+
+// ─── NUMERACIÓN CORRELATIVA POR TIPO Y AÑO ────────────────────────────────────
+// Formato: TRF-2026-0001  (Transferencia nro 1 del 2026)
+// Prefijos: INS, TRF, MUL, y el resto como OTR
+// El contador se reinicia cada año por gestoriaId+tipo+año.
+// Colección Firestore: contadores/{gestoriaId}_{tipo}_{año}
+
+const TIPO_PREFIJO: Record<string, string> = {
+  inscripcion_inicial: 'INS',
+  transferencia:       'TRF',
+  descargo_multa:      'MUL',
+  // otros tipos del sistema
+  t08:                 'T08',
+  pre_radicacion:      'PRE',
+  inhabilitacion:      'INH',
+  cedula_verde:        'CED',
+  levantamiento_prenda:'LEV',
+  alta_vehiculo:       'ALT',
+  baja_vehiculo:       'BAJ',
+  dto_infraccion:      'DTI',
+  denuncia_cedula:     'DCE',
+  radicacion:          'RAD',
+  vtv:                 'VTV',
+  otro:                'OTR',
+}
+
+export function prefijoPorTipo(tipo: string): string {
+  return TIPO_PREFIJO[tipo] ?? 'OTR'
+}
+
+/**
+ * Genera el siguiente número correlativo para un tipo de trámite en una gestoría.
+ * Usa una transacción Firestore sobre la colección `contadoresTramites` para
+ * garantizar unicidad incluso con escrituras concurrentes.
+ *
+ * Formato resultante: TRF-2026-0001
+ */
+export async function generarNumeroCorrelativo(
+  gestoriaId: string,
+  tipo:        string,
+): Promise<string> {
+  const { db }          = await import('@/lib/firebase')
+  const { doc, runTransaction } = await import('firebase/firestore')
+
+  const anio    = new Date().getFullYear()
+  const prefijo = prefijoPorTipo(tipo)
+  const clave   = `${gestoriaId}_${prefijo}_${anio}`
+  const ref     = doc(db, 'contadoresTramites', clave)
+
+  const nuevoValor = await runTransaction(db, async tx => {
+    const snap = await tx.get(ref)
+    const actual = snap.exists() ? (snap.data()?.contador ?? 0) : 0
+    const siguiente = actual + 1
+    tx.set(ref, { gestoriaId, tipo, prefijo, anio, contador: siguiente }, { merge: true })
+    return siguiente
+  })
+
+  const nroFormateado = String(nuevoValor).padStart(4, '0')
+  return `${prefijo}-${anio}-${nroFormateado}`
 }
 
 export function truncar(str: string, max = 40): string {

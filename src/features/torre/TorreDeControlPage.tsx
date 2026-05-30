@@ -23,12 +23,60 @@ import PanelPremiosAsesor      from '@/components/shared/PanelPremiosAsesor'
 
 // ─── HELPERS VISUALES ────────────────────────────────────────────────────────
 
-const NIVEL_STYLE: Record<NivelAlerta, { dot: string; badge: string; text: string; border: string; row: string }> = {
-  critico:  { dot:'bg-red-600',    badge:'bg-red-600/20 text-red-400 border-red-600/40',   text:'text-red-400',    border:'border-l-red-600',    row:'bg-red-900/10' },
-  rojo:     { dot:'bg-red-500',    badge:'bg-red-500/15 text-red-400 border-red-500/30',   text:'text-red-400',    border:'border-l-red-500',    row:'bg-red-900/5'  },
-  naranja:  { dot:'bg-orange-500', badge:'bg-orange-500/15 text-orange-400 border-orange-500/30', text:'text-orange-400', border:'border-l-orange-500', row:'bg-orange-900/5' },
-  amarillo: { dot:'bg-yellow-500', badge:'bg-yellow-500/15 text-yellow-400 border-yellow-500/30', text:'text-yellow-400', border:'border-l-yellow-500', row:'' },
-  info:     { dot:'bg-gray-500',   badge:'bg-gray-500/10 text-gray-400 border-gray-500/20', text:'text-gray-400',   border:'border-l-gray-600',   row:'' },
+const NIVEL_STYLE: Record<NivelAlerta, {
+  dot: string; badge: string; text: string; border: string; row: string
+  rowBg: string; rowBorder: string; rowText: string
+}> = {
+  critico:  {
+    dot:'bg-red-600',
+    badge:'bg-red-100 text-red-700 border-red-300',
+    text:'text-red-600',
+    border:'border-l-red-600',
+    row:'border-l-4 border-l-red-600',
+    rowBg:'bg-red-50',
+    rowBorder:'border-b border-red-100',
+    rowText:'text-red-700',
+  },
+  rojo: {
+    dot:'bg-red-500',
+    badge:'bg-red-50 text-red-600 border-red-200',
+    text:'text-red-500',
+    border:'border-l-red-500',
+    row:'border-l-4 border-l-red-500',
+    rowBg:'bg-red-50/60',
+    rowBorder:'border-b border-red-100/80',
+    rowText:'text-red-600',
+  },
+  naranja: {
+    dot:'bg-orange-500',
+    badge:'bg-orange-50 text-orange-700 border-orange-300',
+    text:'text-orange-600',
+    border:'border-l-orange-500',
+    row:'border-l-4 border-l-orange-500',
+    rowBg:'bg-orange-50/50',
+    rowBorder:'border-b border-orange-100/80',
+    rowText:'text-orange-700',
+  },
+  amarillo: {
+    dot:'bg-amber-400',
+    badge:'bg-amber-50 text-amber-700 border-amber-300',
+    text:'text-amber-600',
+    border:'border-l-amber-400',
+    row:'border-l-4 border-l-amber-400',
+    rowBg:'bg-amber-50/40',
+    rowBorder:'border-b border-amber-100/80',
+    rowText:'text-amber-700',
+  },
+  info: {
+    dot:'bg-blue-400',
+    badge:'bg-blue-50 text-blue-600 border-blue-200',
+    text:'text-blue-500',
+    border:'border-l-blue-400',
+    row:'border-l-4 border-l-blue-400',
+    rowBg:'bg-white',
+    rowBorder:'border-b border-gray-100',
+    rowText:'text-gray-700',
+  },
 }
 
 const NIVEL_ICON: Record<NivelAlerta, string> = {
@@ -48,12 +96,12 @@ const TIPO_LABEL: Record<string, string> = {
 }
 
 const ESTADO_COLOR: Record<string, string> = {
-  pendiente:                'bg-gray-500/15 text-gray-400 border-gray-500/25',
-  en_proceso:               'bg-blue-500/15 text-blue-400 border-blue-500/25',
-  documentacion_requerida:  'bg-yellow-500/15 text-yellow-400 border-yellow-500/25',
-  en_organismo:             'bg-purple-500/15 text-purple-400 border-purple-500/25',
-  listo_para_retirar:       'bg-green-500/15 text-green-400 border-green-500/25',
-  entregado:                'bg-emerald-500/15 text-emerald-400 border-emerald-500/25',
+  pendiente:                'bg-gray-100 text-gray-600 border-gray-300',
+  en_proceso:               'bg-blue-100 text-blue-700 border-blue-300',
+  documentacion_requerida:  'bg-amber-100 text-amber-700 border-amber-300',
+  en_organismo:             'bg-purple-100 text-purple-700 border-purple-300',
+  listo_para_retirar:       'bg-emerald-100 text-emerald-700 border-emerald-300',
+  entregado:                'bg-green-100 text-green-700 border-green-300',
 }
 
 const ESTADO_LABEL: Record<string, string> = {
@@ -78,22 +126,22 @@ function KPICard({
       onClick={onClick}
       className={`
         group text-left p-4 rounded-xl border transition-all
-        bg-[#111827] hover:bg-[#1a2235]
-        ${color === 'blue'   ? 'border-blue-500/25 hover:border-blue-500/50'   : ''}
-        ${color === 'red'    ? 'border-red-600/30 hover:border-red-600/50'     : ''}
-        ${color === 'orange' ? 'border-orange-500/25 hover:border-orange-500/50' : ''}
-        ${color === 'yellow' ? 'border-yellow-500/25 hover:border-yellow-500/50' : ''}
-        ${color === 'green'  ? 'border-emerald-500/25 hover:border-emerald-500/50' : ''}
+        bg-white hover:bg-gray-50 shadow-sm
+        ${color === 'blue'   ? 'border-blue-300 hover:border-blue-400'   : ''}
+        ${color === 'red'    ? 'border-red-300 hover:border-red-400'     : ''}
+        ${color === 'orange' ? 'border-orange-300 hover:border-orange-400' : ''}
+        ${color === 'yellow' ? 'border-amber-300 hover:border-amber-400'   : ''}
+        ${color === 'green'  ? 'border-emerald-300 hover:border-emerald-400' : ''}
       `}
     >
       <div className="flex items-start justify-between mb-3">
         <div className={`
           w-8 h-8 rounded-lg flex items-center justify-center
-          ${color === 'blue'   ? 'bg-blue-500/15 text-blue-400'    : ''}
-          ${color === 'red'    ? 'bg-red-600/15 text-red-400'      : ''}
-          ${color === 'orange' ? 'bg-orange-500/15 text-orange-400' : ''}
-          ${color === 'yellow' ? 'bg-yellow-500/15 text-yellow-400' : ''}
-          ${color === 'green'  ? 'bg-emerald-500/15 text-emerald-400' : ''}
+          ${color === 'blue'   ? 'bg-blue-100 text-blue-600'    : ''}
+          ${color === 'red'    ? 'bg-red-100 text-red-600'      : ''}
+          ${color === 'orange' ? 'bg-orange-100 text-orange-600' : ''}
+          ${color === 'yellow' ? 'bg-amber-100 text-amber-600'   : ''}
+          ${color === 'green'  ? 'bg-emerald-100 text-emerald-600' : ''}
         `}>
           <Icon size={16} />
         </div>
@@ -101,11 +149,11 @@ function KPICard({
       </div>
       <div className={`
         text-2xl font-extrabold tabular-nums mb-0.5
-        ${color === 'blue'   ? 'text-blue-400'    : ''}
-        ${color === 'red'    ? 'text-red-400'     : ''}
-        ${color === 'orange' ? 'text-orange-400'  : ''}
-        ${color === 'yellow' ? 'text-yellow-400'  : ''}
-        ${color === 'green'  ? 'text-emerald-400' : ''}
+        ${color === 'blue'   ? 'text-blue-600'    : ''}
+        ${color === 'red'    ? 'text-red-600'     : ''}
+        ${color === 'orange' ? 'text-orange-600'  : ''}
+        ${color === 'yellow' ? 'text-amber-600'   : ''}
+        ${color === 'green'  ? 'text-emerald-600' : ''}
       `}>
         {value}
       </div>
@@ -571,7 +619,7 @@ export default function TorreDeControlPage() {
       {soloPropia && (
         <div className="flex items-center gap-2 bg-blue-500/10 border border-blue-500/25 rounded-xl px-4 py-2.5 mb-2">
           <Eye size={13} className="text-blue-400 shrink-0" />
-          <p className="text-xs text-blue-300">Estás viendo solo tus trámites asignados.</p>
+          <p className="text-xs text-blue-700">Estás viendo solo tus trámites asignados.</p>
         </div>
       )}
 
@@ -605,7 +653,7 @@ export default function TorreDeControlPage() {
       <div className="grid grid-cols-[1fr_300px] gap-4">
 
         {/* Tabla operativa */}
-        <div className="rounded-xl border border-white/8 overflow-hidden bg-[#0d1117]">
+        <div className="rounded-xl border border-gray-200 overflow-hidden bg-white shadow-sm">
           {/* Filtros */}
           <div className="p-3 border-b border-white/8 flex items-center gap-2 flex-wrap">
             <div className="relative flex-1 min-w-36">
@@ -614,9 +662,9 @@ export default function TorreDeControlPage() {
                 value={busqueda}
                 onChange={e => setBusqueda(e.target.value)}
                 placeholder="Buscar patente, número..."
-                className="w-full pl-7 pr-3 py-1.5 bg-white/5 border border-white/10 rounded-lg
-                           text-xs text-gray-200 placeholder-gray-600 outline-none
-                           focus:border-[#D4621A]/50 focus:bg-white/8 transition-all"
+                className="w-full pl-7 pr-3 py-1.5 bg-gray-50 border border-gray-200 rounded-lg
+                           text-xs text-gray-700 placeholder-gray-400 outline-none
+                           focus:border-[#D4621A] focus:bg-white transition-all"
               />
             </div>
             {[
@@ -628,8 +676,8 @@ export default function TorreDeControlPage() {
                 key={i}
                 value={f.val}
                 onChange={e => f.set(e.target.value)}
-                className="py-1.5 px-2 bg-white/5 border border-white/10 rounded-lg text-[11px]
-                           text-gray-300 outline-none cursor-pointer hover:border-white/20 transition-all"
+                className="py-1.5 px-2 bg-white border border-gray-200 rounded-lg text-[11px]
+                           text-gray-600 outline-none cursor-pointer hover:border-gray-300 transition-all"
               >
                 {f.opts.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
               </select>
@@ -668,27 +716,32 @@ export default function TorreDeControlPage() {
                       <tr
                         key={t.id}
                         onClick={() => (t.tipo === 'descargo_multa' || t.tipo === 'transferencia') ? navigate(`/admin/tramites/${t.id}`) : setDetalle(t)}
-                        className={`border-b border-white/5 cursor-pointer transition-colors hover:bg-white/3 ${s.row}`}
+                        className={`cursor-pointer transition-colors hover:brightness-95 ${s.row} ${s.rowBorder}`}
+                        style={{ background: s.rowBg === 'bg-white' ? '#fff' : undefined }}
                       >
-                        <td className="px-3 py-2.5 font-mono text-[10px] text-gray-600">{t.numero?.slice(-6) ?? t.id.slice(-6)}</td>
-                        <td className="px-2 py-2.5 text-gray-500">{TIPO_ICON[t.tipo]}</td>
-                        <td className="px-3 py-2.5 text-xs font-semibold text-gray-200 whitespace-nowrap">{t.patente || '—'}</td>
-                        <td className="px-3 py-2.5">
-                          <span className={`inline-block text-[9px] font-bold px-1.5 py-0.5 rounded border ${ESTADO_COLOR[t.estado] ?? 'bg-gray-700 text-gray-400 border-gray-600'}`}>
+                        <td className={`px-3 py-3 font-mono text-[10px] font-bold ${s.rowText}`}>
+                          {t.numero ?? t.id.slice(-8)}
+                        </td>
+                        <td className="px-2 py-3 text-gray-400">{TIPO_ICON[t.tipo]}</td>
+                        <td className={`px-3 py-3 text-xs font-bold whitespace-nowrap ${s.rowText}`}>
+                          {t.patente || '—'}
+                        </td>
+                        <td className="px-3 py-3">
+                          <span className={`inline-block text-[9px] font-bold px-2 py-0.5 rounded-full border ${ESTADO_COLOR[t.estado] ?? 'bg-gray-100 text-gray-500 border-gray-200'}`}>
                             {ESTADO_LABEL[t.estado] ?? t.estado}
                           </span>
                         </td>
-                        <td className="px-3 py-2.5 text-[11px] text-gray-500 whitespace-nowrap">{nombreGestor(t.asignadoA)}</td>
-                        <td className="px-3 py-2.5 text-center">
+                        <td className="px-3 py-3 text-[11px] text-gray-600 whitespace-nowrap">{nombreGestor(t.asignadoA)}</td>
+                        <td className="px-3 py-3 text-center">
                           <span className={`text-xs font-bold ${
-                            t.diasSinMovimiento > 5 ? 'text-red-400' :
-                            t.diasSinMovimiento > 2 ? 'text-yellow-400' : 'text-gray-500'
+                            t.diasSinMovimiento > 5 ? 'text-red-600' :
+                            t.diasSinMovimiento > 2 ? 'text-amber-600' : 'text-gray-400'
                           }`}>
                             {t.diasSinMovimiento.toFixed(0)}d
                           </span>
                         </td>
-                        <td className="px-3 py-2.5">
-                          <span className={`inline-flex items-center gap-1 text-[9px] font-bold px-1.5 py-0.5 rounded border ${s.badge}`}>
+                        <td className="px-3 py-3">
+                          <span className={`inline-flex items-center gap-1 text-[9px] font-bold px-2 py-0.5 rounded-full border ${s.badge}`}>
                             {NIVEL_ICON[t.alertLevel]} {t.alertLevel.toUpperCase()}
                           </span>
                         </td>
@@ -705,7 +758,7 @@ export default function TorreDeControlPage() {
         <div className="space-y-3">
 
           {/* Mandatarios */}
-          <div className="rounded-xl border border-white/8 overflow-hidden bg-[#0d1117]">
+          <div className="rounded-xl border border-gray-200 overflow-hidden bg-white shadow-sm">
             <div className="px-3 py-2.5 border-b border-white/8">
               <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">
                 <Users size={11} className="inline mr-1" />Carga por Gestor
@@ -743,7 +796,7 @@ export default function TorreDeControlPage() {
           </div>
 
           {/* Pipeline por paso */}
-          <div className="rounded-xl border border-white/8 overflow-hidden bg-[#0d1117]">
+          <div className="rounded-xl border border-gray-200 overflow-hidden bg-white shadow-sm">
             <div className="px-3 py-2.5 border-b border-white/8">
               <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">
                 <BarChart3 size={11} className="inline mr-1" />Pipeline Inscripciones
@@ -775,7 +828,7 @@ export default function TorreDeControlPage() {
 
           {/* Vencimientos chapa */}
           {tramitesEnriquecidos.some(t => t.diasHastaChapa !== undefined) && (
-            <div className="rounded-xl border border-white/8 overflow-hidden bg-[#0d1117]">
+            <div className="rounded-xl border border-gray-200 overflow-hidden bg-white shadow-sm">
               <div className="px-3 py-2.5 border-b border-white/8">
                 <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">
                   <CalendarClock size={11} className="inline mr-1" />Retiro de Chapas
@@ -980,7 +1033,7 @@ export default function TorreDeControlPage() {
           )
         })}
       </div>
-      <div className="rounded-xl border border-white/8 overflow-hidden bg-[#0d1117]">
+      <div className="rounded-xl border border-gray-200 overflow-hidden bg-white shadow-sm">
         {alertasActivas.length === 0 ? (
           <div className="py-12 text-center">
             <CheckCheck size={28} className="mx-auto text-green-500 mb-2 opacity-60" />

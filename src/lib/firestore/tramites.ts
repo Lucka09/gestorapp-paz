@@ -7,7 +7,7 @@ import {
   arrayUnion, limit,
 } from 'firebase/firestore'
 import { tramitesCol, tramiteDoc, vehiculoDoc, clienteDoc } from './collections'
-import { generarNumeroTramite } from '@/utils'
+import { generarNumeroCorrelativo } from '@/utils'
 import { registrarActividad } from './audit'
 import { notificarCambioEstado } from './notificaciones'
 import type { Tramite, EstadoTramite, TipoTramite, Rol } from '@/types'
@@ -155,21 +155,15 @@ export type TramiteInput = {
   observacionesInternas: string
   honorarios:            number
   asignadoA:             string | null
-  asignadoNombre?:       string | null   // nombre legible del gestor asignado
-  fechaRequerida?:       string | null   // YYYY-MM-DD — fecha límite del trámite
 }
 
 export async function crearTramite(
   data:      TramiteInput,
   creadoPor: string
 ): Promise<string> {
-  const numero = generarNumeroTramite()
-  const clean: Record<string, unknown> = {}
-  for (const [k, v] of Object.entries(data)) {
-    if (v !== undefined) clean[k] = v
-  }
+  const numero = await generarNumeroCorrelativo(data.gestoriaId, data.tipo)
   const ref = await addDoc(tramitesCol as CollectionReference<DocumentData>, {
-    ...clean,
+    ...data,
     numero,
     estado:           'pendiente',
     documentos:       [],

@@ -220,14 +220,15 @@ export default function TramitesPage() {
       ) : (
         /* ── VISTA TABLA ── */
         <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden shadow-sm animate-fadein">
-          <div className="grid grid-cols-[76px_1fr_140px_106px_106px_92px_24px] gap-2 px-4 py-2.5
+          <div className="grid grid-cols-[76px_1fr_140px_106px_100px_80px_72px_24px] gap-2 px-4 py-2.5
                           bg-gray-50 border-b border-gray-100 text-xs font-bold text-gray-400 uppercase tracking-wider">
             <span>N°</span>
             <span>Trámite / Patente</span>
             <span>Cliente / Gestor</span>
             <span>Estado</span>
             <span className="text-right">Honorarios</span>
-            <span>Fecha</span>
+            <span>Creado</span>
+            <span>Presentar</span>
             <span />
           </div>
           {tramites.map(t => {
@@ -236,7 +237,7 @@ export default function TramitesPage() {
             const rowBg  = al === 'vencida' ? 'bg-red-50/40' : al === '24h' ? 'bg-amber-50/30' : ''
             return (
               <div key={t.id} onClick={() => navigate(`/admin/tramites/${t.id}`)}
-                className={`grid grid-cols-[76px_1fr_140px_106px_106px_92px_24px] gap-2 px-4 py-3
+                className={`grid grid-cols-[76px_1fr_140px_106px_100px_80px_72px_24px] gap-2 px-4 py-3
                            border-b border-gray-50 last:border-0 items-center cursor-pointer
                            hover:bg-[#D4621A]/[0.03] transition-colors group ${rowBg}`}>
                 <NumeroBadge numero={t.numero} tipo={t.tipo} size="sm" />
@@ -272,6 +273,18 @@ export default function TramitesPage() {
                   {t.honorarios > 0 ? formatPesos(t.honorarios) : '—'}
                 </p>
                 <p className="text-xs text-gray-400">{formatFecha(t.creadoEn)}</p>
+                {/* Fecha presentación */}
+                <div>
+                  {(t as any).fechaRequerida ? (
+                    <span className={`text-xs font-semibold ${
+                      alertaFechaRequerida((t as any).fechaRequerida) === 'vencida' ? 'text-red-600' :
+                      alertaFechaRequerida((t as any).fechaRequerida) ? 'text-amber-600' :
+                      'text-gray-500'
+                    }`}>
+                      {new Date((t as any).fechaRequerida + 'T00:00:00').toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit'})}
+                    </span>
+                  ) : <span className="text-gray-300">—</span>}
+                </div>
                 <ChevronRight size={13} className="text-gray-200 group-hover:text-[#D4621A]/40 transition-colors" />
               </div>
             )
@@ -292,13 +305,13 @@ function SkeletonTramites({ vista }: { vista: 'cards' | 'tabla' }) {
   if (vista === 'tabla') {
     return (
       <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden shadow-sm">
-        <div className="grid grid-cols-[76px_1fr_140px_106px_106px_92px_24px] gap-2 px-4 py-2.5 bg-gray-50 border-b border-gray-100">
-          {[56,130,80,60,56,16].map((w,i) => (
+        <div className="grid grid-cols-[76px_1fr_140px_106px_100px_80px_72px_24px] gap-2 px-4 py-2.5 bg-gray-50 border-b border-gray-100">
+          {[56,130,80,60,56,40,16].map((w,i) => (
             <div key={i} className="h-2.5 rounded-full bg-gray-200 animate-pulse" style={{ width: w }} />
           ))}
         </div>
         {n.map((_,i) => (
-          <div key={i} className="grid grid-cols-[76px_1fr_140px_106px_106px_92px_24px] gap-2
+          <div key={i} className="grid grid-cols-[76px_1fr_140px_106px_100px_80px_72px_24px] gap-2
                                    px-4 py-3.5 border-b border-gray-50 last:border-0 items-center">
             <div className="h-3 w-14 bg-gray-100 rounded-full animate-pulse" />
             <div className="space-y-1.5">
