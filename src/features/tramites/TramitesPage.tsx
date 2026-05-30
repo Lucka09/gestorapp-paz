@@ -230,54 +230,52 @@ export default function TramitesPage() {
             <span>Fecha</span>
             <span />
           </div>
-          {tramites.map(t => (
-            {(() => {
-              const al  = alertaFechaRequerida((t as any).fechaRequerida)
-              const cli = clientes.find(c => c.id === t.clienteId)
-              const rowBg = al === 'vencida' ? 'bg-red-50/40' : al === '24h' ? 'bg-amber-50/30' : ''
-              return (
-                <div key={t.id} onClick={() => navigate(`/admin/tramites/${t.id}`)}
-                  className={`grid grid-cols-[76px_1fr_140px_106px_106px_92px_24px] gap-2 px-4 py-3
-                             border-b border-gray-50 last:border-0 items-center cursor-pointer
-                             hover:bg-[#D4621A]/[0.03] transition-colors group ${rowBg}`}>
-                  <NumeroBadge numero={t.numero} tipo={t.tipo} size="sm" />
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-1.5">
-                      <p className="text-sm font-semibold text-gray-800 truncate">{TIPO_TRAMITE_LABELS[t.tipo]}</p>
-                      {al && (
-                        <AlertTriangle size={11} className={al === 'vencida' ? 'text-red-500' : 'text-amber-500'} />
-                      )}
-                    </div>
-                    <span className="font-mono text-[11px] bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded tracking-wider">
-                      {t.patente}
-                    </span>
-                  </div>
-                  {/* Cliente / Encargado */}
-                  <div className="min-w-0">
-                    {cli && (
-                      <p className="text-xs font-semibold text-[#D4621A] truncate">
-                        {cli.nombre} {cli.apellido}
-                      </p>
+          {tramites.map(t => {
+            const al     = alertaFechaRequerida((t as any).fechaRequerida)
+            const cli    = clientes.find(c => c.id === t.clienteId)
+            const rowBg  = al === 'vencida' ? 'bg-red-50/40' : al === '24h' ? 'bg-amber-50/30' : ''
+            return (
+              <div key={t.id} onClick={() => navigate(`/admin/tramites/${t.id}`)}
+                className={`grid grid-cols-[76px_1fr_140px_106px_106px_92px_24px] gap-2 px-4 py-3
+                           border-b border-gray-50 last:border-0 items-center cursor-pointer
+                           hover:bg-[#D4621A]/[0.03] transition-colors group ${rowBg}`}>
+                <NumeroBadge numero={t.numero} tipo={t.tipo} size="sm" />
+                <div className="min-w-0">
+                  <div className="flex items-center gap-1.5">
+                    <p className="text-sm font-semibold text-gray-800 truncate">{TIPO_TRAMITE_LABELS[t.tipo]}</p>
+                    {al && (
+                      <AlertTriangle size={11} className={al === 'vencida' ? 'text-red-500' : 'text-amber-500'} />
                     )}
-                    {(t as any).asignadoNombre && (
-                      <p className="text-[10px] text-gray-400 truncate">
-                        👤 {(t as any).asignadoNombre}
-                      </p>
-                    )}
-                    {!cli && !((t as any).asignadoNombre) && <span className="text-gray-300">—</span>}
                   </div>
-                  <div><EstadoBadge estado={t.estado} /></div>
-                  <p className={`text-sm font-semibold text-right ${
-                    !t.honorarios ? 'text-gray-300' : t.pagado ? 'text-emerald-600' : 'text-orange-500'
-                  }`}>
-                    {t.honorarios > 0 ? formatPesos(t.honorarios) : '—'}
-                  </p>
-                  <p className="text-xs text-gray-400">{formatFecha(t.creadoEn)}</p>
-                  <ChevronRight size={13} className="text-gray-200 group-hover:text-[#D4621A]/40 transition-colors" />
+                  <span className="font-mono text-[11px] bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded tracking-wider">
+                    {t.patente}
+                  </span>
                 </div>
-              )
-            })()}
-          ))}
+                {/* Cliente / Encargado */}
+                <div className="min-w-0">
+                  {cli && (
+                    <p className="text-xs font-semibold text-[#D4621A] truncate">
+                      {cli.nombre} {cli.apellido}
+                    </p>
+                  )}
+                  {(t as any).asignadoNombre && (
+                    <p className="text-[10px] text-gray-400 truncate">
+                      👤 {(t as any).asignadoNombre}
+                    </p>
+                  )}
+                  {!cli && !((t as any).asignadoNombre) && <span className="text-gray-300">—</span>}
+                </div>
+                <div><EstadoBadge estado={t.estado} /></div>
+                <p className={`text-sm font-semibold text-right ${
+                  !t.honorarios ? 'text-gray-300' : t.pagado ? 'text-emerald-600' : 'text-orange-500'
+                }`}>
+                  {t.honorarios > 0 ? formatPesos(t.honorarios) : '—'}
+                </p>
+                <p className="text-xs text-gray-400">{formatFecha(t.creadoEn)}</p>
+                <ChevronRight size={13} className="text-gray-200 group-hover:text-[#D4621A]/40 transition-colors" />
+              </div>
+            )
+          })}
         </div>
       )}
 
