@@ -95,8 +95,8 @@ function IndicadorUso({
 // ─── MODAL NUEVO MIEMBRO ─────────────────────────────────────────────────────
 
 function ModalNuevoMiembro({
-  open, onClose,
-}: { open: boolean; onClose: () => void }) {
+  open, onClose, miembrosActivos = [],
+}: { open: boolean; onClose: () => void; miembrosActivos?: any[] }) {
   const { user }     = useAuth()
   const gestoriaId   = useGestoriaId()
   const { gestoria } = useGestoria()
@@ -125,7 +125,7 @@ function ModalNuevoMiembro({
     if (password.length < 8) { setError('La contraseña debe tener mínimo 8 caracteres'); return }
     // Validar unicidad de admin_gral — solo puede existir uno por gestoría
     if (rol === 'admin_gral') {
-      const yaExiste = activos?.some((m: any) => m.rol === 'admin_gral')
+      const yaExiste = miembrosActivos.some((m: any) => m.rol === 'admin_gral')
       if (yaExiste) {
         setError('Ya existe un Administrador General en esta gestoría. Solo puede haber uno.')
         return
@@ -630,7 +630,7 @@ export default function EquipoPage() {
       </div>
 
       {/* Modales */}
-      <ModalNuevoMiembro open={modalNuevo} onClose={() => setModalNuevo(false)} />
+      <ModalNuevoMiembro open={modalNuevo} onClose={() => setModalNuevo(false)} miembrosActivos={activos} />
 
       {miembroEdit && (
         <ModalEditarMiembro

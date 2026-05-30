@@ -21,7 +21,7 @@ import { usePageTitle } from '@/hooks/usePageTitle'
 import { getDocs, query, where, collection } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
 import { useCierreMensual } from '@/hooks/useCierreMensual'
-import { Archive, CheckCircle, AlertTriangle as AlertWarn, ChevronDown, ChevronUp } from 'lucide-react'
+import { Archive, AlertTriangle as AlertWarn, ChevronDown, ChevronUp } from 'lucide-react'
 
 const MESES = [
   'Enero','Febrero','Marzo','Abril','Mayo','Junio',
