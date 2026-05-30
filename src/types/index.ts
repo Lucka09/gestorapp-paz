@@ -46,7 +46,7 @@ export const PLAN_CONFIG: Record<PlanGestoria, {
 
 // ─── ENUMS ────────────────────────────────────────────────────────────────────
 
-export type Rol = 'propietario' | 'admin' | 'vendedor' | 'operador' | 'superadmin' | 'gestor' | 'cliente' | 'asesor_comercial'
+export type Rol = 'propietario' | 'admin_gral' | 'admin' | 'vendedor' | 'operador' | 'superadmin' | 'gestor' | 'cliente' | 'asesor_comercial'
 
 export type TipoVehiculo = 'auto' | 'moto' | 'camion' | 'utilitario' | 'otro'
 
@@ -112,6 +112,38 @@ export interface Usuario {
   ultimoAcceso: Timestamp
 }
 
+export type OrigenCanal =
+  | 'referido_persona'     // persona física que refirió al cliente
+  | 'concesionaria'        // concesionaria oficial
+  | 'agencia'              // agencia de vehículos
+  | 'reventa'              // reventa / automotora
+  | 'encargado_multas'     // encargado de descargo de multas
+  | 'instagram'
+  | 'facebook'
+  | 'google'
+  | 'cartel_local'
+  | 'whatsapp'
+  | 'otro'
+ 
+export const ORIGEN_CANAL_LABELS: Record<OrigenCanal, string> = {
+  referido_persona:  'Referido (persona)',
+  concesionaria:     'Concesionaria',
+  agencia:           'Agencia',
+  reventa:           'Reventa / Automotora',
+  encargado_multas:  'Encargado de Multas',
+  instagram:         'Instagram',
+  facebook:          'Facebook',
+  google:            'Google',
+  cartel_local:      'Cartel / Local',
+  whatsapp:          'WhatsApp',
+  otro:              'Otro',
+}
+ 
+// Canales que son "referidos comerciales" — aparecen en métricas de referidos (M7)
+export const ORIGEN_COMERCIAL: OrigenCanal[] = [
+  'concesionaria', 'agencia', 'reventa', 'encargado_multas',
+]
+
 export interface Cliente {
   id:           string
   gestoriaId:   string
@@ -126,6 +158,9 @@ export interface Cliente {
   userId:       string | null
   vehiculosIds: string[]
   observaciones:string
+  origen?:       string          
+  origenCanal?:  OrigenCanal  
+  origenNombre?: string
   creadoEn:     Timestamp
   creadoPor:    string
 }

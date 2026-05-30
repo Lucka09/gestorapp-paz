@@ -130,6 +130,7 @@ export const router = createBrowserRouter([
       { path: 'calculadora',       element: <L><CalculadoraPage /></L> },
       { path: 'importar',          element: <L><ImportarPage /></L> },
       { path: 'importar/whatsapp', element: <L><ImportadorWA /></L> },
+      { path: 'referidos',         lazy: () => import('@/features/referidos/ReferidosPage').then(m => ({ Component: m.default })),},
       { path: 'actividad',         element: <L><ActividadPage /></L> },
       { path: 'analytics',         element: <L><AnalyticsPage /></L> },
       { path: 'alertas',           element: <L><AlertasPage /></L> },

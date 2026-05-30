@@ -9,6 +9,7 @@ import {
   TowerControl, MonitorDot, Bell, ShieldAlert,
 } from 'lucide-react'
 import { useTorreControl, useEstadisticasMandatarios } from '@/hooks/useTorreControl'
+import { useTramites }  from '@/hooks/useTramites'
 import { usePermisos } from '@/hooks/usePermisos'
 import { useAuth }     from '@/hooks/useAuth'
 import { useGestoresEquipo } from '@/hooks/useEquipo'
@@ -485,7 +486,8 @@ export default function TorreDeControlPage() {
   const { gestores: gestoresEquipo } = useGestoresEquipo()
   const { puede }   = usePermisos()
   const { user }    = useAuth()
-  const verTodo     = puede('verTorreCompleta')
+  const verTodo            = puede('verTorreCompleta')
+  const verRendimiento     = puede('verRendimientoGestores')
   const soloPropia  = puede('verTorreSoloPropia')
   // Panel de premios: visible para asesor_comercial (sus propios) y propietario (los del asesor)
   const verPremiosTorre      = puede('verPremiosTorre')
@@ -495,6 +497,18 @@ export default function TorreDeControlPage() {
   const {
     tramitesEnriquecidos, kpis, alertasActivas, etapasPipeline, loading,
   } = useTorreControl()
+
+  // Finalizados hoy: tramites entregados/completados con actualizacion de hoy
+  const { tramites: todosLosTramites } = useTramites()
+  const finalizadosHoy = useMemo(() => {
+    const hoy = new Date()
+    hoy.setHours(0, 0, 0, 0)
+    return todosLosTramites.filter(t => {
+      if (!['entregado', 'completado'].includes(t.estado)) return false
+      const fecha = t.actualizadoEn?.toDate?.() ?? t.creadoEn?.toDate?.()
+      return fecha && fecha >= hoy
+    }).length
+  }, [todosLosTramites])
 
   const gestorNombrePorUid = useMemo(() => {
     const map = new Map<string, string>()
@@ -567,7 +581,7 @@ export default function TorreDeControlPage() {
         <KPICard icon={ShieldAlert}  label="Críticos"       value={kpis.criticos}      sub="Requieren acción"                       color="red"    onClick={() => setFiltroNivel('critico')} />
         <KPICard icon={Clock}        label="Demorados"      value={kpis.demorados}     sub="SLA excedido"                           color="yellow" onClick={() => setFiltroNivel('amarillo')} />
         <KPICard icon={Lock}         label="Bloqueados"     value={kpis.chapasPendientes} sub="Chapa pendiente"                     color="orange" />
-        <KPICard icon={CheckCircle2} label="Finalizados hoy" value={0}                 sub="Esta sesión"                            color="green" />
+        <KPICard icon={CheckCircle2} label="Finalizados hoy" value={finalizadosHoy}    sub="Completados y entregados"               color="green" />
       </div>
 
       {/* Alertas activas */}
@@ -872,54 +886,86 @@ export default function TorreDeControlPage() {
     </div>
   )
 
-  const renderMandatarios = () => (
-    <div className="space-y-5">
-      <div className="grid grid-cols-3 gap-4">
-        {estadisticasMandatarios.map(m => {
-          const color = m.estadoCarga === 'sobrecarga' ? '#ef4444' : m.estadoCarga === 'atencion' ? '#f59e0b' : '#22c55e'
-          return (
-            <div key={m.uid}
-              className="rounded-xl border p-4 bg-[#0d1117] cursor-pointer hover:bg-[#111827] transition-colors"
-              style={{ borderColor: `${color}25` }}
-              onClick={() => { setFiltroMand(m.uid); setVista('dashboard') }}
-            >
-              <div className="flex items-start justify-between mb-3">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm border-2"
-                    style={{ background: `${color}18`, borderColor: `${color}40`, color }}>
-                    {m.nombre[0]}{m.apellido[0] || m.nombre[1]}
+  const renderMandatarios = () => {
+    const getPctCompletados = (uid: string) => {
+      const asignados   = todosLosTramites.filter(t => t.asignadoA === uid || t.creadoPor === uid)
+      const total       = asignados.length
+      if (!total) return null
+      const completados = asignados.filter(t => ['entregado','completado'].includes(t.estado)).length
+      return { completados, total, pct: Math.round((completados / total) * 100) }
+    }
+    return (
+      <div className="space-y-5">
+        {verRendimiento && (
+          <div className="flex items-center gap-2 bg-indigo-500/8 border border-indigo-500/20 rounded-xl px-4 py-2.5">
+            <MonitorDot size={13} className="text-indigo-400 shrink-0" />
+            <p className="text-xs text-indigo-300">
+              Vista extendida: porcentaje de trámites completados por gestor (Propietario / Admin General).
+            </p>
+          </div>
+        )}
+        <div className="grid grid-cols-3 gap-4">
+          {estadisticasMandatarios.map(m => {
+            const color   = m.estadoCarga === 'sobrecarga' ? '#ef4444' : m.estadoCarga === 'atencion' ? '#f59e0b' : '#22c55e'
+            const pctData = verRendimiento ? getPctCompletados(m.uid) : null
+            return (
+              <div key={m.uid}
+                className="rounded-xl border p-4 bg-[#0d1117] cursor-pointer hover:bg-[#111827] transition-colors"
+                style={{ borderColor: `${color}25` }}
+                onClick={() => { setFiltroMand(m.uid); setVista('dashboard') }}
+              >
+                <div className="flex items-start justify-between mb-3">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm border-2"
+                      style={{ background: `${color}18`, borderColor: `${color}40`, color }}>
+                      {m.nombre[0]}{m.apellido[0] || m.nombre[1]}
+                    </div>
+                    <div>
+                      <p className="text-sm font-bold text-gray-100">{`${m.nombre} ${m.apellido}`.trim()}</p>
+                      <p className="text-[10px] text-gray-600">Mandatario</p>
+                    </div>
                   </div>
-                  <div>
-                    <p className="text-sm font-bold text-gray-100">{`${m.nombre} ${m.apellido}`.trim()}</p>
-                    <p className="text-[10px] text-gray-600">Mandatario</p>
-                  </div>
+                  <span className="text-[9px] font-bold px-2 py-0.5 rounded"
+                    style={{ background: `${color}18`, color }}>
+                    {m.estadoCarga.toUpperCase()}
+                  </span>
                 </div>
-                <span className="text-[9px] font-bold px-2 py-0.5 rounded"
-                  style={{ background: `${color}18`, color }}>
-                  {m.estadoCarga.toUpperCase()}
-                </span>
-              </div>
-              <div className="grid grid-cols-2 gap-2 mb-3">
-                {[['Asignados', m.tramitesActivos, '#3b82f6'],['Críticos', m.criticos, '#dc2626'],['Demorados', m.demorados, '#f59e0b'],['Cerrados/sem', m.finalizadosSemana, '#22c55e']].map(([k,v,c]) => (
-                  <div key={String(k)} className="bg-white/3 rounded-lg p-2">
-                    <p className="text-[9px] text-gray-600">{k}</p>
-                    <p className="text-lg font-extrabold" style={{ color: String(c) }}>{v}</p>
+                <div className="grid grid-cols-2 gap-2 mb-3">
+                  {[['Asignados', m.tramitesActivos, '#3b82f6'],['Críticos', m.criticos, '#dc2626'],['Demorados', m.demorados, '#f59e0b'],['Cerrados/sem', m.finalizadosSemana, '#22c55e']].map(([k,v,c]) => (
+                    <div key={String(k)} className="bg-white/3 rounded-lg p-2">
+                      <p className="text-[9px] text-gray-600">{k}</p>
+                      <p className="text-lg font-extrabold" style={{ color: String(c) }}>{v}</p>
+                    </div>
+                  ))}
+                </div>
+                <div className="flex justify-between text-[10px] mb-1">
+                  <span className="text-gray-600">Eficiencia</span>
+                  <span className="font-bold" style={{ color }}>{m.eficiencia}%</span>
+                </div>
+                <div className="h-1.5 bg-white/6 rounded-full overflow-hidden">
+                  <div className="h-full rounded-full" style={{ width: `${m.eficiencia}%`, background: color }} />
+                </div>
+                {pctData && (
+                  <div className="mt-3 pt-3 border-t border-white/6">
+                    <div className="flex justify-between text-[10px] mb-1">
+                      <span className="text-indigo-400 font-semibold">% Completados</span>
+                      <span className="text-indigo-300 font-bold">
+                        {pctData.completados}/{pctData.total} ({pctData.pct}%)
+                      </span>
+                    </div>
+                    <div className="h-1.5 bg-indigo-500/10 rounded-full overflow-hidden">
+                      <div className="h-full rounded-full bg-indigo-500"
+                        style={{ width: `${pctData.pct}%` }} />
+                    </div>
                   </div>
-                ))}
+                )}
               </div>
-              <div className="flex justify-between text-[10px] mb-1">
-                <span className="text-gray-600">Eficiencia</span>
-                <span className="font-bold" style={{ color }}>{m.eficiencia}%</span>
-              </div>
-              <div className="h-1.5 bg-white/6 rounded-full overflow-hidden">
-                <div className="h-full rounded-full" style={{ width: `${m.eficiencia}%`, background: color }} />
-              </div>
-            </div>
-          )
-        })}
+            )
+          })}
+        </div>
       </div>
-    </div>
-  )
+    )
+  }
 
   const renderAlertas = () => (
     <div className="space-y-2">

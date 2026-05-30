@@ -8,14 +8,12 @@ import {
   type Unsubscribe,
 } from 'firebase/firestore'
 import { clientesCol, clienteDoc } from './collections'
-import type { Cliente } from '@/types'
+import type { Cliente, OrigenCanal } from '@/types'
 import { registrarActividad } from './audit'
 
 export const PAGE_SIZE_CLIENTES = 25
 
 // ─── READ (realtime) ──────────────────────────────────────────────────────────
-// Mantener para formularios/selects que necesitan la lista completa
-// (TramiteForm, VehiculoForm, etc.)
 
 export function subscribeClientes(
   gestoriaId: string,
@@ -25,7 +23,7 @@ export function subscribeClientes(
     clientesCol,
     where('gestoriaId', '==', gestoriaId),
     orderBy('apellido'),
-    limit(500),  // ⚡
+    limit(500),
   )
   return onSnapshot(q, snap =>
     callback(snap.docs.map(d => ({ ...d.data(), id: d.id })))
@@ -48,9 +46,7 @@ export async function getCliente(id: string): Promise<Cliente | null> {
 }
 
 // ─── READ (paginado — para ClientesPage) ─────────────────────────────────────
-// 1 read por página en lugar de todos los documentos al montar.
 
-/** Total de clientes del tenant — usa agregación (costo: 1 lectura). */
 export async function getClientesCount(gestoriaId: string): Promise<number> {
   const snap = await getCountFromServer(
     query(clientesCol, where('gestoriaId', '==', gestoriaId))
@@ -58,13 +54,6 @@ export async function getClientesCount(gestoriaId: string): Promise<number> {
   return snap.data().count
 }
 
-/**
- * Una página de clientes ordenada por apellido.
- * `cursor` es el último DocumentSnapshot de la página anterior (null = página 1).
- *
- * Requiere índice compuesto en Firestore: gestoriaId ASC, apellido ASC
- * (Firebase lo sugiere automáticamente en la consola al ejecutar la query.)
- */
 export async function getClientesPagina(
   gestoriaId: string,
   cursor:     QueryDocumentSnapshot<Cliente> | null,
@@ -86,17 +75,48 @@ export async function getClientesPagina(
   }
 }
 
-/**
- * Todos los clientes del tenant — sin límite.
- * Usarlo solo para:
- *   - Búsqueda de texto (carga bajo demanda al escribir)
- *   - Exportación a Excel (carga bajo demanda al hacer click)
- */
 export async function getClientesTodos(gestoriaId: string): Promise<Cliente[]> {
   const snap = await getDocs(
     query(clientesCol, where('gestoriaId', '==', gestoriaId), orderBy('apellido'))
   )
   return snap.docs.map(d => ({ ...d.data(), id: d.id }))
+}
+
+// ─── READ por canal — para métricas de referidos (M7) ─────────────────────────
+
+/**
+ * Todos los clientes que llegaron por un canal comercial específico.
+ * Usado por useReferidosMetricas para agrupar por concesionaria/agencia/etc.
+ */
+export async function getClientesPorCanal(
+  gestoriaId: string,
+  canal:      OrigenCanal,
+): Promise<Cliente[]> {
+  const snap = await getDocs(
+    query(
+      clientesCol,
+      where('gestoriaId',  '==', gestoriaId),
+      where('origenCanal', '==', canal),
+      orderBy('apellido'),
+    )
+  )
+  return snap.docs.map(d => ({ ...d.data(), id: d.id }))
+}
+
+/**
+ * Todos los clientes con origenCanal definido — para el módulo de métricas.
+ */
+export async function getClientesConOrigen(gestoriaId: string): Promise<Cliente[]> {
+  const snap = await getDocs(
+    query(
+      clientesCol,
+      where('gestoriaId', '==', gestoriaId),
+      orderBy('apellido'),
+    )
+  )
+  return snap.docs
+    .map(d => ({ ...d.data(), id: d.id }))
+    .filter(c => !!(c as any).origenCanal)
 }
 
 // ─── WRITE ────────────────────────────────────────────────────────────────────
@@ -107,8 +127,14 @@ export async function crearCliente(
   data:      ClienteInput,
   creadoPor: string,
 ): Promise<string> {
+  // Limpiar campos undefined para evitar errores de Firestore
+  const clean: Record<string, unknown> = {}
+  for (const [k, v] of Object.entries(data)) {
+    if (v !== undefined) clean[k] = v
+  }
+
   const ref = await addDoc(clientesCol, {
-    ...data,
+    ...clean,
     vehiculosIds: [],
     creadoPor,
     creadoEn: serverTimestamp(),
@@ -120,7 +146,12 @@ export async function actualizarCliente(
   id:   string,
   data: Partial<ClienteInput>,
 ): Promise<void> {
-  await updateDoc(clienteDoc(id), { ...data })
+  // Limpiar undefined antes de enviar a Firestore
+  const clean: Record<string, unknown> = {}
+  for (const [k, v] of Object.entries(data)) {
+    if (v !== undefined) clean[k] = v
+  }
+  await updateDoc(clienteDoc(id), clean)
 }
 
 export async function eliminarCliente(id: string): Promise<void> {
@@ -129,7 +160,6 @@ export async function eliminarCliente(id: string): Promise<void> {
 
 // ─── SEARCH ───────────────────────────────────────────────────────────────────
 
-/** Busca un cliente por DNI dentro del tenant. Usado en validación Zod del form. */
 export async function buscarClientePorDNI(
   dni:        string,
   gestoriaId: string,

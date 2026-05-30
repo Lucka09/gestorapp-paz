@@ -288,6 +288,8 @@ export default function GestorMultaWorkflow({ tramiteId, numeroLITExterno }: Pro
     clienteAvisado: false, suatsEntregado: false,
     canalEntrega: 'whatsapp' as 'presencial' | 'whatsapp' | 'email' | 'otro',
     observacionFinal: '',
+    suatsAbonado: false,
+    montoSUATS: 0,
   })
 
   const [pasosColapsados, setPasosColapsados] = useState<Record<number, boolean>>({})
@@ -1168,6 +1170,8 @@ export default function GestorMultaWorkflow({ tramiteId, numeroLITExterno }: Pro
                   🔔 El trámite está resuelto. Avisá al cliente y cerrá la gestión.
                 </div>
               )}
+
+              {/* Checkboxes de confirmación */}
               <div className="space-y-2">
                 {[
                   { key: 'clienteAvisado', label: 'Cliente avisado de la resolución' },
@@ -1182,6 +1186,53 @@ export default function GestorMultaWorkflow({ tramiteId, numeroLITExterno }: Pro
                   </label>
                 ))}
               </div>
+
+              {/* ── SUATS abonado ──────────────────────────────────────────── */}
+              <div className="border border-gray-100 rounded-xl overflow-hidden">
+                <label className="flex items-center gap-2 p-3 cursor-pointer text-sm hover:bg-gray-50 transition-colors">
+                  <input
+                    type="checkbox"
+                    checked={p7.suatsAbonado}
+                    onChange={e => setP7(prev => ({
+                      ...prev,
+                      suatsAbonado: e.target.checked,
+                      montoSUATS: e.target.checked ? prev.montoSUATS : 0,
+                    }))}
+                    className="accent-[#D4621A]"
+                  />
+                  <span className="font-medium text-gray-700">¿Se abonó SUATS?</span>
+                  <span className="text-xs text-gray-400 ml-auto">(opcional)</span>
+                </label>
+                {p7.suatsAbonado && (
+                  <div className="px-3 pb-3 border-t border-gray-100 bg-amber-50/50">
+                    <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider block mb-1.5 mt-2.5">
+                      Monto abonado SUATS *
+                    </label>
+                    <div className="relative">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm font-bold text-gray-400">$</span>
+                      <input
+                        type="number"
+                        min={0}
+                        step={100}
+                        value={p7.montoSUATS || ''}
+                        onChange={e => setP7(prev => ({ ...prev, montoSUATS: Number(e.target.value) }))}
+                        placeholder="0"
+                        className="w-full pl-7 pr-3 py-2.5 border border-amber-200 rounded-xl text-sm
+                                   font-bold text-amber-800 bg-white outline-none
+                                   focus:border-[#D4621A] focus:shadow-[0_0_0_3px_rgba(212,98,26,0.1)]"
+                      />
+                    </div>
+                    {p7.montoSUATS > 0 && (
+                      <p className="text-xs text-amber-600 mt-1.5 flex items-center gap-1">
+                        <span>📊</span>
+                        Se registrará en el reporte mensual como SUATS abonado.
+                      </p>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* Canal de entrega */}
               <div>
                 <label className="text-xs font-semibold text-gray-500 mb-1 block">Canal de entrega</label>
                 <div className="grid grid-cols-4 gap-2">
@@ -1200,12 +1251,26 @@ export default function GestorMultaWorkflow({ tramiteId, numeroLITExterno }: Pro
                   ))}
                 </div>
               </div>
+
               <textarea value={p7.observacionFinal} onChange={e => setP7(prev => ({ ...prev, observacionFinal: e.target.value }))}
                 placeholder="Observaciones finales del cierre..."
                 rows={2} className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm outline-none resize-none"
               />
+
+              {/* Validación: si marcó suatsAbonado, el monto es obligatorio */}
+              {p7.suatsAbonado && !p7.montoSUATS && (
+                <p className="text-xs text-red-500 flex items-center gap-1">
+                  ⚠ Ingresá el monto abonado por SUATS para poder finalizar.
+                </p>
+              )}
+
               <button
-                disabled={!p7.clienteAvisado || (!!workflow.paso1?.requiereSUATS && !p7.suatsEntregado) || guardando}
+                disabled={
+                  !p7.clienteAvisado ||
+                  (!!workflow.paso1?.requiereSUATS && !p7.suatsEntregado) ||
+                  (p7.suatsAbonado && !p7.montoSUATS) ||
+                  guardando
+                }
                 onClick={() => confirmarPaso7(p7)}
                 className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-sm disabled:opacity-50 transition-colors"
               >
@@ -1213,13 +1278,20 @@ export default function GestorMultaWorkflow({ tramiteId, numeroLITExterno }: Pro
               </button>
             </>
           ) : (
-            <div className="flex items-center gap-3 py-4">
-              <CheckCircle2 size={28} className="text-emerald-500 shrink-0" />
-              <div>
+            <div className="flex items-start gap-3 py-4">
+              <CheckCircle2 size={28} className="text-emerald-500 shrink-0 mt-0.5" />
+              <div className="flex-1 min-w-0">
                 <p className="font-semibold text-gray-800">Trámite completado y archivado</p>
                 <p className="text-xs text-gray-400 mt-0.5">
                   Canal: {workflow.paso7?.canalEntrega} · Por: {workflow.paso7?.completadoPorNombre}
                 </p>
+                {workflow.paso7?.suatsAbonado && workflow.paso7?.montoSUATS && (
+                  <div className="mt-2 inline-flex items-center gap-1.5 px-2.5 py-1 bg-amber-50 border border-amber-200 rounded-lg">
+                    <span className="text-xs font-bold text-amber-700">
+                      SUATS abonado: {new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' }).format(workflow.paso7.montoSUATS)}
+                    </span>
+                  </div>
+                )}
               </div>
             </div>
           )}

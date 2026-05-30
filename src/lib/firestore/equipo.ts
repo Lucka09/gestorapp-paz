@@ -233,6 +233,17 @@ export const PERMISOS_POR_ROL: Record<Exclude<Rol, 'cliente'>, string[]> = {
     'Configuración de la gestoría',
     'Eliminar clientes y trámites',
   ],
+  admin_gral: [
+    'Acceso operativo completo (clientes, vehículos, trámites, turnos)',
+    'Ver y editar honorarios y pagos — acceso financiero elevado',
+    'Ver cobranzas y reportes contables/financieros',
+    'Exportar datos y reportes',
+    'Ver equipo (sin crear ni eliminar miembros)',
+    'Ver configuración (sin modificarla)',
+    'Torre de Control completa + rendimiento de gestores',
+    'No puede eliminar clientes ni cambiar configuración',
+    'Solo puede existir un Admin General por gestoría',
+  ],
   admin: [
     'Acceso operativo completo (clientes, vehículos, trámites, turnos)',
     'Gestionar equipo y roles',

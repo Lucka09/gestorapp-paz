@@ -113,12 +113,24 @@ function ModalNuevoMiembro({
   const [creado,   setCreado]   = useState<{ nombre: string; email: string; password: string } | null>(null)
   const [error,    setError]    = useState('')
 
-  const rolOpciones: Rol[] = ['admin', 'vendedor', 'operador', 'gestor', 'asesor_comercial']
+  const esPropietario = user?.rol === 'propietario'
+  // Solo el propietario puede asignar el rol admin_gral (máx 1 por gestoría)
+  const rolOpciones: Rol[] = esPropietario
+    ? ['admin_gral', 'admin', 'vendedor', 'operador', 'gestor', 'asesor_comercial']
+    : ['admin', 'vendedor', 'operador', 'gestor', 'asesor_comercial']
 
   const handleCrear = async () => {
     if (!nombre.trim() || !apellido.trim()) { setError('Completá nombre y apellido'); return }
     if (!email.trim())    { setError('Ingresá el email'); return }
     if (password.length < 8) { setError('La contraseña debe tener mínimo 8 caracteres'); return }
+    // Validar unicidad de admin_gral — solo puede existir uno por gestoría
+    if (rol === 'admin_gral') {
+      const yaExiste = activos?.some((m: any) => m.rol === 'admin_gral')
+      if (yaExiste) {
+        setError('Ya existe un Administrador General en esta gestoría. Solo puede haber uno.')
+        return
+      }
+    }
     setError(''); setSaving(true)
     try {
       await crearMiembro(
@@ -349,7 +361,7 @@ function ModalEditarMiembro({
         <Input label="Teléfono" value={telefono} onChange={e => setTelefono(e.target.value)} />
 
         <Select label="Rol" value={rol} onChange={e => setRol(e.target.value as Rol)}>
-          {(['propietario', 'admin', 'vendedor', 'operador', 'gestor', 'asesor_comercial'] as Rol[]).map(r => (
+          {(['propietario', 'admin_gral', 'admin', 'vendedor', 'operador', 'gestor', 'asesor_comercial'] as Rol[]).map(r => (
             <option key={r} value={r} disabled={esMiMismo && r !== miembro.rol}>
               {ROL_LABELS[r]}
             </option>
@@ -525,7 +537,7 @@ export default function EquipoPage() {
 
       {/* Resumen por rol */}
       <div className="grid grid-cols-2 md:grid-cols-6 gap-3">
-        {(['propietario', 'admin', 'vendedor', 'operador', 'gestor', 'asesor_comercial'] as Rol[]).map(r => {
+        {(['propietario', 'admin_gral', 'admin', 'vendedor', 'operador', 'gestor', 'asesor_comercial'] as Rol[]).map(r => {
           const n = activos.filter(m => m.rol === r).length
           return (
             <div key={r} className="bg-white border border-gray-100 rounded-2xl p-4 shadow-sm">

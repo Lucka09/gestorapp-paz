@@ -18,6 +18,10 @@ import toast from 'react-hot-toast'
 import { useGestoriaId, useGestoria } from '@/context/GestoriaContext'
 import { useConfiguracion }             from '@/hooks/useConfiguracion'
 import { usePageTitle } from '@/hooks/usePageTitle'
+import { getDocs, query, where, collection } from 'firebase/firestore'
+import { db } from '@/lib/firebase'
+import { useCierreMensual } from '@/hooks/useCierreMensual'
+import { Archive, CheckCircle, AlertTriangle as AlertWarn, ChevronDown, ChevronUp } from 'lucide-react'
 
 const MESES = [
   'Enero','Febrero','Marzo','Abril','Mayo','Junio',
@@ -52,6 +56,17 @@ export default function ReportesPage() {
   const [generando, setGenerando] = useState(false)
   const [pdfBlob,   setPdfBlob]   = useState<Blob | null>(null)
   const [pdfNombre, setPdfNombre] = useState('')
+  const [verHistorial, setVerHistorial] = useState(false)
+
+  // Cierre mensual
+  const {
+    puedeGestionar,
+    mesCerrado, cerrando, loadingPendiente,
+    anioPend, mesPend, mesPendLabel,
+    cierrePendiente, historial,
+    notas, setNotas,
+    ejecutarCierre,
+  } = useCierreMensual()
 
   // Años disponibles (último 3 años)
   const aniosDisp = [ahora.getFullYear(), ahora.getFullYear() - 1, ahora.getFullYear() - 2]
@@ -109,17 +124,43 @@ export default function ReportesPage() {
       .slice(0, 6)
   }, [tramitesMes])
 
+  // Calcular total SUATS abonado en el mes desde multaWorkflow
+  const calcularSUATSMes = async (): Promise<number> => {
+    try {
+      const inicio = new Date(anio, mes, 1)
+      const fin    = new Date(anio, mes + 1, 0, 23, 59, 59)
+      const snap   = await getDocs(
+        query(collection(db, 'multaWorkflow'), where('gestoriaId', '==', gestoriaId))
+      )
+      let total = 0
+      snap.docs.forEach(d => {
+        const data = d.data() as any
+        if (data.paso7?.suatsAbonado && data.paso7?.montoSUATS > 0) {
+          const fecha = data.paso7?.completadoEn?.toDate?.()
+          if (fecha && fecha >= inicio && fecha <= fin) {
+            total += Number(data.paso7.montoSUATS)
+          }
+        }
+      })
+      return total
+    } catch {
+      return 0
+    }
+  }
+
   const handleGenerar = async () => {
     setGenerando(true)
     setPdfBlob(null)
     try {
-      const [ingresosMes, tiposTramite, topClientes] = await Promise.all([
+      const [ingresosMes, tiposTramite, topClientes, totalSUATSMes] = await Promise.all([
         getIngresosPorMes(gestoriaId, 6),
         getTiposTramiteFrecuentes(gestoriaId),
         getTopClientes(gestoriaId, 8),
+        calcularSUATSMes(),
       ])
       const { blob, nombre } = await generarReporteMensual({
         mes, anio, tramites, clientes, ingresosMes, tiposTramite, topClientes,
+        totalSUATSMes,
         // Branding dinámico del tenant
         gestoriaNombre:    config.nombreComercial    ?? nombreComercial,
         gestoriaSubtitulo: config.responsable ? `Mandataria — ${config.responsable}` : undefined,
@@ -152,6 +193,102 @@ export default function ReportesPage() {
         title="Reportes"
         subtitle="Resúmenes mensuales para análisis y contaduría"
       />
+
+      {/* ── CIERRE MENSUAL (propietario / admin_gral) ─────────────────────── */}
+      {puedeGestionar && (
+        <div className={`rounded-2xl border p-5 ${
+          mesCerrado
+            ? 'bg-emerald-50 border-emerald-200'
+            : 'bg-amber-50 border-amber-200'
+        }`}>
+          <div className="flex items-start justify-between gap-4 flex-wrap">
+            <div className="flex items-start gap-3">
+              {mesCerrado
+                ? <CheckCircle size={20} className="text-emerald-600 shrink-0 mt-0.5" />
+                : <AlertWarn  size={20} className="text-amber-600 shrink-0 mt-0.5" />
+              }
+              <div>
+                <p className={`font-bold text-sm ${mesCerrado ? 'text-emerald-800' : 'text-amber-800'}`}>
+                  {mesCerrado
+                    ? `Cierre de ${mesPendLabel} registrado`
+                    : `Cierre de ${mesPendLabel} pendiente`
+                  }
+                </p>
+                <p className={`text-xs mt-0.5 ${mesCerrado ? 'text-emerald-600' : 'text-amber-600'}`}>
+                  {mesCerrado
+                    ? `Cerrado por ${cierrePendiente?.cerradoPorNombre} · Los premios del asesor quedaron guardados.`
+                    : 'Al cerrar el mes se guarda el snapshot de premios del asesor y se reinicia el contador para el nuevo mes.'
+                  }
+                </p>
+              </div>
+            </div>
+
+            {!mesCerrado && !loadingPendiente && (
+              <div className="flex flex-col gap-2 min-w-[240px]">
+                <textarea
+                  value={notas}
+                  onChange={e => setNotas(e.target.value)}
+                  placeholder="Notas del cierre (opcional)..."
+                  rows={2}
+                  className="w-full px-3 py-2 border border-amber-200 rounded-xl text-xs
+                             bg-white outline-none resize-none focus:border-amber-400"
+                />
+                <button
+                  onClick={ejecutarCierre}
+                  disabled={cerrando}
+                  className="flex items-center justify-center gap-2 px-4 py-2.5
+                             bg-[#D4621A] hover:bg-[#c05518] text-white font-bold
+                             text-sm rounded-xl transition-all disabled:opacity-50"
+                >
+                  <Archive size={15} />
+                  {cerrando ? 'Cerrando...' : `Cerrar ${mesPendLabel}`}
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* Historial de cierres */}
+          {historial.length > 0 && (
+            <div className="mt-4 border-t border-amber-200/60 pt-3">
+              <button
+                onClick={() => setVerHistorial(v => !v)}
+                className={`flex items-center gap-1.5 text-xs font-semibold ${
+                  mesCerrado ? 'text-emerald-700' : 'text-amber-700'
+                } hover:opacity-80 transition-opacity`}
+              >
+                {verHistorial ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
+                Ver historial de cierres ({historial.length})
+              </button>
+              {verHistorial && (
+                <div className="mt-3 space-y-2">
+                  {historial.map(c => (
+                    <div key={c.id}
+                      className="flex items-center justify-between bg-white/70
+                                 rounded-xl px-4 py-2.5 border border-white/80">
+                      <div>
+                        <p className="text-sm font-bold text-gray-800">{c.mesLabel}</p>
+                        <p className="text-xs text-gray-500">
+                          Cerrado por {c.cerradoPorNombre} · {c.totalTramites} trámites
+                        </p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-xs font-bold text-emerald-700">
+                          ${c.totalCobrado.toLocaleString('es-AR')} cobrado
+                        </p>
+                        {c.snapshotPremios?.[0] && (
+                          <p className="text-[10px] text-gray-400">
+                            Asesor: {c.snapshotPremios[0].premiosA_ganados} premios A
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Selector de período */}
       <Card className="p-5">

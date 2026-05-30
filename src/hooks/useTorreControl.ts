@@ -17,6 +17,10 @@ import type {
 
 const HIDDEN_POLL_MS = 60_000
 
+// Estados que indican que el trámite ya está cerrado — no deben aparecer en Torre
+// ni generar alertas de demora o movimiento.
+const ESTADOS_FINALES = new Set(['completado', 'entregado', 'cancelado'])
+
 // ─── HOOK ─────────────────────────────────────────────────────────────────────
 
 export function useTorreControl() {
@@ -83,7 +87,8 @@ export function useTorreControl() {
 
   // Filtro por visibilidad según permiso del rol
   const tramitesVisibles = useMemo(() => {
-    const base = tramites.filter(t => t.estado !== 'cancelado')
+    // Excluir trámites en estado final — completados/entregados no generan alertas
+    const base = tramites.filter(t => !ESTADOS_FINALES.has(t.estado))
     // Propietario y Admin ven todo
     if (verTodo) return base
     // Gestor/Mandatario solo ve los suyos
@@ -232,6 +237,9 @@ function calcularAlertas(
   tramite:  Tramite,
   workflow: InscripcionWorkflow | undefined,
 ): AlertaTorre[] {
+  // Trámites finalizados nunca generan alertas
+  if (ESTADOS_FINALES.has(tramite.estado)) return []
+
   const alertas: AlertaTorre[] = []
   const ahora   = new Date()
 

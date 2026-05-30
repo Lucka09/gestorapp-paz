@@ -4,11 +4,12 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { useQuery }   from '@tanstack/react-query'
-import { getDocs, query, where } from 'firebase/firestore'
+import { getDocs, query, where, Timestamp } from 'firebase/firestore'
 import { tramitesCol }           from '@/lib/firestore/collections'
 import { useAuth }               from '@/hooks/useAuth'
 import { useGestoria }           from '@/context/GestoriaContext'
 import { useConfiguracion }      from '@/hooks/useConfiguracion'
+import { periodoDesde }          from '@/lib/firestore/cierresMensuales'
 
 // ─── TIPOS ────────────────────────────────────────────────────────────────────
 
@@ -94,18 +95,31 @@ export function usePremios(uid?: string) {
   }
 
   return useQuery({
-    queryKey: ['premios', gestoriaId, targetUid, cfg],
+    queryKey: ['premios', gestoriaId, targetUid, cfg,
+              new Date().getFullYear(), new Date().getMonth()],
     enabled:  !!gestoriaId && !!targetUid,
     staleTime: 1000 * 60 * 2,   // 2 min
 
     queryFn: async (): Promise<PremiosData> => {
+      // ── Período activo: mes calendario corriente ──────────────────────────
+      // Al cerrar un mes (M6), usePremios parte en 0 para el período nuevo.
+      // Los datos históricos quedan en cierresMensuales (accesibles en Reportes).
+      const hoy             = new Date()
+      const { inicio, fin } = periodoDesde(hoy.getFullYear(), hoy.getMonth())
+
       // ── Consulta única: todos los trámites del asesor ─────────────────────
       const snap = await getDocs(query(
         tramitesCol,
         where('gestoriaId', '==', gestoriaId),
         where('creadoPor',  '==', targetUid),
       ))
-      const todos = snap.docs.map(d => ({ ...d.data(), id: d.id }))
+      // Filtrar al período activo (mes corriente) para el cálculo de premios
+      const todos = snap.docs
+        .map(d => ({ ...d.data(), id: d.id }))
+        .filter(t => {
+          const f = (t as any).creadoEn?.toDate?.()
+          return f && f >= inicio && f <= fin
+        })
 
       const totalTramitesCreados = todos.length
 

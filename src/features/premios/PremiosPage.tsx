@@ -5,7 +5,7 @@
 import {
   Trophy, Star, Flame, Target, TrendingUp,
   CheckCircle2, Lock, ChevronRight, FileText,
-  ArrowLeftRight, AlertCircle, Sparkles, Settings,
+  ArrowLeftRight, AlertCircle, Sparkles, Settings, Calendar,
 } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { usePageTitle } from '@/hooks/usePageTitle'
@@ -18,6 +18,7 @@ import {
   formatPesosCompacto,
   type HitoMultaConfig,
 } from '@/hooks/usePremios'
+import { useCierreMensual } from '@/hooks/useCierreMensual'
 
 // ─── BARRA DE PROGRESO ───────────────────────────────────────────────────────
 
@@ -195,6 +196,11 @@ export default function PremiosPage() {
   const navigate                   = useNavigate()
   const esPropietario              = user?.rol === 'propietario'
 
+  // Período activo (mes corriente) — cambia al primer día del mes nuevo
+  const { mesActual: periodoActivo } = useCierreMensual()
+  const MESES_LABEL = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre']
+  const periodoLabel = `${MESES_LABEL[periodoActivo.mes]} ${periodoActivo.anio}`
+
   const nombreAsesor = user?.nombre
     ? `${user.nombre}${user.apellido ? ` ${user.apellido}` : ''}`
     : 'Asesor'
@@ -222,6 +228,13 @@ export default function PremiosPage() {
 
   return (
     <div className="space-y-6 max-w-3xl animate-fadein">
+
+      {/* Badge período activo */}
+      <div className="flex items-center gap-2 bg-orange-50 border border-orange-100 rounded-xl px-4 py-2.5">
+        <Calendar size={14} className="text-[#D4621A] shrink-0" />
+        <p className="text-xs font-bold text-[#D4621A]">Período activo: {periodoLabel}</p>
+        <span className="text-xs text-gray-400 ml-1">· Los premios se calculan sobre los trámites de este mes</span>
+      </div>
 
       {/* ─── HEADER ─────────────────────────────────────────────────────── */}
       <div className="flex items-start justify-between gap-4 flex-wrap">

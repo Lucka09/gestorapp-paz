@@ -155,6 +155,11 @@ export interface MultaPaso7Data {
   suatsEntregado?:  boolean    // solo si requiereSUATS
   canalEntrega:     'presencial' | 'whatsapp' | 'email' | 'otro'
   observacionFinal?: string
+  // ─── SUATS abonado (M1) ───────────────────────────────────────────────────
+  // El asesor indica si se abonó SUATS al momento del cierre.
+  // Si suatsAbonado === true, montoSUATS debe ser > 0.
+  suatsAbonado?:    boolean    // se abonó SUATS en este cierre
+  montoSUATS?:      number     // monto en ARS abonado por SUATS
   completadoPor:       string
   completadoPorNombre: string
   completadoEn:        Timestamp

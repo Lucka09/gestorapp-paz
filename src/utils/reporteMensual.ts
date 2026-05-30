@@ -15,6 +15,7 @@ export interface DatosReporteMensual {
   ingresosMes:    IngresoMes[]    // últimos 6 meses para el gráfico
   tiposTramite:   TipoCount[]
   topClientes:    TopCliente[]
+  totalSUATSMes?: number          // monto total abonado en SUATS durante el mes (M1)
   // Datos de la gestoría (desde configuracion.ts)
   gestoriaNombre:     string
   gestoriaSubtitulo?: string      // ej: 'Mandataria del Automotor'
@@ -363,6 +364,8 @@ export async function generarReporteMensual(
   const totalPendiente  = tramitesMes.filter(t => !t.pagado && t.honorarios > 0)
                                      .reduce((a, t) => a + (t.honorarios ?? 0), 0)
 
+  const suatsMes = datos.totalSUATSMes ?? 0
+
   ;[
     ['Total honorarios facturados', fp(totalHonorarios), NEGRO],
     ['Total cobrado en el mes',     fp(totalCobrado),    VERDE],
@@ -374,6 +377,19 @@ export async function generarReporteMensual(
     linea(y + 2, GRIS2, 0.2)
     y += 8
   })
+
+  // ── SUATS ABONADO (solo si hay movimiento) ────────────────────────────────
+  if (suatsMes > 0) {
+    y += 2
+    // Caja destacada para SUATS
+    const AMBER: [number,number,number] = [180, 110, 20]
+    const AMBERLIGHT: [number,number,number] = [254, 243, 199]
+    box(mg, y, W - mg * 2, 12, AMBERLIGHT, undefined, 2)
+    txt('SUATS abonado en el mes:', mg + 4, y + 8, { size: 8.5, color: AMBER, bold: true })
+    txt(fp(suatsMes), W - mg - 4, y + 8,
+        { size: 10, bold: true, color: AMBER, align: 'right' })
+    y += 16
+  }
 
   // ── FOOTER ÚLTIMA PÁGINA ──────────────────────────────────────────────────
   const numPags = (doc as any).getNumberOfPages?.() ?? 1

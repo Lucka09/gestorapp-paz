@@ -6,6 +6,7 @@ import {
 } from 'firebase/firestore'
 import { db }           from '@/lib/firebase'
 import { crearNotificacion } from '@/lib/firestore/notificaciones'
+import { cambiarEstadoTramite } from '@/lib/firestore/tramites'
 import type {
   MultaWorkflow, MultaPaso1Data, MultaPaso2Data,
   MultaPaso3Data, MultaReboteResolucion,
@@ -218,11 +219,25 @@ export async function confirmarPaso7Multa(
   gestoriaId: string,
   data: Omit<MultaPaso7Data, 'completadoEn'>,
 ): Promise<void> {
+  // Limpiar campos undefined — Firestore rechaza undefined
+  const paso7Clean: Record<string, unknown> = {}
+  for (const [k, v] of Object.entries({ ...data, completadoEn: Timestamp.now() })) {
+    if (v !== undefined) paso7Clean[k] = v
+  }
+
+  // 1. Cerrar el workflow de multa
   await updateDoc(workflowDoc(tramiteId), {
-    paso7:          { ...data, completadoEn: Timestamp.now() },
+    paso7:          paso7Clean,
     pasoActual:     8,
     estadoWorkflow: 'completado',
     actualizadoEn:  serverTimestamp(),
+  })
+
+  // 2. Marcar el trámite principal como entregado — desaparece de Torre de Control
+  //    y no genera más alertas de demora ni "sin movimiento".
+  await cambiarEstadoTramite(tramiteId, 'entregado', {
+    completadoPor:       data.completadoPor,
+    completadoPorNombre: data.completadoPorNombre,
   })
 }
  

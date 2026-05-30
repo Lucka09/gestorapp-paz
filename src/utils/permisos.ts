@@ -67,6 +67,9 @@ export interface Permisos {
   // Premios & Objetivos — solo asesor comercial (y propietario)
   verPremios:           boolean   // página propia de premios y objetivos
   verPremiosTorre:      boolean   // panel de premios en Torre de Control
+
+  // Rendimiento de gestores — Torre de Control avanzada
+  verRendimientoGestores: boolean  // % completados por gestor (propietario / admin_gral)
 }
 
 // ─── PERMISOS POR ROL ─────────────────────────────────────────────────────────
@@ -89,6 +92,7 @@ const PERMISOS: Record<Rol, Permisos> = {
     verBandejaWA: true, responderWA: true,
     verTorreCompleta: true, verTorreSoloPropia: false, requiereGeo: false,
     verPremios: true, verPremiosTorre: true,
+    verRendimientoGestores: true,
   },
 
   // ── ADMIN — operaciones completas, SIN finanzas ni eliminar clientes ───────
@@ -108,6 +112,29 @@ const PERMISOS: Record<Rol, Permisos> = {
     verBandejaWA: true, responderWA: true,
     verTorreCompleta: true, verTorreSoloPropia: false, requiereGeo: false,
     verPremios: true, verPremiosTorre: true,
+    verRendimientoGestores: false,
+  },
+
+  // ── ADMIN GENERAL — igual a admin + acceso financiero, solo 1 por gestoría ──
+  // Pensado para el director de operaciones / encargado general.
+  // Puede ver cobranzas, honorarios, reportes y el rendimiento de cada gestor.
+  // NO puede eliminar clientes. Solo el propietario puede crear este rol.
+  admin_gral: {
+    verClientes: true, crearClientes: true, editarClientes: true,
+    eliminarClientes: false, darAccesoPortal: true,
+    verVehiculos: true, crearVehiculos: true, editarVehiculos: true,
+    verTramites: true, crearTramites: true, cambiarEstadoTramite: true,
+    verHonorariosDetalle: true, marcarPagado: true, verObsInternas: true,
+    verTurnos: true, crearTurnos: true, confirmarTurnos: true, cancelarTurnos: true,
+    verDashboard: true, verMetricasFinancieras: true, verCRM: true,
+    exportarDatos: true, verSeguimiento: true, crearSeguimiento: true,
+    verConfiguracion: true, editarConfiguracion: false,  // ← no puede cambiar config
+    verEquipo: true, gestionarEquipo: false,             // ← no puede crear/eliminar miembros
+    verCobranzas: true, verReportes: true,               // ← acceso financiero elevado
+    verBandejaWA: true, responderWA: true,
+    verTorreCompleta: true, verTorreSoloPropia: false, requiereGeo: false,
+    verPremios: true, verPremiosTorre: true,
+    verRendimientoGestores: true,                        // ← puede ver % por gestor en Torre
   },
 
   // ── VENDEDOR — NO gestiona equipo ─────────────────────────────────────────
@@ -126,6 +153,7 @@ const PERMISOS: Record<Rol, Permisos> = {
     verBandejaWA: true, responderWA: true,
     verTorreCompleta: false, verTorreSoloPropia: false, requiereGeo: false,
     verPremios: false, verPremiosTorre: false,
+    verRendimientoGestores: false,
   },
 
   // ── OPERADOR — NO gestiona equipo ─────────────────────────────────────────
@@ -144,6 +172,7 @@ const PERMISOS: Record<Rol, Permisos> = {
     verBandejaWA: false, responderWA: false,
     verTorreCompleta: false, verTorreSoloPropia: false, requiereGeo: false,
     verPremios: false, verPremiosTorre: false,
+    verRendimientoGestores: false,
   },
 
   // ── SUPERADMIN — acceso total ─────────────────────────────────────────────
@@ -160,6 +189,7 @@ const PERMISOS: Record<Rol, Permisos> = {
     verBandejaWA: true, responderWA: true,
     verTorreCompleta: true, verTorreSoloPropia: false, requiereGeo: false,
     verPremios: true, verPremiosTorre: true,
+    verRendimientoGestores: true,
   },
 
   // ── GESTOR (mandatario) — carga y gestión propia, sin finanzas ni WA ────────
@@ -182,6 +212,7 @@ const PERMISOS: Record<Rol, Permisos> = {
     verBandejaWA: false, responderWA: false,
     verTorreCompleta: false, verTorreSoloPropia: true, requiereGeo: true,
     verPremios: false, verPremiosTorre: false,
+    verRendimientoGestores: false,
   },
 
   // ── ASESOR COMERCIAL — CRM + Trámites + Torre completa + Premios ────────────
@@ -200,6 +231,7 @@ const PERMISOS: Record<Rol, Permisos> = {
     verBandejaWA: true, responderWA: true,
     verTorreCompleta: true, verTorreSoloPropia: false, requiereGeo: false,
     verPremios: true, verPremiosTorre: true,         // ← exclusivo de este rol
+    verRendimientoGestores: false,
   },
 
   // ── CLIENTE — solo su portal ──────────────────────────────────────────────
@@ -218,6 +250,7 @@ const PERMISOS: Record<Rol, Permisos> = {
     verBandejaWA: false, responderWA: false,
     verTorreCompleta: false, verTorreSoloPropia: false, requiereGeo: false,
     verPremios: false, verPremiosTorre: false,
+    verRendimientoGestores: false,
   },
 }
 
@@ -233,6 +266,7 @@ export function puedeHacer(rol: Rol, permiso: keyof Permisos): boolean {
 
 export const ROL_LABELS: Record<Rol, string> = {
   propietario:      'Propietario',
+  admin_gral:       'Administrador General',
   admin:            'Administrador',
   vendedor:         'Vendedor / Closer',
   operador:         'Operador',
@@ -244,6 +278,7 @@ export const ROL_LABELS: Record<Rol, string> = {
 
 export const ROL_COLORS: Record<Rol, string> = {
   propietario:      'bg-purple-100 text-purple-700',
+  admin_gral:       'bg-indigo-100 text-indigo-700',
   admin:            'bg-[#D4621A]/10 text-[#D4621A]',
   vendedor:         'bg-blue-100 text-blue-700',
   operador:         'bg-emerald-100 text-emerald-700',
@@ -254,4 +289,4 @@ export const ROL_COLORS: Record<Rol, string> = {
 }
 
 // Roles que tienen acceso al panel admin
-export const ROLES_ADMIN: Rol[] = ['admin', 'propietario', 'vendedor', 'operador', 'gestor', 'asesor_comercial']
+export const ROLES_ADMIN: Rol[] = ['admin', 'admin_gral', 'propietario', 'vendedor', 'operador', 'gestor', 'asesor_comercial']

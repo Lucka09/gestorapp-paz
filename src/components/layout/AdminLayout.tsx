@@ -4,7 +4,7 @@ import {
   CalendarDays, LogOut, Radar, Menu, X, MessageCircle,
   AlertTriangle, Ban, WifiOff, TrendingUp, CheckSquare, UserCog,
   Calculator, Upload, Settings, DollarSign, BarChart2,
-  Megaphone, Trophy,
+  Megaphone, Trophy, Building2,
 } from 'lucide-react'
 import { useState } from 'react'
 import { signOut }     from 'firebase/auth'
@@ -38,6 +38,7 @@ const PREFETCH_MAP: Record<string, () => Promise<unknown>> = {
   '/admin/importar':          () => import('@/features/importar/ImportarPage'),       // ← nuevo
   '/admin/bandeja':            () => import('@/features/bandeja/BandejaWAPage'),
   '/admin/premios':            () => import('@/features/premios/PremiosPage'),
+  '/admin/referidos':          () => import('@/features/referidos/ReferidosPage'),
 }
 
 const NAV_ITEMS_ALL = [
@@ -51,6 +52,7 @@ const NAV_ITEMS_ALL = [
   { to: '/admin/bandeja', icon: MessageCircle, label: 'WhatsApp', permiso: 'verBandejaWA' },
   { to: '/admin/cobranzas',        icon: DollarSign,      label: 'Cobranzas',        permiso: 'verCobranzas'   },
   { to: '/admin/reportes',         icon: BarChart2,       label: 'Reportes',         permiso: 'verReportes'    },
+  { to: '/admin/referidos',        icon: Building2,       label: 'Referidos',        permiso: 'verReportes'    },
   { to: '/admin/tareas',           icon: CheckSquare,     label: 'Tareas',           permiso: 'verTramites'    },
   { to: '/admin/premios',          icon: Trophy,          label: 'Mis Premios',      permiso: 'verPremios'     },
   { to: '/admin/equipo',           icon: UserCog,         label: 'Equipo',           permiso: 'verEquipo'      },
