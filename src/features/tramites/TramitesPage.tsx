@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Search, Plus, ChevronRight, LayoutList, Table2 } from 'lucide-react'
+import { Search, Plus, ChevronRight, LayoutList, Table2, Clock, AlertTriangle } from 'lucide-react'
 import { useTramitesFiltrados, type TramitesFiltros } from '@/hooks/useTramites'
 import { crearTramite } from '@/lib/firestore/tramites'
 import { useAuth } from '@/hooks/useAuth'
@@ -22,6 +22,19 @@ import { Download } from 'lucide-react'
 import type { TramiteInput } from '@/lib/firestore/tramites'
 import { usePageTitle }  from '@/hooks/usePageTitle'
 import { useGestoriaId } from '@/context/GestoriaContext'
+
+// ── Helper: alerta de fecha requerida ───────────────────────────────────────
+function alertaFechaRequerida(fechaRequerida: string | null | undefined): null | '24h' | '48h' | 'vencida' {
+  if (!fechaRequerida) return null
+  const ahora   = Date.now()
+  const fecha   = new Date(fechaRequerida + 'T23:59:59').getTime()
+  const diffMs  = fecha - ahora
+  const diffHrs = diffMs / 3_600_000
+  if (diffHrs < 0)   return 'vencida'
+  if (diffHrs <= 24) return '24h'
+  if (diffHrs <= 48) return '48h'
+  return null
+}
 
 const ESTADOS: EstadoTramite[] = [
   'pendiente','en_proceso','documentacion_requerida',
@@ -160,8 +173,36 @@ export default function TramitesPage() {
                       {t.patente}
                     </span>
                     <EstadoBadge estado={t.estado} />
+                    {/* Alerta fecha requerida */}
+                    {(() => {
+                      const al = alertaFechaRequerida((t as any).fechaRequerida)
+                      if (!al) return null
+                      const cfg = al === 'vencida'
+                        ? { color: 'bg-red-100 text-red-700', icon: '🚨', label: 'Vencida' }
+                        : al === '24h'
+                        ? { color: 'bg-red-50 text-red-600', icon: '⏰', label: 'Vence hoy' }
+                        : { color: 'bg-amber-50 text-amber-700', icon: '⚠️', label: 'Vence mañana' }
+                      return (
+                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1 ${cfg.color}`}>
+                          {cfg.icon} {cfg.label}
+                        </span>
+                      )
+                    })()}
                   </div>
                   <div className="flex items-center gap-3 mt-1 flex-wrap">
+                    {/* Nombre del cliente */}
+                    {(() => {
+                      const cli = clientes.find(c => c.id === t.clienteId)
+                      return cli
+                        ? <span className="text-xs font-semibold text-[#D4621A]">{cli.nombre} {cli.apellido}</span>
+                        : null
+                    })()}
+                    {/* Encargado de multas asignado */}
+                    {(t as any).asignadoNombre && (
+                      <span className="text-xs text-gray-500">
+                        👤 {(t as any).asignadoNombre}
+                      </span>
+                    )}
                     {t.descripcion && <span className="text-xs text-gray-500 truncate max-w-xs">{t.descripcion}</span>}
                     <span className="text-xs text-gray-400">{formatFecha(t.creadoEn)}</span>
                     {t.honorarios > 0 && (
@@ -179,36 +220,63 @@ export default function TramitesPage() {
       ) : (
         /* ── VISTA TABLA ── */
         <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden shadow-sm animate-fadein">
-          <div className="grid grid-cols-[76px_1fr_106px_106px_92px_24px] gap-2 px-4 py-2.5
+          <div className="grid grid-cols-[76px_1fr_140px_106px_106px_92px_24px] gap-2 px-4 py-2.5
                           bg-gray-50 border-b border-gray-100 text-xs font-bold text-gray-400 uppercase tracking-wider">
             <span>N°</span>
             <span>Trámite / Patente</span>
+            <span>Cliente / Gestor</span>
             <span>Estado</span>
             <span className="text-right">Honorarios</span>
             <span>Fecha</span>
             <span />
           </div>
           {tramites.map(t => (
-            <div key={t.id} onClick={() => navigate(`/admin/tramites/${t.id}`)}
-              className="grid grid-cols-[76px_1fr_106px_106px_92px_24px] gap-2 px-4 py-3
-                         border-b border-gray-50 last:border-0 items-center cursor-pointer
-                         hover:bg-[#D4621A]/[0.03] transition-colors group">
-              <NumeroBadge numero={t.numero} tipo={t.tipo} size="sm" />
-              <div className="min-w-0">
-                <p className="text-sm font-semibold text-gray-800 truncate">{TIPO_TRAMITE_LABELS[t.tipo]}</p>
-                <span className="font-mono text-[11px] bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded tracking-wider">
-                  {t.patente}
-                </span>
-              </div>
-              <div><EstadoBadge estado={t.estado} /></div>
-              <p className={`text-sm font-semibold text-right ${
-                !t.honorarios ? 'text-gray-300' : t.pagado ? 'text-emerald-600' : 'text-orange-500'
-              }`}>
-                {t.honorarios > 0 ? formatPesos(t.honorarios) : '—'}
-              </p>
-              <p className="text-xs text-gray-400">{formatFecha(t.creadoEn)}</p>
-              <ChevronRight size={13} className="text-gray-200 group-hover:text-[#D4621A]/40 transition-colors" />
-            </div>
+            {(() => {
+              const al  = alertaFechaRequerida((t as any).fechaRequerida)
+              const cli = clientes.find(c => c.id === t.clienteId)
+              const rowBg = al === 'vencida' ? 'bg-red-50/40' : al === '24h' ? 'bg-amber-50/30' : ''
+              return (
+                <div key={t.id} onClick={() => navigate(`/admin/tramites/${t.id}`)}
+                  className={`grid grid-cols-[76px_1fr_140px_106px_106px_92px_24px] gap-2 px-4 py-3
+                             border-b border-gray-50 last:border-0 items-center cursor-pointer
+                             hover:bg-[#D4621A]/[0.03] transition-colors group ${rowBg}`}>
+                  <NumeroBadge numero={t.numero} tipo={t.tipo} size="sm" />
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-1.5">
+                      <p className="text-sm font-semibold text-gray-800 truncate">{TIPO_TRAMITE_LABELS[t.tipo]}</p>
+                      {al && (
+                        <AlertTriangle size={11} className={al === 'vencida' ? 'text-red-500' : 'text-amber-500'} />
+                      )}
+                    </div>
+                    <span className="font-mono text-[11px] bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded tracking-wider">
+                      {t.patente}
+                    </span>
+                  </div>
+                  {/* Cliente / Encargado */}
+                  <div className="min-w-0">
+                    {cli && (
+                      <p className="text-xs font-semibold text-[#D4621A] truncate">
+                        {cli.nombre} {cli.apellido}
+                      </p>
+                    )}
+                    {(t as any).asignadoNombre && (
+                      <p className="text-[10px] text-gray-400 truncate">
+                        👤 {(t as any).asignadoNombre}
+                      </p>
+                    )}
+                    {!cli && !((t as any).asignadoNombre) && <span className="text-gray-300">—</span>}
+                  </div>
+                  <div><EstadoBadge estado={t.estado} /></div>
+                  <p className={`text-sm font-semibold text-right ${
+                    !t.honorarios ? 'text-gray-300' : t.pagado ? 'text-emerald-600' : 'text-orange-500'
+                  }`}>
+                    {t.honorarios > 0 ? formatPesos(t.honorarios) : '—'}
+                  </p>
+                  <p className="text-xs text-gray-400">{formatFecha(t.creadoEn)}</p>
+                  <ChevronRight size={13} className="text-gray-200 group-hover:text-[#D4621A]/40 transition-colors" />
+                </div>
+              )
+            })()}
           ))}
         </div>
       )}
@@ -226,13 +294,13 @@ function SkeletonTramites({ vista }: { vista: 'cards' | 'tabla' }) {
   if (vista === 'tabla') {
     return (
       <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden shadow-sm">
-        <div className="grid grid-cols-[76px_1fr_106px_106px_92px_24px] gap-2 px-4 py-2.5 bg-gray-50 border-b border-gray-100">
+        <div className="grid grid-cols-[76px_1fr_140px_106px_106px_92px_24px] gap-2 px-4 py-2.5 bg-gray-50 border-b border-gray-100">
           {[56,130,80,60,56,16].map((w,i) => (
             <div key={i} className="h-2.5 rounded-full bg-gray-200 animate-pulse" style={{ width: w }} />
           ))}
         </div>
         {n.map((_,i) => (
-          <div key={i} className="grid grid-cols-[76px_1fr_106px_106px_92px_24px] gap-2
+          <div key={i} className="grid grid-cols-[76px_1fr_140px_106px_106px_92px_24px] gap-2
                                    px-4 py-3.5 border-b border-gray-50 last:border-0 items-center">
             <div className="h-3 w-14 bg-gray-100 rounded-full animate-pulse" />
             <div className="space-y-1.5">

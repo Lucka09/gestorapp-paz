@@ -12,14 +12,16 @@ import { formatPatente }         from '@/utils'
 
 const ANIO_ACTUAL = new Date().getFullYear()
 
-// Patente argentina: formato antiguo AAA-000 o nuevo AA-000-AA (sin guión también)
-const PATENTE_RE = /^[A-Za-z]{2,3}[\s-]?\d{3}[\s-]?[A-Za-z]{0,2}$/
+// Patente argentina — se acepta cualquier combinación de letras/números de 3 a 12 chars.
+// Formatos: AB 123 CD (nuevo), ABC 123 (viejo), moto, máquinas especiales.
+// Sin formato único obligatorio porque varía según año y tipo de vehículo.
 
 const vehiculoSchema = z.object({
   patente:   z.string()
+               .max(12, 'Máx 12 caracteres')
                .refine(
-                 v => v === '' || PATENTE_RE.test(v),
-                 'Formato inválido — ej: AB 123 CD o ABC 123'
+                 v => v === '' || v.trim().length >= 3,
+                 'Mínimo 3 caracteres'
                ),
   tipo:      z.enum(['auto','moto','camion','utilitario','otro']),
   marca:     z.string().max(60),
@@ -120,7 +122,7 @@ export default function VehiculoForm({
       <div className="grid grid-cols-2 gap-4">
         <div>
           <Input
-            label="Patente" value={form.patente} placeholder="AB 123 CD"
+            label="Patente" value={form.patente} placeholder="AB 123 CD · ABC 123 · vacío en Insc. Inicial"
             disabled={esEdicion}
             className={`uppercase ${esEdicion ? 'bg-gray-50' : ''}`}
             onChange={set('patente')}
@@ -129,7 +131,7 @@ export default function VehiculoForm({
           />
           {!esEdicion && (
             <p className="text-xs text-gray-400 mt-1">
-              Opcional — en Inscripción Inicial el vehículo aún no tiene patente asignada.
+              Opcional. Aceptamos todos los formatos: AB 123 CD (nuevo) · ABC 123 (viejo) · motos y otros. Dejá vacío en Inscripción Inicial.
               Se puede completar al finalizar el trámite.
             </p>
           )}

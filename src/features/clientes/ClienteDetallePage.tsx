@@ -5,6 +5,10 @@ import {
   MapPin, FileText, Car, User, AlertTriangle, KeyRound, CheckCircle, Target, Receipt
 } from 'lucide-react'
 import { useCliente } from '@/hooks/useClientes'
+import { useTramitesPorCliente } from '@/hooks/useTramites'
+import { PanelDocumentacion } from '@/components/shared/PanelDocumentacion'
+import { usePermisos } from '@/hooks/usePermisos'
+import { useEquipo }   from '@/hooks/useEquipo'
 import { actualizarCliente, eliminarCliente } from '@/lib/firestore/clientes'
 import { Button, Card, Spinner, Badge } from '@/components/ui'
 import Modal from '@/components/shared/Modal'
@@ -22,6 +26,17 @@ export default function ClienteDetallePage() {
   const { cliente, loading } = useCliente(id)
 
   const [editOpen,   setEditOpen]   = useState(false)
+  const { tramites: tramitesCliente } = useTramitesPorCliente(id)
+  const { puede } = usePermisos()
+  const puedeVerDocs = puede('verObsInternas')
+  const [tramiteDocAbierto, setTramiteDocAbierto] = useState<string | null>(null)
+  const { equipo } = useEquipo()
+
+  // Resolver nombre de un uid buscando en el equipo
+  const resolverNombre = (uid: string): string => {
+    const m = equipo.find(e => e.uid === uid)
+    return m ? `${m.nombre} ${m.apellido}`.trim() : 'Usuario'
+  }
   const [deleteOpen, setDeleteOpen] = useState(false)
   const [accesoOpen, setAccesoOpen] = useState(false)
   const [presupOpen, setPresupOpen] = useState(false)
@@ -171,7 +186,7 @@ export default function ClienteDetallePage() {
         />
       </Card>
 
-      {/* Trámites */}
+      {/* Trámites + Documentación */}
       <Card className="p-5">
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-xs font-bold text-gray-400 uppercase tracking-wider">Trámites</h2>
@@ -179,9 +194,95 @@ export default function ClienteDetallePage() {
             <FileText size={13} /> Ver todos
           </Button>
         </div>
-        <p className="text-sm text-gray-400 text-center py-4">
-          Historial de trámites disponible en el Paso 6.
-        </p>
+        {!tramitesCliente.length ? (
+          <p className="text-sm text-gray-400 text-center py-4">
+            Este cliente no tiene trámites registrados.
+          </p>
+        ) : (
+          <div className="space-y-2">
+            {tramitesCliente.map(t => {
+              const tieneWorkflow = ['inscripcion_inicial','descargo_multa','transferencia'].includes(t.tipo)
+              const abierto = tramiteDocAbierto === t.id
+              return (
+                <div key={t.id} className="border border-gray-100 rounded-xl overflow-hidden">
+                  {/* Fila del trámite */}
+                  <div className="flex items-center gap-3 px-4 py-3 bg-gray-50/50">
+                    <div
+                      onClick={() => navigate(`/admin/tramites/${t.id}`)}
+                      className="flex-1 flex items-center gap-2 cursor-pointer min-w-0 hover:opacity-80 transition-opacity"
+                    >
+                      <span className="font-mono text-[11px] bg-gray-200 text-gray-600 px-1.5 py-0.5 rounded tracking-wider shrink-0">
+                        {t.patente || '—'}
+                      </span>
+                      <span className="text-sm font-semibold text-gray-700 truncate">
+                        {t.tipo === 'inscripcion_inicial' ? 'Inscripción Inicial'
+                         : t.tipo === 'descargo_multa'   ? 'Descargo de Multa'
+                         : t.tipo === 'transferencia'     ? 'Transferencia'
+                         : t.tipo}
+                      </span>
+                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0 ${
+                        t.estado === 'entregado' || t.estado === 'completado'
+                          ? 'bg-emerald-100 text-emerald-700'
+                          : t.estado === 'cancelado'
+                          ? 'bg-red-100 text-red-600'
+                          : 'bg-orange-100 text-orange-600'
+                      }`}>
+                        {t.estado.replace(/_/g, ' ')}
+                      </span>
+                    </div>
+                    {/* Creado por / Asignado a */}
+                    <div className="flex items-center gap-3 px-4 pb-2.5 flex-wrap">
+                      <span className="flex items-center gap-1 text-[11px] text-gray-400">
+                        <span className="font-medium text-gray-500">Creado por:</span>
+                        {resolverNombre(t.creadoPor)}
+                      </span>
+                      {(t as any).asignadoNombre && (
+                        <span className="flex items-center gap-1 text-[11px] text-gray-400">
+                          <span className="font-medium text-gray-500">Asignado:</span>
+                          {(t as any).asignadoNombre}
+                        </span>
+                      )}
+                      {!(t as any).asignadoNombre && t.asignadoA && (
+                        <span className="flex items-center gap-1 text-[11px] text-gray-400">
+                          <span className="font-medium text-gray-500">Asignado:</span>
+                          {resolverNombre(t.asignadoA)}
+                        </span>
+                      )}
+                      <span className="text-[11px] text-gray-300 ml-auto">
+                        {t.creadoEn?.toDate?.()?.toLocaleDateString('es-AR', { day:'2-digit', month:'2-digit', year:'2-digit' }) ?? '—'}
+                      </span>
+                    </div>
+                    {/* Botón ver documentos */}
+                    {puedeVerDocs && tieneWorkflow && (
+                      <button
+                        onClick={() => setTramiteDocAbierto(prev => prev === t.id ? null : t.id)}
+                        className={`flex items-center gap-1.5 text-[11px] font-semibold px-2.5 py-1.5
+                                    rounded-lg border transition-all shrink-0 ${
+                          abierto
+                            ? 'bg-[#D4621A] border-[#D4621A] text-white'
+                            : 'border-gray-200 text-gray-500 hover:border-[#D4621A] hover:text-[#D4621A]'
+                        }`}
+                      >
+                        <FileText size={11} />
+                        {abierto ? 'Ocultar docs' : 'Ver docs'}
+                      </button>
+                    )}
+                  </div>
+                  {/* Panel de documentación expandible */}
+                  {puedeVerDocs && abierto && tieneWorkflow && (
+                    <div className="border-t border-gray-100 p-3">
+                      <PanelDocumentacion
+                        tramiteId={t.id}
+                        tipo={t.tipo}
+                        defaultOpen={true}
+                      />
+                    </div>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+        )}
       </Card>
 
       {/* Modal editar */}

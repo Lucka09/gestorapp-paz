@@ -234,7 +234,7 @@ export default function GestorMultaWorkflow({ tramiteId, numeroLITExterno }: Pro
   // Paso 1
   const [p1, setP1] = useState({
     patente: '', nombreCompleto: '', dni: '',
-    fechaTramite: '', requiereSUATS: false, observacion: '',
+    fechaTramite: '', fechaInfraccion: '', requiereSUATS: false, observacion: '',
   })
 
   // Paso 2 — archivos
@@ -290,6 +290,7 @@ export default function GestorMultaWorkflow({ tramiteId, numeroLITExterno }: Pro
     observacionFinal: '',
     suatsAbonado: false,
     montoSUATS: 0,
+    pagoTotalRecibo: 0,
   })
 
   const [pasosColapsados, setPasosColapsados] = useState<Record<number, boolean>>({})
@@ -623,6 +624,18 @@ export default function GestorMultaWorkflow({ tramiteId, numeroLITExterno }: Pro
                   className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm outline-none focus:border-[#D4621A]"
                 />
               </div>
+              <div>
+                <label className="text-xs font-semibold text-gray-500 mb-1 block">
+                  Fecha de la infracción
+                  <span className="text-gray-400 font-normal ml-1">(opcional — editable luego)</span>
+                </label>
+                <input
+                  type="date"
+                  value={p1.fechaInfraccion}
+                  onChange={e => setP1(prev => ({ ...prev, fechaInfraccion: e.target.value }))}
+                  className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm outline-none focus:border-[#D4621A]"
+                />
+              </div>
               <label className="flex items-center gap-3 p-3 border border-gray-200 rounded-xl cursor-pointer">
                 <input
                   type="checkbox"
@@ -659,7 +672,8 @@ export default function GestorMultaWorkflow({ tramiteId, numeroLITExterno }: Pro
               { label: 'Patente',     val: workflow.paso1?.patente ?? '—' },
               { label: 'Titular',     val: workflow.paso1?.nombreCompleto ?? '—' },
               { label: 'DNI',         val: workflow.paso1?.dni ?? '—' },
-              { label: 'Fecha',       val: workflow.paso1?.fechaTramite ?? '—' },
+              { label: 'Fecha trámite',   val: workflow.paso1?.fechaTramite   ?? '—' },
+              { label: 'Fecha infracción', val: workflow.paso1?.fechaInfraccion ?? '—' },
               { label: 'SUATS',       val: workflow.paso1?.requiereSUATS ? 'Sí, requerido' : 'No requerido' },
             ]} />
           )}
@@ -1171,6 +1185,36 @@ export default function GestorMultaWorkflow({ tramiteId, numeroLITExterno }: Pro
                 </div>
               )}
 
+              {/* ── Pago total del recibo (OBLIGATORIO) ──────────────────────── */}
+              <div className="border border-gray-200 rounded-xl overflow-hidden">
+                <div className="px-4 py-3 bg-gray-50 border-b border-gray-100">
+                  <p className="text-xs font-bold text-gray-700 uppercase tracking-wider">
+                    Pago total del recibo <span className="text-red-500">*</span>
+                  </p>
+                  <p className="text-[11px] text-gray-400 mt-0.5">Obligatorio para finalizar el trámite</p>
+                </div>
+                <div className="px-4 py-3">
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm font-bold text-gray-400">$</span>
+                    <input
+                      type="number" min={0} step={100}
+                      value={p7.pagoTotalRecibo || ''}
+                      onChange={e => setP7(prev => ({ ...prev, pagoTotalRecibo: Number(e.target.value) }))}
+                      placeholder="0"
+                      className="w-full pl-7 pr-3 py-2.5 border border-gray-200 rounded-xl text-sm
+                                 font-bold text-gray-800 bg-white outline-none
+                                 focus:border-[#D4621A] focus:shadow-[0_0_0_3px_rgba(212,98,26,0.1)]"
+                    />
+                  </div>
+                  {p7.pagoTotalRecibo > 0 && (
+                    <p className="text-xs text-emerald-600 mt-1.5 flex items-center gap-1">
+                      <span>✓</span>
+                      {new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' }).format(p7.pagoTotalRecibo)} registrado
+                    </p>
+                  )}
+                </div>
+              </div>
+
               {/* Checkboxes de confirmación */}
               <div className="space-y-2">
                 {[
@@ -1258,6 +1302,11 @@ export default function GestorMultaWorkflow({ tramiteId, numeroLITExterno }: Pro
               />
 
               {/* Validación: si marcó suatsAbonado, el monto es obligatorio */}
+              {!p7.pagoTotalRecibo && (
+                <p className="text-xs text-red-500 flex items-center gap-1">
+                  ⚠ Ingresá el pago total del recibo para poder finalizar.
+                </p>
+              )}
               {p7.suatsAbonado && !p7.montoSUATS && (
                 <p className="text-xs text-red-500 flex items-center gap-1">
                   ⚠ Ingresá el monto abonado por SUATS para poder finalizar.
@@ -1267,6 +1316,7 @@ export default function GestorMultaWorkflow({ tramiteId, numeroLITExterno }: Pro
               <button
                 disabled={
                   !p7.clienteAvisado ||
+                  !p7.pagoTotalRecibo ||
                   (!!workflow.paso1?.requiereSUATS && !p7.suatsEntregado) ||
                   (p7.suatsAbonado && !p7.montoSUATS) ||
                   guardando
@@ -1285,13 +1335,18 @@ export default function GestorMultaWorkflow({ tramiteId, numeroLITExterno }: Pro
                 <p className="text-xs text-gray-400 mt-0.5">
                   Canal: {workflow.paso7?.canalEntrega} · Por: {workflow.paso7?.completadoPorNombre}
                 </p>
-                {workflow.paso7?.suatsAbonado && workflow.paso7?.montoSUATS && (
-                  <div className="mt-2 inline-flex items-center gap-1.5 px-2.5 py-1 bg-amber-50 border border-amber-200 rounded-lg">
-                    <span className="text-xs font-bold text-amber-700">
-                      SUATS abonado: {new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' }).format(workflow.paso7.montoSUATS)}
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {(workflow.paso7?.pagoTotalRecibo ?? 0) > 0 && (
+                    <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-emerald-50 border border-emerald-200 rounded-lg text-xs font-bold text-emerald-700">
+                      Recibo: {new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' }).format(workflow.paso7!.pagoTotalRecibo)}
                     </span>
-                  </div>
-                )}
+                  )}
+                  {workflow.paso7?.suatsAbonado && workflow.paso7?.montoSUATS && (
+                    <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-amber-50 border border-amber-200 rounded-lg text-xs font-bold text-amber-700">
+                      SUATS: {new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' }).format(workflow.paso7.montoSUATS)}
+                    </span>
+                  )}
+                </div>
               </div>
             </div>
           )}

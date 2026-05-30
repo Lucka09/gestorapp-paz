@@ -155,6 +155,8 @@ export type TramiteInput = {
   observacionesInternas: string
   honorarios:            number
   asignadoA:             string | null
+  asignadoNombre?:       string | null   // nombre legible del gestor asignado
+  fechaRequerida?:       string | null   // YYYY-MM-DD — fecha límite del trámite
 }
 
 export async function crearTramite(
@@ -162,8 +164,12 @@ export async function crearTramite(
   creadoPor: string
 ): Promise<string> {
   const numero = generarNumeroTramite()
+  const clean: Record<string, unknown> = {}
+  for (const [k, v] of Object.entries(data)) {
+    if (v !== undefined) clean[k] = v
+  }
   const ref = await addDoc(tramitesCol as CollectionReference<DocumentData>, {
-    ...data,
+    ...clean,
     numero,
     estado:           'pendiente',
     documentos:       [],

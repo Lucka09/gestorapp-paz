@@ -23,6 +23,7 @@ import { BotonQR }        from './BotonQR'
 import BotonComprobante      from './BotonComprobante'
 import BotonComprobantePago  from './BotonComprobantePago'
 import { PanelNotas }  from '@/components/shared/PanelNotas'
+import { PanelDocumentacion } from '@/components/shared/PanelDocumentacion'
 import GestorMultaWorkflow     from '@/components/GestorMultaWorkflow'
 import NumeroBadge             from '@/components/shared/NumeroBadge'
 import { TIPO_TRAMITE_LABELS, type EstadoTramite } from '@/types'
@@ -414,6 +415,11 @@ export default function TramiteDetallePage() {
           </Card>
         )
       })()}
+
+      {/* ── Documentación cargada ── solo admin/admin_gral/propietario ───────── */}
+      {tramite && (esInscripcion || esMulta || esTransferencia) && (
+        <PanelDocumentacion tramiteId={tramite.id} tipo={tramite.tipo} />
+      )}
 
       {/* Notas internas */}
       {tramite && (

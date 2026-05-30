@@ -34,12 +34,13 @@ export interface RegistroPago {
 // ─── PASO 1 — Recepción de datos (Asesor) ─────────────────────────────────────
 
 export interface MultaPaso1Data {
-  patente:        string
-  nombreCompleto: string
-  dni:            string
-  fechaTramite:   string    // YYYY-MM-DD — campo crítico con advertencia
-  requiereSUATS:  boolean
-  observacion?:   string
+  patente:          string
+  nombreCompleto:   string
+  dni:              string
+  fechaTramite:     string    // YYYY-MM-DD — campo crítico con advertencia
+  fechaInfraccion?: string    // YYYY-MM-DD — fecha de la infracción (editable posterior)
+  requiereSUATS:    boolean
+  observacion?:     string
   completadoPor:       string
   completadoPorNombre: string
   completadoEn:        Timestamp
@@ -156,10 +157,10 @@ export interface MultaPaso7Data {
   canalEntrega:     'presencial' | 'whatsapp' | 'email' | 'otro'
   observacionFinal?: string
   // ─── SUATS abonado (M1) ───────────────────────────────────────────────────
-  // El asesor indica si se abonó SUATS al momento del cierre.
-  // Si suatsAbonado === true, montoSUATS debe ser > 0.
-  suatsAbonado?:    boolean    // se abonó SUATS en este cierre
-  montoSUATS?:      number     // monto en ARS abonado por SUATS
+  suatsAbonado?:    boolean
+  montoSUATS?:      number
+  // ─── Pago total del recibo (OBLIGATORIO para finalizar) ──────────────────
+  pagoTotalRecibo:  number
   completadoPor:       string
   completadoPorNombre: string
   completadoEn:        Timestamp

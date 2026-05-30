@@ -18,6 +18,8 @@ const tramiteSchema = z.object({
   observacionesInternas: z.string().max(300),
   honorarios:            z.number().min(0, 'Debe ser ≥ 0').max(9_999_999),
   asignadoA:             z.string().nullable(),
+  asignadoNombre:        z.string().optional().nullable(),
+  fechaRequerida:        z.string().optional().nullable(),
 })
 
 type FormData  = z.infer<typeof tramiteSchema>
@@ -32,6 +34,8 @@ const EMPTY: FormData = {
   observacionesInternas: '',
   honorarios:            0,
   asignadoA:             null,
+  asignadoNombre:        null,
+  fechaRequerida:        null,
 }
 
 // ─── PROPS ────────────────────────────────────────────────────────────────────
@@ -205,6 +209,23 @@ export default function TramiteForm({
           placeholder="0"
         />
       )}
+
+      {/* ── Fecha requerida ──────────────────────────────────────────── */}
+      <div>
+        <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">
+          Fecha requerida
+          <span className="text-gray-400 font-normal ml-1 normal-case">
+            · opcional · alerta automática 24/48 h antes
+          </span>
+        </label>
+        <input
+          type="date"
+          value={form.fechaRequerida ?? ''}
+          onChange={e => setForm(prev => ({ ...prev, fechaRequerida: e.target.value || null }))}
+          className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm outline-none
+                     focus:border-[#D4621A] focus:shadow-[0_0_0_3px_rgba(212,98,26,0.1)]"
+        />
+      </div>
 
       {/* Observaciones internas */}
       <Textarea
