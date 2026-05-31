@@ -67,7 +67,10 @@ export function useCierreMensual() {
     refetch: refetchPendiente,
   } = useQuery({
     queryKey: ['cierre', idPend],
-    queryFn:  () => getCierreMensual(gestoriaId, anioPend, mesPend),
+    queryFn:  async () => {
+      try { return await getCierreMensual(gestoriaId, anioPend, mesPend) }
+      catch { return null }  // 403 si las reglas no están desplegadas aún
+    },
     enabled:  !!gestoriaId && puedeGestionar,
     staleTime: 1000 * 60 * 5,
   })
@@ -81,7 +84,10 @@ export function useCierreMensual() {
     refetch: refetchHist,
   } = useQuery({
     queryKey: ['cierres', gestoriaId],
-    queryFn:  () => getCierresGestoria(gestoriaId),
+    queryFn:  async () => {
+      try { return await getCierresGestoria(gestoriaId) }
+      catch { return [] }  // 403 si las reglas no están desplegadas aún
+    },
     enabled:  !!gestoriaId && puedeGestionar,
     staleTime: 1000 * 60 * 10,
   })

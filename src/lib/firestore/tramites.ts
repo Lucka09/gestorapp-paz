@@ -7,7 +7,7 @@ import {
   arrayUnion, limit,
 } from 'firebase/firestore'
 import { tramitesCol, tramiteDoc, vehiculoDoc, clienteDoc } from './collections'
-import { generarNumeroCorrelativo } from '@/utils'
+import { generarNumeroTramite, CODIGO_TRAMITE } from './collections'
 import { registrarActividad } from './audit'
 import { notificarCambioEstado } from './notificaciones'
 import type { Tramite, EstadoTramite, TipoTramite, Rol } from '@/types'
@@ -161,7 +161,16 @@ export async function crearTramite(
   data:      TramiteInput,
   creadoPor: string
 ): Promise<string> {
-  const numero = await generarNumeroCorrelativo(data.gestoriaId, data.tipo)
+  // Contar trámites del mismo tipo + gestoriaId + año para el secuencial
+  const anioActual = new Date().getFullYear()
+  const countSnap  = await getCountFromServer(
+    query(tramitesCol,
+      where('gestoriaId', '==', data.gestoriaId),
+      where('tipo',       '==', data.tipo),
+    )
+  )
+  const secuencial = countSnap.data().count + 1
+  const numero     = generarNumeroTramite(data.tipo, secuencial)
   const ref = await addDoc(tramitesCol as CollectionReference<DocumentData>, {
     ...data,
     numero,
