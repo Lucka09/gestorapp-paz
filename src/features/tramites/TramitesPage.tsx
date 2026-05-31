@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Search, Plus, ChevronRight, LayoutList, Table2, Clock, AlertTriangle } from 'lucide-react'
+import { Search, Plus, ChevronRight, Clock, DollarSign, User } from 'lucide-react'
 import { useTramitesFiltrados, type TramitesFiltros } from '@/hooks/useTramites'
 import { crearTramite } from '@/lib/firestore/tramites'
 import { useAuth } from '@/hooks/useAuth'
@@ -23,19 +23,6 @@ import type { TramiteInput } from '@/lib/firestore/tramites'
 import { usePageTitle }  from '@/hooks/usePageTitle'
 import { useGestoriaId } from '@/context/GestoriaContext'
 
-// ── Helper: alerta de fecha requerida ───────────────────────────────────────
-function alertaFechaRequerida(fechaRequerida: string | null | undefined): null | '24h' | '48h' | 'vencida' {
-  if (!fechaRequerida) return null
-  const ahora   = Date.now()
-  const fecha   = new Date(fechaRequerida + 'T23:59:59').getTime()
-  const diffMs  = fecha - ahora
-  const diffHrs = diffMs / 3_600_000
-  if (diffHrs < 0)   return 'vencida'
-  if (diffHrs <= 24) return '24h'
-  if (diffHrs <= 48) return '48h'
-  return null
-}
-
 const ESTADOS: EstadoTramite[] = [
   'pendiente','en_proceso','documentacion_requerida',
   'en_organismo','listo_para_retirar','entregado','cancelado',
@@ -46,7 +33,7 @@ export default function TramitesPage() {
   const { user }   = useAuth()
   const gestoriaId = useGestoriaId()
   usePageTitle('Trámites')
-  const [vista, setVista] = useState<'cards' | 'tabla'>('cards')
+  // Vista única mobile-first — no requiere toggle
   const [modalOpen, setModal] = useState(false)
   const [filtros, setFiltros] = useState<TramitesFiltros>({
     search: '', estado: 'todos', tipo: 'todos',
@@ -84,18 +71,7 @@ export default function TramitesPage() {
             >
               <Download size={15} /> Excel
             </Button>
-            <button
-              type="button"
-              onClick={() => setVista(v => v === 'cards' ? 'tabla' : 'cards')}
-              title={vista === 'cards' ? 'Vista tabla' : 'Vista cards'}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-gray-200
-                         bg-white text-gray-500 hover:text-gray-700 hover:border-gray-300
-                         text-sm font-medium transition-all"
-            >
-              {vista === 'cards'
-                ? <><Table2   size={14} /> Tabla</>
-                : <><LayoutList size={14} /> Cards</>}
-            </button>
+
             <Button onClick={() => setModal(true)}>
               <Plus size={16} /> Nuevo trámite
             </Button>
@@ -147,7 +123,7 @@ export default function TramitesPage() {
 
       {/* Lista / Tabla */}
       {loading ? (
-        <SkeletonTramites vista={vista} />
+        <SkeletonTramites />
       ) : tramites.length === 0 ? (
         <EmptyStateIllustrated
           tipo={filtros.search || filtros.estado !== 'todos' || filtros.tipo !== 'todos' ? 'busqueda' : 'tramites'}
@@ -158,134 +134,100 @@ export default function TramitesPage() {
             ? <Button onClick={() => setModal(true)}><Plus size={15} />Nuevo trámite</Button>
             : undefined}
         />
-      ) : vista === 'cards' ? (
-        <div className="space-y-2 animate-fadein">
-          {tramites.map(t => (
-            <Card key={t.id} onClick={() => navigate(`/admin/tramites/${t.id}`)} className="p-0 overflow-hidden">
-              <div className="flex items-center gap-4 p-4">
-                <div className="shrink-0 hidden sm:block">
-                  <NumeroBadge numero={t.numero} tipo={t.tipo} size="sm" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="font-semibold text-gray-900 text-sm">{TIPO_TRAMITE_LABELS[t.tipo]}</span>
-                    <span className="font-mono text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-lg tracking-wider">
-                      {t.patente}
+      ) : (
+        /* ── LISTA UNIFICADA mobile-first ── */
+        <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden shadow-sm animate-fadein">
+
+          {/* Cabecera desktop */}
+          <div className="hidden md:flex items-center gap-4 px-4 py-2.5 bg-gray-50 border-b border-gray-100
+                          text-[10px] font-bold text-gray-400 uppercase tracking-widest">
+            <span className="w-[76px] shrink-0">N°</span>
+            <span className="flex-1">Trámite</span>
+            <span className="w-[160px] shrink-0">Cliente</span>
+            <span className="w-[110px] shrink-0">Estado</span>
+            <span className="w-[90px] shrink-0 text-right">Honorarios</span>
+            <span className="w-[80px] shrink-0">Fecha</span>
+            <span className="w-4 shrink-0" />
+          </div>
+
+          {tramites.map((t, idx) => {
+            const cli = clientes.find(c => c.id === t.clienteId)
+            return (
+              <div
+                key={t.id}
+                onClick={() => navigate(`/admin/tramites/${t.id}`)}
+                className={`group cursor-pointer transition-colors hover:bg-[#D4621A]/[0.03] active:bg-[#D4621A]/[0.06]
+                  ${idx !== 0 ? 'border-t border-gray-50' : ''}`}
+              >
+                {/* ── MÓVIL ─────────────────────────────────────────────── */}
+                <div className="md:hidden px-4 py-3.5">
+                  <div className="flex items-center gap-2 mb-2">
+                    <NumeroBadge numero={t.numero} tipo={t.tipo} size="sm" />
+                    <span className="font-semibold text-gray-900 text-sm flex-1 truncate">
+                      {TIPO_TRAMITE_LABELS[t.tipo]}
                     </span>
                     <EstadoBadge estado={t.estado} />
-                    {/* Alerta fecha requerida */}
-                    {(() => {
-                      const al = alertaFechaRequerida((t as any).fechaRequerida)
-                      if (!al) return null
-                      const cfg = al === 'vencida'
-                        ? { color: 'bg-red-100 text-red-700', icon: '🚨', label: 'Vencida' }
-                        : al === '24h'
-                        ? { color: 'bg-red-50 text-red-600', icon: '⏰', label: 'Vence hoy' }
-                        : { color: 'bg-amber-50 text-amber-700', icon: '⚠️', label: 'Vence mañana' }
-                      return (
-                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1 ${cfg.color}`}>
-                          {cfg.icon} {cfg.label}
-                        </span>
-                      )
-                    })()}
+                    <ChevronRight size={14} className="text-gray-300 shrink-0 group-hover:text-[#D4621A]/50" />
                   </div>
-                  <div className="flex items-center gap-3 mt-1 flex-wrap">
-                    {/* Nombre del cliente */}
-                    {(() => {
-                      const cli = clientes.find(c => c.id === t.clienteId)
-                      return cli
-                        ? <span className="text-xs font-semibold text-[#D4621A]">{cli.nombre} {cli.apellido}</span>
-                        : null
-                    })()}
-                    {/* Encargado de multas asignado */}
-                    {(t as any).asignadoNombre && (
-                      <span className="text-xs text-gray-500">
-                        👤 {(t as any).asignadoNombre}
+                  <div className="flex items-center gap-2 flex-wrap">
+                    {t.patente && (
+                      <span className="font-mono text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-lg tracking-wider">
+                        {t.patente}
                       </span>
                     )}
-                    {t.descripcion && <span className="text-xs text-gray-500 truncate max-w-xs">{t.descripcion}</span>}
+                    {cli && (
+                      <span className="text-xs font-medium text-[#D4621A]">
+                        {cli.nombre} {cli.apellido}
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-3 mt-1.5 flex-wrap">
                     <span className="text-xs text-gray-400">{formatFecha(t.creadoEn)}</span>
                     {t.honorarios > 0 && (
-                      <span className={`text-xs font-medium ${t.pagado ? 'text-emerald-600' : 'text-orange-500'}`}>
+                      <span className={`text-xs font-semibold ${t.pagado ? 'text-emerald-600' : 'text-orange-500'}`}>
                         {formatPesos(t.honorarios)} {t.pagado ? '· Pagado' : '· Pendiente'}
                       </span>
                     )}
                   </div>
                 </div>
-                <ChevronRight size={16} className="text-gray-300 shrink-0" />
-              </div>
-            </Card>
-          ))}
-        </div>
-      ) : (
-        /* ── VISTA TABLA ── */
-        <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden shadow-sm animate-fadein">
-          <div className="grid grid-cols-[76px_1fr_140px_106px_100px_80px_72px_24px] gap-2 px-4 py-2.5
-                          bg-gray-50 border-b border-gray-100 text-xs font-bold text-gray-400 uppercase tracking-wider">
-            <span>N°</span>
-            <span>Trámite / Patente</span>
-            <span>Cliente / Gestor</span>
-            <span>Estado</span>
-            <span className="text-right">Honorarios</span>
-            <span>Creado</span>
-            <span>Presentar</span>
-            <span />
-          </div>
-          {tramites.map(t => {
-            const al     = alertaFechaRequerida((t as any).fechaRequerida)
-            const cli    = clientes.find(c => c.id === t.clienteId)
-            const rowBg  = al === 'vencida' ? 'bg-red-50/40' : al === '24h' ? 'bg-amber-50/30' : ''
-            return (
-              <div key={t.id} onClick={() => navigate(`/admin/tramites/${t.id}`)}
-                className={`grid grid-cols-[76px_1fr_140px_106px_100px_80px_72px_24px] gap-2 px-4 py-3
-                           border-b border-gray-50 last:border-0 items-center cursor-pointer
-                           hover:bg-[#D4621A]/[0.03] transition-colors group ${rowBg}`}>
-                <NumeroBadge numero={t.numero} tipo={t.tipo} size="sm" />
-                <div className="min-w-0">
-                  <div className="flex items-center gap-1.5">
+
+                {/* ── DESKTOP ───────────────────────────────────────────── */}
+                <div className="hidden md:flex items-center gap-4 px-4 py-3.5">
+                  <div className="w-[76px] shrink-0">
+                    <NumeroBadge numero={t.numero} tipo={t.tipo} size="sm" />
+                  </div>
+                  <div className="flex-1 min-w-0">
                     <p className="text-sm font-semibold text-gray-800 truncate">{TIPO_TRAMITE_LABELS[t.tipo]}</p>
-                    {al && (
-                      <AlertTriangle size={11} className={al === 'vencida' ? 'text-red-500' : 'text-amber-500'} />
+                    <div className="flex items-center gap-2 mt-0.5">
+                      {t.patente && (
+                        <span className="font-mono text-[11px] bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded tracking-wider">
+                          {t.patente}
+                        </span>
+                      )}
+                      {t.descripcion && (
+                        <span className="text-[11px] text-gray-400 truncate max-w-[180px]">{t.descripcion}</span>
+                      )}
+                    </div>
+                  </div>
+                  <div className="w-[160px] shrink-0 min-w-0">
+                    {cli ? (
+                      <p className="text-xs font-semibold text-[#D4621A] truncate">{cli.nombre} {cli.apellido}</p>
+                    ) : <span className="text-gray-300 text-xs">—</span>}
+                    {(t as any).asignadoNombre && (
+                      <p className="text-[10px] text-gray-400 truncate mt-0.5">{(t as any).asignadoNombre}</p>
                     )}
                   </div>
-                  <span className="font-mono text-[11px] bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded tracking-wider">
-                    {t.patente}
-                  </span>
+                  <div className="w-[110px] shrink-0">
+                    <EstadoBadge estado={t.estado} />
+                  </div>
+                  <p className={`w-[90px] shrink-0 text-sm font-semibold text-right ${
+                    !t.honorarios ? 'text-gray-300' : t.pagado ? 'text-emerald-600' : 'text-orange-500'
+                  }`}>
+                    {t.honorarios > 0 ? formatPesos(t.honorarios) : '—'}
+                  </p>
+                  <p className="w-[80px] shrink-0 text-xs text-gray-400">{formatFecha(t.creadoEn)}</p>
+                  <ChevronRight size={13} className="text-gray-200 group-hover:text-[#D4621A]/40 transition-colors w-4 shrink-0" />
                 </div>
-                {/* Cliente / Encargado */}
-                <div className="min-w-0">
-                  {cli && (
-                    <p className="text-xs font-semibold text-[#D4621A] truncate">
-                      {cli.nombre} {cli.apellido}
-                    </p>
-                  )}
-                  {(t as any).asignadoNombre && (
-                    <p className="text-[10px] text-gray-400 truncate">
-                      👤 {(t as any).asignadoNombre}
-                    </p>
-                  )}
-                  {!cli && !((t as any).asignadoNombre) && <span className="text-gray-300">—</span>}
-                </div>
-                <div><EstadoBadge estado={t.estado} /></div>
-                <p className={`text-sm font-semibold text-right ${
-                  !t.honorarios ? 'text-gray-300' : t.pagado ? 'text-emerald-600' : 'text-orange-500'
-                }`}>
-                  {t.honorarios > 0 ? formatPesos(t.honorarios) : '—'}
-                </p>
-                <p className="text-xs text-gray-400">{formatFecha(t.creadoEn)}</p>
-                {/* Fecha presentación */}
-                <div>
-                  {(t as any).fechaRequerida ? (
-                    <span className={`text-xs font-semibold ${
-                      alertaFechaRequerida((t as any).fechaRequerida) === 'vencida' ? 'text-red-600' :
-                      alertaFechaRequerida((t as any).fechaRequerida) ? 'text-amber-600' :
-                      'text-gray-500'
-                    }`}>
-                      {new Date((t as any).fechaRequerida + 'T00:00:00').toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit'})}
-                    </span>
-                  ) : <span className="text-gray-300">—</span>}
-                </div>
-                <ChevronRight size={13} className="text-gray-200 group-hover:text-[#D4621A]/40 transition-colors" />
               </div>
             )
           })}
@@ -300,47 +242,35 @@ export default function TramitesPage() {
 }
 
 // ─── SKELETON ─────────────────────────────────────────────────────────────────
-function SkeletonTramites({ vista }: { vista: 'cards' | 'tabla' }) {
-  const n = Array.from({ length: 6 })
-  if (vista === 'tabla') {
-    return (
-      <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden shadow-sm">
-        <div className="grid grid-cols-[76px_1fr_140px_106px_100px_80px_72px_24px] gap-2 px-4 py-2.5 bg-gray-50 border-b border-gray-100">
-          {[56,130,80,60,56,40,16].map((w,i) => (
-            <div key={i} className="h-2.5 rounded-full bg-gray-200 animate-pulse" style={{ width: w }} />
-          ))}
-        </div>
-        {n.map((_,i) => (
-          <div key={i} className="grid grid-cols-[76px_1fr_140px_106px_100px_80px_72px_24px] gap-2
-                                   px-4 py-3.5 border-b border-gray-50 last:border-0 items-center">
-            <div className="h-3 w-14 bg-gray-100 rounded-full animate-pulse" />
-            <div className="space-y-1.5">
-              <div className="h-3.5 w-36 bg-gray-200 rounded-full animate-pulse" />
-              <div className="h-2.5 w-14 bg-gray-100 rounded animate-pulse" />
-            </div>
-            <div className="h-5 w-20 bg-gray-100 rounded-full animate-pulse" />
-            <div className="h-3.5 w-16 bg-gray-100 rounded-full animate-pulse ml-auto" />
-            <div className="h-3 w-14 bg-gray-100 rounded-full animate-pulse" />
-            <div className="h-3 w-3 bg-gray-100 rounded animate-pulse" />
-          </div>
-        ))}
-      </div>
-    )
-  }
+function SkeletonTramites() {
+  const n = Array.from({ length: 5 })
   return (
-    <div className="space-y-2">
+    <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden shadow-sm">
       {n.map((_,i) => (
-        <div key={i} className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 flex items-center gap-4">
-          <div className="shrink-0 hidden sm:block w-20 h-3 bg-gray-100 rounded-full animate-pulse" />
-          <div className="flex-1 space-y-2">
+        <div key={i} className="px-4 py-4 border-b border-gray-50 last:border-0">
+          <div className="md:hidden space-y-2">
             <div className="flex items-center gap-2">
-              <div className="h-4 w-36 bg-gray-200 rounded-full animate-pulse" />
-              <div className="h-4 w-16 bg-gray-100 rounded animate-pulse" />
+              <div className="h-5 w-20 bg-gray-200 rounded-lg animate-pulse" />
+              <div className="h-4 flex-1 bg-gray-200 rounded-full animate-pulse" />
               <div className="h-5 w-20 bg-gray-100 rounded-full animate-pulse" />
             </div>
-            <div className="h-3 w-48 bg-gray-100 rounded-full animate-pulse" />
+            <div className="flex gap-2">
+              <div className="h-3.5 w-16 bg-gray-100 rounded animate-pulse" />
+              <div className="h-3.5 w-28 bg-gray-100 rounded-full animate-pulse" />
+            </div>
           </div>
-          <div className="h-4 w-4 bg-gray-100 rounded shrink-0 animate-pulse" />
+          <div className="hidden md:flex items-center gap-4">
+            <div className="h-5 w-[76px] bg-gray-200 rounded-lg animate-pulse shrink-0" />
+            <div className="flex-1 space-y-1.5">
+              <div className="h-4 w-40 bg-gray-200 rounded-full animate-pulse" />
+              <div className="h-3 w-16 bg-gray-100 rounded animate-pulse" />
+            </div>
+            <div className="h-3.5 w-[140px] bg-gray-100 rounded-full animate-pulse shrink-0" />
+            <div className="h-5 w-[100px] bg-gray-100 rounded-full animate-pulse shrink-0" />
+            <div className="h-3.5 w-[80px] bg-gray-100 rounded-full animate-pulse shrink-0 ml-auto" />
+            <div className="h-3 w-[70px] bg-gray-100 rounded-full animate-pulse shrink-0" />
+            <div className="h-3 w-4 bg-gray-100 rounded animate-pulse shrink-0" />
+          </div>
         </div>
       ))}
     </div>

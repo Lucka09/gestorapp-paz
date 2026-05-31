@@ -8,6 +8,7 @@ import { useGestoriaId }    from '@/context/GestoriaContext'
 import { useAuthStore }     from '@/store/authStore'
 import { useTramites }      from '@/hooks/useTramites'
 import { usePermisos }     from '@/hooks/usePermisos'
+import { useClientes }     from '@/hooks/useClientes'
 import { getWorkflowsGestoria, subscribeWorkflowsGestoria } from '@/lib/firestore/inscripcionworkflow'
 import type { Tramite }     from '@/types'
 import type {
@@ -30,6 +31,14 @@ export function useTorreControl() {
   const soloPropia = puede('verTorreSoloPropia')
   const verTodo    = puede('verTorreCompleta')
   const { tramites, loading: loadingTramites } = useTramites({ whenHidden: 'poll', hiddenPollMs: HIDDEN_POLL_MS })
+  const { clientes } = useClientes()
+
+  // Mapa de clienteId → nombre para enriquecer alertas y tramites
+  const clienteNombreMap = useMemo(() => {
+    const m = new Map<string, string>()
+    clientes.forEach(c => m.set(c.id, `${c.nombre} ${c.apellido}`.trim()))
+    return m
+  }, [clientes])
 
   const [workflows, setWorkflows]           = useState<InscripcionWorkflow[]>([])
   const [loadingWorkflows, setLoadingWork]  = useState(true)
@@ -122,6 +131,7 @@ export function useTorreControl() {
           workflow,
           diasSinMovimiento,
           diasHastaChapa,
+          clienteNombre: clienteNombreMap.get(t.clienteId) ?? null,
         } as TramiteEnriquecido
       })
       .sort((a, b) => nivelPeso(b.alertLevel) - nivelPeso(a.alertLevel))

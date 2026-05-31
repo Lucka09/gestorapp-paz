@@ -222,6 +222,9 @@ export interface TramiteEnriquecido extends Tramite {
   diasSinMovimiento: number
   // Para inscripciones con paso 6 activo
   diasHastaChapa?: number   // negativo si está vencido
+  // Campos enriquecidos para alertas legibles
+  clienteNombre?: string | null
+  creadoPorNombre?: string | null
 }
 
 // ─── ESTADÍSTICAS DE MANDATARIO ───────────────────────────────────────────────
