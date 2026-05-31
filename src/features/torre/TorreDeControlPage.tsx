@@ -31,6 +31,15 @@ const NIVEL_STYLE: Record<NivelAlerta, { dot: string; badge: string; text: strin
   info:     { dot:'bg-gray-500',   badge:'bg-gray-500/10 text-gray-400 border-gray-500/20', text:'text-gray-400',   border:'border-l-gray-600',   row:'' },
 }
 
+// Colores raw para style inline — garantizan franja completa sin purge de Tailwind
+const NIVEL_RAW = {
+  critico:  { bg: 'rgba(220,38,38,0.18)',  border: '#dc2626', text: '#fca5a5', badge: 'rgba(220,38,38,0.25)',  badgeText: '#fca5a5' },
+  rojo:     { bg: 'rgba(239,68,68,0.12)',  border: '#ef4444', text: '#fca5a5', badge: 'rgba(239,68,68,0.18)',  badgeText: '#fca5a5' },
+  naranja:  { bg: 'rgba(249,115,22,0.14)', border: '#f97316', text: '#fdba74', badge: 'rgba(249,115,22,0.22)', badgeText: '#fdba74' },
+  amarillo: { bg: 'rgba(234,179,8,0.12)',  border: '#eab308', text: '#fde047', badge: 'rgba(234,179,8,0.20)',  badgeText: '#fde047' },
+  info:     { bg: 'rgba(59,130,246,0.08)', border: '#3b82f6', text: '#93c5fd', badge: 'rgba(59,130,246,0.15)', badgeText: '#93c5fd' },
+} as const
+
 const NIVEL_ICON: Record<NivelAlerta, string> = {
   critico: '🚨', rojo: '🔴', naranja: '🟠', amarillo: '⚠️', info: 'ℹ️',
 }
