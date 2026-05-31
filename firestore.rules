@@ -133,6 +133,32 @@ service cloud.firestore {
         allow read, write: if isAuth();
       }
     }
+    // ── Contadores de trámites (numeración correlativa) ──────────────────────────
+// Solo lectura/escritura para miembros autenticados de la misma gestoría.
+// El ID del documento tiene el formato: {gestoriaId}_{PREFIJO}_{YYYY}
+match /contadoresTramites/{counterId} {
+  allow read, write: if
+    request.auth != null &&
+    request.auth.token.gestoriaId != null;
+}
+ 
+// ── Cierres mensuales (M6) ───────────────────────────────────────────────────
+// Solo propietario y admin_gral pueden crear cierres.
+// Todos los miembros autenticados pueden leer.
+match /cierresMensuales/{cierreId} {
+  allow read: if
+    request.auth != null &&
+    request.auth.token.gestoriaId != null;
+ 
+  allow create: if
+    request.auth != null &&
+    request.auth.token.gestoriaId != null &&
+    (request.auth.token.rol == 'propietario' ||
+     request.auth.token.rol == 'admin_gral'  ||
+     request.auth.token.rol == 'superadmin');
+ 
+  allow update, delete: if false;  // los cierres son inmutables
+}
 
   }
 }
