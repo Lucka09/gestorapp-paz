@@ -3,6 +3,7 @@ import {
   getDocs, getCountFromServer, Timestamp, onSnapshot,
   type Unsubscribe,
 } from 'firebase/firestore'
+import { db } from '@/lib/firebase'
 import { tramitesCol, turnosCol, clientesCol, vehiculosCol } from './collections'
 import type { Tramite, Turno } from '@/types'
 
@@ -196,23 +197,43 @@ export async function getTopClientes(
     where('gestoriaId', '==', gestoriaId),
     limit(500),
   ))
+
   const conteo: Record<string, number> = {}
-  snap.docs.forEach(d => {
-    const cid = d.data().clienteId as string
-    if (cid) conteo[cid] = (conteo[cid] ?? 0) + 1
-  })
   const ingresosPorCliente: Record<string, number> = {}
+
   snap.docs.forEach(d => {
     const cid = d.data().clienteId as string
-    if (cid) ingresosPorCliente[cid] = (ingresosPorCliente[cid] ?? 0) + (d.data().honorarios ?? 0)
+    if (!cid) return
+    conteo[cid]             = (conteo[cid]             ?? 0) + 1
+    ingresosPorCliente[cid] = (ingresosPorCliente[cid] ?? 0) + (d.data().honorarios ?? 0)
   })
-  return Object.entries(conteo)
+
+  // Obtener los top IDs
+  const topIds = Object.entries(conteo)
     .sort(([, a], [, b]) => b - a)
     .slice(0, cantidad)
-    .map(([clienteId, tramites]) => ({
-      clienteId,
-      nombre:   clienteId,   // DashboardPage muestra el nombre del cliente por ID — se resuelve en el componente
-      tramites,
-      ingresos: ingresosPorCliente[clienteId] ?? 0,
-    }))
+    .map(([id]) => id)
+
+  // Resolver nombres reales desde la colección de clientes
+  const nombresMap: Record<string, string> = {}
+  await Promise.all(topIds.map(async cid => {
+    try {
+      const cSnap = await getDoc(doc(db, 'clientes', cid))
+      if (cSnap.exists()) {
+        const d = cSnap.data() as any
+        nombresMap[cid] = `${d.nombre ?? ''} ${d.apellido ?? ''}`.trim() || cid
+      } else {
+        nombresMap[cid] = cid
+      }
+    } catch {
+      nombresMap[cid] = cid
+    }
+  }))
+
+  return topIds.map(clienteId => ({
+    clienteId,
+    nombre:   nombresMap[clienteId] ?? clienteId,
+    tramites: conteo[clienteId] ?? 0,
+    ingresos: ingresosPorCliente[clienteId] ?? 0,
+  }))
 }

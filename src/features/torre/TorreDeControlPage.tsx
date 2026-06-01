@@ -31,13 +31,12 @@ const NIVEL_STYLE: Record<NivelAlerta, { dot: string; badge: string; text: strin
   info:     { dot:'bg-gray-500',   badge:'bg-gray-500/10 text-gray-400 border-gray-500/20', text:'text-gray-400',   border:'border-l-gray-600',   row:'' },
 }
 
-// Colores raw para style inline — garantizan franja completa sin purge de Tailwind
 const NIVEL_RAW = {
-  critico:  { bg: 'rgba(220,38,38,0.18)',  border: '#dc2626', text: '#fca5a5', badge: 'rgba(220,38,38,0.25)',  badgeText: '#fca5a5' },
-  rojo:     { bg: 'rgba(239,68,68,0.12)',  border: '#ef4444', text: '#fca5a5', badge: 'rgba(239,68,68,0.18)',  badgeText: '#fca5a5' },
-  naranja:  { bg: 'rgba(249,115,22,0.14)', border: '#f97316', text: '#fdba74', badge: 'rgba(249,115,22,0.22)', badgeText: '#fdba74' },
-  amarillo: { bg: 'rgba(234,179,8,0.12)',  border: '#eab308', text: '#fde047', badge: 'rgba(234,179,8,0.20)',  badgeText: '#fde047' },
-  info:     { bg: 'rgba(59,130,246,0.08)', border: '#3b82f6', text: '#93c5fd', badge: 'rgba(59,130,246,0.15)', badgeText: '#93c5fd' },
+  critico:  { bg: 'rgba(220,38,38,0.20)',  border: '#dc2626', text: '#fca5a5', badge: 'rgba(220,38,38,0.28)',  badgeText: '#fca5a5' },
+  rojo:     { bg: 'rgba(239,68,68,0.14)',  border: '#ef4444', text: '#fca5a5', badge: 'rgba(239,68,68,0.22)',  badgeText: '#fca5a5' },
+  naranja:  { bg: 'rgba(249,115,22,0.16)', border: '#f97316', text: '#fdba74', badge: 'rgba(249,115,22,0.25)', badgeText: '#fdba74' },
+  amarillo: { bg: 'rgba(234,179,8,0.14)',  border: '#eab308', text: '#fde047', badge: 'rgba(234,179,8,0.22)',  badgeText: '#fde047' },
+  info:     { bg: 'rgba(59,130,246,0.10)', border: '#3b82f6', text: '#93c5fd', badge: 'rgba(59,130,246,0.18)', badgeText: '#93c5fd' },
 } as const
 
 const NIVEL_ICON: Record<NivelAlerta, string> = {
@@ -126,30 +125,18 @@ function KPICard({
 
 function AlertaBanner({
   alerta, onAck, tramite,
-}: {
-  alerta:   AlertaTorre
-  onAck:    (id: string) => void
-  tramite?: TramiteEnriquecido
-}) {
+}: { alerta: AlertaTorre; onAck: (id: string) => void; tramite?: TramiteEnriquecido }) {
   const nr = NIVEL_RAW[alerta.nivel]
   const labelTipo: Record<string, string> = {
-    inscripcion_inicial: 'Inscripción',
-    transferencia:       'Transferencia',
-    descargo_multa:      'Multa',
+    inscripcion_inicial: 'Inscripción', transferencia: 'Transferencia', descargo_multa: 'Multa',
   }
-
   return (
     <div
       className="flex items-start gap-3 px-4 py-3.5"
-      style={{
-        background:   nr.bg,
-        borderLeft:   `4px solid ${nr.border}`,
-        borderBottom: `1px solid ${nr.border}20`,
-      }}
+      style={{ background: nr.bg, borderLeft: `4px solid ${nr.border}`, borderBottom: `1px solid ${nr.border}20` }}
     >
       <span className="text-base shrink-0 mt-0.5">{NIVEL_ICON[alerta.nivel]}</span>
       <div className="flex-1 min-w-0">
-        {/* Nombre del cliente + tipo de trámite */}
         <div className="flex items-center gap-2 flex-wrap mb-1">
           <span className="text-xs font-extrabold" style={{ color: '#ffffff' }}>
             {tramite?.clienteNombre ?? tramite?.patente ?? alerta.tramiteId.slice(-8)}
@@ -165,25 +152,16 @@ function AlertaBanner({
             {alerta.nivel.toUpperCase()}
           </span>
         </div>
-        {/* Mensaje de alerta */}
-        <p className="text-xs leading-snug" style={{ color: 'rgba(255,255,255,0.75)' }}>
-          {alerta.mensaje}
-        </p>
-        {/* Fecha de carga del trámite */}
+        <p className="text-xs leading-snug" style={{ color: 'rgba(255,255,255,0.75)' }}>{alerta.mensaje}</p>
         {tramite?.creadoEn && (
-          <p className="text-[10px] mt-1" style={{ color: 'rgba(255,255,255,0.4)' }}>
-            Cargado: {tramite.creadoEn.toDate?.()?.toLocaleDateString('es-AR', {
-              day: '2-digit', month: '2-digit', year: '2-digit',
-            }) ?? '—'}
-            {tramite.creadoPorNombre ? ` · por ${tramite.creadoPorNombre}` : ''}
+          <p className="text-[10px] mt-1" style={{ color: 'rgba(255,255,255,0.40)' }}>
+            Cargado: {tramite.creadoEn.toDate?.()?.toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit',year:'2-digit'})}
           </p>
         )}
       </div>
-      <button
-        onClick={() => onAck(alerta.id)}
+      <button onClick={() => onAck(alerta.id)}
         className="shrink-0 text-[10px] px-2.5 py-1.5 rounded-lg font-bold transition-all"
-        style={{ background: 'rgba(255,255,255,0.10)', color: 'rgba(255,255,255,0.6)' }}
-      >
+        style={{ background: 'rgba(255,255,255,0.10)', color: 'rgba(255,255,255,0.6)' }}>
         ACK ✓
       </button>
     </div>
@@ -642,11 +620,8 @@ export default function TorreDeControlPage() {
             </button>
           </div>
           {alertasFiltradas.slice(0, 4).map(a => {
-            const t = tramitesEnriquecidos.find(t => t.id === a.tramiteId)
-            return (
-              <AlertaBanner key={a.id} alerta={a} tramite={t}
-                onAck={id => setAcksLocales(prev => new Set([...prev, id]))} />
-            )
+            const t = tramitesEnriquecidos.find(x => x.id === a.tramiteId)
+            return <AlertaBanner key={a.id} alerta={a} tramite={t} onAck={id => setAcksLocales(prev => new Set([...prev, id]))} />
           })}
         </div>
       )}
@@ -697,9 +672,10 @@ export default function TorreDeControlPage() {
             <div className="overflow-x-auto">
               <table className="w-full">
                 <thead>
-                  <tr className="border-b border-white/8 bg-black/30">
-                    {['#','','Patente / Nro','Estado','Gestor','Días','Nivel'].map(h => (
-                      <th key={h} className="px-3 py-2 text-left text-[9px] font-bold text-gray-600 uppercase tracking-wider whitespace-nowrap">
+                  <tr style={{ background: 'rgba(0,0,0,0.40)', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+                    {['#','','Patente / Cliente','Estado','Gestor','Días','Nivel'].map(h => (
+                      <th key={h} className="px-3 py-2.5 text-left text-[9px] font-bold uppercase tracking-widest whitespace-nowrap"
+                        style={{ color: 'rgba(255,255,255,0.35)' }}>
                         {h}
                       </th>
                     ))}
@@ -713,32 +689,43 @@ export default function TorreDeControlPage() {
                       </td>
                     </tr>
                   ) : tramitesFiltrados.map(t => {
-                    const s = NIVEL_STYLE[t.alertLevel]
+                    const nr = NIVEL_RAW[t.alertLevel]
                     return (
                       <tr
                         key={t.id}
                         onClick={() => (t.tipo === 'descargo_multa' || t.tipo === 'transferencia') ? navigate(`/admin/tramites/${t.id}`) : setDetalle(t)}
-                        className={`border-b border-white/5 cursor-pointer transition-colors hover:bg-white/3 ${s.row}`}
+                        className="cursor-pointer transition-all"
+                        style={{ background: nr.bg, borderLeft: `4px solid ${nr.border}`, borderBottom: `1px solid ${nr.border}22` }}
                       >
-                        <td className="px-3 py-2.5 font-mono text-[10px] text-gray-600">{t.numero?.slice(-6) ?? t.id.slice(-6)}</td>
-                        <td className="px-2 py-2.5 text-gray-500">{TIPO_ICON[t.tipo]}</td>
-                        <td className="px-3 py-2.5 text-xs font-semibold text-gray-200 whitespace-nowrap">{t.patente || '—'}</td>
-                        <td className="px-3 py-2.5">
-                          <span className={`inline-block text-[9px] font-bold px-1.5 py-0.5 rounded border ${ESTADO_COLOR[t.estado] ?? 'bg-gray-700 text-gray-400 border-gray-600'}`}>
+                        <td className="px-3 py-3 font-mono text-[10px] font-bold" style={{ color: nr.text }}>
+                          {t.numero ?? t.id.slice(-8)}
+                        </td>
+                        <td className="px-2 py-3" style={{ color: nr.text, opacity: 0.7 }}>{TIPO_ICON[t.tipo]}</td>
+                        <td className="px-3 py-3 whitespace-nowrap">
+                          <p className="text-xs font-bold" style={{ color: '#ffffff' }}>{t.patente || '—'}</p>
+                          {(t as any).clienteNombre && (
+                            <p className="text-[10px] mt-0.5 truncate max-w-[120px]" style={{ color: 'rgba(255,255,255,0.55)' }}>
+                              {(t as any).clienteNombre}
+                            </p>
+                          )}
+                        </td>
+                        <td className="px-3 py-3">
+                          <span className="inline-block text-[9px] font-bold px-2 py-0.5 rounded-full"
+                            style={{ background: 'rgba(255,255,255,0.12)', color: '#fff' }}>
                             {ESTADO_LABEL[t.estado] ?? t.estado}
                           </span>
                         </td>
-                        <td className="px-3 py-2.5 text-[11px] text-gray-500 whitespace-nowrap">{nombreGestor(t.asignadoA)}</td>
-                        <td className="px-3 py-2.5 text-center">
-                          <span className={`text-xs font-bold ${
-                            t.diasSinMovimiento > 5 ? 'text-red-400' :
-                            t.diasSinMovimiento > 2 ? 'text-yellow-400' : 'text-gray-500'
-                          }`}>
+                        <td className="px-3 py-3 text-[11px] whitespace-nowrap" style={{ color: 'rgba(255,255,255,0.65)' }}>
+                          {nombreGestor(t.asignadoA)}
+                        </td>
+                        <td className="px-3 py-3 text-center">
+                          <span className="text-xs font-extrabold" style={{ color: nr.text }}>
                             {t.diasSinMovimiento.toFixed(0)}d
                           </span>
                         </td>
-                        <td className="px-3 py-2.5">
-                          <span className={`inline-flex items-center gap-1 text-[9px] font-bold px-1.5 py-0.5 rounded border ${s.badge}`}>
+                        <td className="px-3 py-3">
+                          <span className="inline-flex items-center gap-1 text-[9px] font-extrabold px-2 py-1 rounded-full"
+                            style={{ background: nr.badge, color: nr.badgeText }}>
                             {NIVEL_ICON[t.alertLevel]} {t.alertLevel.toUpperCase()}
                           </span>
                         </td>
@@ -863,7 +850,7 @@ export default function TorreDeControlPage() {
   )
 
   const renderMonitor = () => (
-    <div className="font-mono overflow-x-auto -mx-5 px-5">
+    <div className="font-mono">
       <div className="flex items-center justify-between mb-4">
         <h2 className="text-xs font-bold text-yellow-400 tracking-widest uppercase">
           🖥️ MONITOR OPERATIVO — GESTORÍA PAZ
@@ -902,28 +889,43 @@ export default function TorreDeControlPage() {
                 ))}
               </div>
               {items.length === 0 ? (
-                <div className="px-3 py-4 text-center text-[11px] text-gray-600">Sin trámites activos</div>
+                <div className="px-3 py-4 text-center text-[11px] text-gray-500">Sin trámites activos</div>
               ) : items.map(t => {
-                const s = NIVEL_STYLE[t.alertLevel]
+                const nr = NIVEL_RAW[t.alertLevel]
                 return (
                   <div
                     key={t.id}
                     onClick={() => (t.tipo === 'descargo_multa' || t.tipo === 'transferencia') ? navigate(`/admin/tramites/${t.id}`) : setDetalle(t)}
-                    className={`grid grid-cols-[90px_1fr_130px_100px_60px_65px] gap-2 px-3 py-2
-                               border-b border-white/5 cursor-pointer hover:bg-white/3 transition-colors items-center
-                               ${s.row}`}
+                    className="grid grid-cols-[90px_1fr_130px_100px_60px_65px] gap-2 px-3 py-2.5
+                               cursor-pointer transition-all items-center"
+                    style={{ background: nr.bg, borderLeft: `4px solid ${nr.border}`, borderBottom: `1px solid ${nr.border}22` }}
                   >
-                    <span className={`text-[10px] font-mono ${s.text}`}>{t.id.slice(-8)}</span>
-                    <span className="text-[11px] text-gray-300 truncate">{t.patente || t.numero || '—'}</span>
-                    <span className="text-[10px]" style={{ color: ESTADO_COLOR[t.estado]?.match(/text-\S+/)?.[0] ?? '#94a3b8' }}>
+                    <div>
+                      <span className="text-[10px] font-mono font-bold" style={{ color: nr.text }}>
+                        {t.numero ?? t.id.slice(-8)}
+                      </span>
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-[11px] font-bold truncate" style={{ color: '#ffffff' }}>
+                        {t.patente || t.numero || '—'}
+                      </p>
+                      {(t as any).clienteNombre && (
+                        <p className="text-[9px] truncate" style={{ color: 'rgba(255,255,255,0.5)' }}>
+                          {(t as any).clienteNombre}
+                        </p>
+                      )}
+                    </div>
+                    <span className="text-[10px] font-medium" style={{ color: 'rgba(255,255,255,0.75)' }}>
                       {ESTADO_LABEL[t.estado] ?? t.estado}
                     </span>
-                    <span className="text-[10px] text-gray-500 truncate">{nombreGestor(t.asignadoA)}</span>
-                    <span className={`text-[11px] font-bold ${
-                      t.diasSinMovimiento > 5 ? 'text-red-400' :
-                      t.diasSinMovimiento > 2 ? 'text-yellow-400' : 'text-gray-500'
-                    }`}>{t.diasSinMovimiento.toFixed(0)}d</span>
-                    <span className={`text-[9px] font-bold px-1 py-0.5 rounded text-center ${s.badge}`}>
+                    <span className="text-[10px] truncate" style={{ color: 'rgba(255,255,255,0.6)' }}>
+                      {nombreGestor(t.asignadoA)}
+                    </span>
+                    <span className="text-[11px] font-extrabold" style={{ color: nr.text }}>
+                      {t.diasSinMovimiento.toFixed(0)}d
+                    </span>
+                    <span className="text-[10px] font-extrabold px-1.5 py-0.5 rounded-full text-center"
+                      style={{ background: nr.badge, color: nr.badgeText }}>
                       {NIVEL_ICON[t.alertLevel]}
                     </span>
                   </div>
@@ -954,7 +956,7 @@ export default function TorreDeControlPage() {
             </p>
           </div>
         )}
-        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
+        <div className="grid grid-cols-3 gap-4">
           {estadisticasMandatarios.map(m => {
             const color   = m.estadoCarga === 'sobrecarga' ? '#ef4444' : m.estadoCarga === 'atencion' ? '#f59e0b' : '#22c55e'
             const pctData = verRendimiento ? getPctCompletados(m.uid) : null
@@ -1047,38 +1049,13 @@ export default function TorreDeControlPage() {
               <span className="text-base shrink-0">{acked ? '✅' : NIVEL_ICON[a.nivel]}</span>
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 mb-0.5">
-                  <span className="text-[11px] font-extrabold" style={{ color: '#ffffff' }}>
-                    {(() => {
-                      const t = tramitesEnriquecidos.find(t => t.id === a.tramiteId)
-                      return t?.clienteNombre ?? t?.patente ?? a.tramiteId.slice(-8)
-                    })()}
-                  </span>
+                  <span className={`font-mono text-[10px] font-bold ${s.text}`}>{a.tramiteId}</span>
                   <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded border ${acked ? 'bg-green-500/10 text-green-400 border-green-500/20' : s.badge}`}>
                     {acked ? 'RECONOCIDA' : a.nivel.toUpperCase()}
                   </span>
                 </div>
-                <p className="text-xs leading-snug" style={{ color: 'rgba(255,255,255,0.75)' }}>{a.mensaje}</p>
-                {(() => {
-                  const t = tramitesEnriquecidos.find(x => x.id === a.tramiteId)
-                  if (!t) return null
-                  const labelTipo: Record<string, string> = {
-                    inscripcion_inicial: 'Inscripción', transferencia: 'Transferencia', descargo_multa: 'Multa',
-                  }
-                  return (
-                    <div className="mt-1 flex flex-wrap gap-2">
-                      <span className="text-[10px] px-2 py-0.5 rounded-full"
-                        style={{ background: 'rgba(255,255,255,0.08)', color: 'rgba(255,255,255,0.5)' }}>
-                        {labelTipo[t.tipo] ?? t.tipo} · {t.patente || '—'}
-                      </span>
-                      {t.creadoEn && (
-                        <span className="text-[10px]" style={{ color: 'rgba(255,255,255,0.35)' }}>
-                          Cargado: {t.creadoEn.toDate?.()?.toLocaleDateString('es-AR', { day:'2-digit', month:'2-digit', year:'2-digit' })}
-                          {t.creadoPorNombre ? ` · ${t.creadoPorNombre}` : ''}
-                        </span>
-                      )}
-                    </div>
-                  )
-                })()}
+                <p className="text-xs text-gray-300 leading-snug">{a.mensaje}</p>
+                <p className="text-[10px] text-gray-600 mt-1">{a.titulo}</p>
               </div>
               {!acked ? (
                 <div className="flex flex-col gap-1.5 shrink-0">
@@ -1121,13 +1098,12 @@ export default function TorreDeControlPage() {
             ['alertas',     <Bell        size={13} />, `Alertas${alertasFiltradas.length > 0 ? ` (${alertasFiltradas.length})` : ''}`],
           ] as const).map(([id, icon, lbl]) => (
             <button key={id} onClick={() => setVista(id as typeof vistaActiva)}
-              className={`flex items-center gap-1 px-2 sm:px-3 py-1.5 rounded-lg text-[10px] sm:text-[11px] font-semibold transition-all border ${
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-semibold transition-all border ${
                 vistaActiva === id
                   ? 'bg-[#D4621A]/15 text-[#D4621A] border-[#D4621A]/30'
                   : 'text-gray-500 border-transparent hover:text-gray-300 hover:bg-white/4'
               }`}>
-              {icon}
-              <span className="hidden xs:inline sm:inline">{lbl}</span>
+              {icon}{lbl}
             </button>
           ))}
         </div>
@@ -1139,7 +1115,7 @@ export default function TorreDeControlPage() {
       </div>
 
       {/* Contenido */}
-      <div className="p-3 sm:p-5">
+      <div className="p-5">
         {vistaActiva === 'dashboard'   && renderDashboard()}
         {vistaActiva === 'monitor'     && renderMonitor()}
         {vistaActiva === 'mandatarios' && verTodo && renderMandatarios()}
@@ -1151,7 +1127,7 @@ export default function TorreDeControlPage() {
 
       {/* Panel Premios — visible solo para asesor_comercial (propio) y propietario */}
       {verPremiosTorre && (esAsesorComercial || esPropietario) && vistaActiva === 'dashboard' && (
-        <div className="px-5 pb-8">
+        <div className="px-3 sm:px-5 pb-8 overflow-x-hidden">
           {esAsesorComercial && (
             <PanelPremiosAsesor />
           )}

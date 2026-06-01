@@ -16,7 +16,8 @@ import {
   useIngresosPorMes, useTiposTramiteFrecuentes, useTopClientes,
 } from '@/hooks/useDashboard'
 import type { IngresoMes, TipoCount, TopCliente } from '@/lib/firestore/dashboard'
-import { useAuth } from '@/hooks/useAuth'
+import { useAuth }    from '@/hooks/useAuth'
+import { useClientes } from '@/hooks/useClientes'
 import { useProspectos } from '@/hooks/usePipeline'
 
 import { ejecutarMotorAlertas }  from '@/lib/firestore/alertas'
@@ -145,6 +146,10 @@ export default function DashboardPage() {
   const { data: ingresosMes,  loading: loadIngr  } = useIngresosPorMes(6)
   const { data: tiposTramite, loading: loadTipos } = useTiposTramiteFrecuentes()
   const { data: topClientes,  loading: loadTop   } = useTopClientes(5)
+  const { clientes } = useClientes()
+
+  // Mapa rápido clienteId → cliente (para trámites recientes)
+  const clienteMap = Object.fromEntries(clientes.map(c => [c.id, c]))
   const loadAnalytics = loadIngr || loadTipos || loadTop
 
   useEffect(() => {
@@ -429,17 +434,41 @@ export default function DashboardPage() {
             </div>
           ) : (
             <div className="space-y-0">
-              {tramites.slice(0,6).map(t => (
-                <div key={t.id} onClick={() => navigate(`/admin/tramites/${t.id}`)}
-                  className="flex items-center justify-between gap-3 py-2.5 border-b border-gray-50 last:border-0
-                             cursor-pointer hover:bg-gray-50 rounded-lg px-2 -mx-2 transition-colors">
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-semibold text-gray-800">{TIPO_TRAMITE_LABELS[t.tipo]}</p>
-                    <p className="text-xs text-gray-400 font-mono">{t.patente}</p>
+              {tramites.slice(0,6).map(t => {
+                const cli = clienteMap[t.clienteId]
+                return (
+                  <div key={t.id} onClick={() => navigate(`/admin/tramites/${t.id}`)}
+                    className="flex items-center gap-3 py-2.5 border-b border-gray-50 last:border-0
+                               cursor-pointer hover:bg-gray-50 rounded-lg px-2 -mx-2 transition-colors">
+                    {/* Icono tipo */}
+                    <div className="shrink-0 w-8 h-8 rounded-lg flex items-center justify-center text-xs font-bold"
+                      style={{ background: '#FEF3EC', color: '#D4621A' }}>
+                      {t.tipo === 'inscripcion_inicial' ? 'INS' : t.tipo === 'transferencia' ? 'TRF' : 'MUL'}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      {/* Nombre cliente */}
+                      <p className="text-sm font-semibold text-gray-800 truncate">
+                        {cli ? `${cli.nombre} ${cli.apellido}`.trim() : TIPO_TRAMITE_LABELS[t.tipo]}
+                      </p>
+                      {/* Tipo + patente + origen referido */}
+                      <div className="flex items-center gap-1.5 flex-wrap mt-0.5">
+                        <span className="text-[10px] text-gray-400">{TIPO_TRAMITE_LABELS[t.tipo]}</span>
+                        {t.patente && (
+                          <span className="font-mono text-[10px] bg-gray-100 text-gray-500 px-1.5 py-0 rounded tracking-wider">
+                            {t.patente}
+                          </span>
+                        )}
+                        {cli && (cli as any).origenCanal && ['concesionaria','agencia','reventa','encargado_multas'].includes((cli as any).origenCanal) && (
+                          <span className="text-[10px] font-semibold text-[#D4621A] bg-orange-50 px-1.5 py-0 rounded-full">
+                            {(cli as any).origenNombre ?? (cli as any).origenCanal}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    <EstadoBadge estado={t.estado}/>
                   </div>
-                  <EstadoBadge estado={t.estado}/>
-                </div>
-              ))}
+                )
+              })}
             </div>
           )}
         </Card>

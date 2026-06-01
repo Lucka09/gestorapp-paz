@@ -176,8 +176,13 @@ export default function TramitesPage() {
                       </span>
                     )}
                     {cli && (
-                      <span className="text-xs font-medium text-[#D4621A]">
+                      <span className="text-xs font-medium text-[#D4621A] truncate">
                         {cli.nombre} {cli.apellido}
+                      </span>
+                    )}
+                    {cli && (cli as any).origenNombre && ['concesionaria','agencia','reventa','encargado_multas'].includes((cli as any).origenCanal) && (
+                      <span className="text-[10px] font-semibold bg-orange-50 text-[#D4621A] px-1.5 py-0 rounded-full shrink-0">
+                        {(cli as any).origenNombre}
                       </span>
                     )}
                   </div>
@@ -213,6 +218,11 @@ export default function TramitesPage() {
                     {cli ? (
                       <p className="text-xs font-semibold text-[#D4621A] truncate">{cli.nombre} {cli.apellido}</p>
                     ) : <span className="text-gray-300 text-xs">—</span>}
+                    {cli && (cli as any).origenNombre && ['concesionaria','agencia','reventa','encargado_multas'].includes((cli as any).origenCanal) && (
+                      <p className="text-[10px] font-semibold text-[#D4621A] truncate mt-0.5 opacity-70">
+                        {(cli as any).origenNombre}
+                      </p>
+                    )}
                     {(t as any).asignadoNombre && (
                       <p className="text-[10px] text-gray-400 truncate mt-0.5">{(t as any).asignadoNombre}</p>
                     )}

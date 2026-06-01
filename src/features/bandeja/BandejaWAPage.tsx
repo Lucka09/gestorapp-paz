@@ -544,11 +544,11 @@ export default function BandejaWAPage() {
       <div
         className={[
           'flex-col shrink-0 border-r',
-          mostrarChat ? 'hidden lg:flex' : 'flex',
+          mostrarChat ? 'hidden lg:flex' : 'flex w-full lg:w-auto',
           'lg:flex',
         ].join(' ')}
         style={{
-          width: 340,
+          width: typeof window !== 'undefined' && window.innerWidth < 1024 ? '100%' : 340,
           borderColor: WA_DIVIDER,
           background: WA_DARK,
         }}
@@ -660,11 +660,11 @@ export default function BandejaWAPage() {
         </div>
       </div>
 
-      {/* ── Panel de chat ────────────────────────────────────────────────────── */}
+      {/* ── Panel de chat (móvil: solo cuando mostrarChat=true; desktop: siempre) ── */}
       <div
         className={[
           'flex-1 flex-col min-w-0',
-          mostrarChat || !seleccionada ? 'flex' : 'hidden lg:flex',
+          mostrarChat ? 'flex' : 'hidden lg:flex',
         ].join(' ')}
       >
         {seleccionada ? (
