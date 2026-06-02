@@ -44,7 +44,7 @@ export function subscribeEquipo(
   const q = query(
     usersCol,
     where('gestoriaId', '==', gestoriaId),
-    where('rol', 'in', ['propietario', 'admin', 'vendedor', 'operador', 'gestor', 'asesor_comercial']),
+    where('rol', 'in', ['propietario', 'admin_gral', 'admin', 'vendedor', 'operador', 'gestor', 'asesor_comercial']),
     orderBy('creadoEn', 'asc')
   )
   return onSnapshot(q, snap =>
@@ -89,11 +89,11 @@ export function subscribeGestoresMulta(
   gestoriaId: string,
   callback:   (miembros: MiembroEquipo[]) => void
 ): Unsubscribe {
-  // Trae roles que pueden verificar y gestionar multas: admin, propietario, gestor
+  // Trae roles que pueden verificar y gestionar multas: admin_gral, admin, propietario, gestor
   const q = query(
     usersCol,
     where('gestoriaId', '==', gestoriaId),
-    where('rol', 'in', ['propietario', 'admin', 'gestor']),
+    where('rol', 'in', ['propietario', 'admin_gral', 'admin', 'gestor']),
     orderBy('creadoEn', 'asc')
   )
   return onSnapshot(q, snap =>

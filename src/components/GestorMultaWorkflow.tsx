@@ -5,6 +5,7 @@ import { useMultaWorkflow }  from '@/hooks/useMultaWorkflow'
 import { useAuthStore }      from '@/store/authStore'
 import { usePermisos }       from '@/hooks/usePermisos'
 import { useGestoresEquipo, useGestoresMulta } from '@/hooks/useEquipo'
+import { editarFechaTramiteMulta } from '@/lib/firestore/MultaWorwflow'
 import {
   PASOS_MULTA_CONFIG, ESTADO_MULTA_LABELS, ESTADO_MULTA_COLORS,
   METODOS_PAGO_LABELS, documentacionCompleta,
@@ -14,6 +15,7 @@ import {
   AlertTriangle, CheckCircle2, Clock, RotateCcw,
   Upload, X, Eye, ChevronDown, ChevronUp,
   DollarSign, User, FileText, Camera, Download, ZoomIn, PlusCircle, CreditCard,
+  Pencil, History, ShieldCheck,
 } from 'lucide-react'
 
 // ─── HELPERS ──────────────────────────────────────────────────────────────────
@@ -195,12 +197,14 @@ interface Props { tramiteId: string; numeroLITExterno?: string }
 export default function GestorMultaWorkflow({ tramiteId, numeroLITExterno }: Props) {
   const { user }   = useAuthStore()
   const { puede }  = usePermisos()
-  const esAdmin           = puede('editarConfiguracion') || user?.rol === 'admin' || user?.rol === 'propietario'
+  const esAdmin           = puede('editarConfiguracion') || user?.rol === 'admin' || user?.rol === 'propietario' || user?.rol === 'admin_gral'
   const esAsesorComercial = user?.rol === 'asesor_comercial'
   // Asesor: roles que hacen recepción y documentación (pasos 1 y 2)
   const esAsesor          = esAsesorComercial || ['vendedor', 'operador'].includes(user?.rol ?? '') || !esAdmin
   // Puede asignar responsable: el asesor_comercial que creó el trámite O el admin/propietario
   const puedeAsignar      = esAsesorComercial || esAdmin
+  // Solo propietario, admin_gral y admin pueden cerrar el paso 7
+  const puedeCerrarPaso7  = user?.rol === 'propietario' || user?.rol === 'admin_gral' || user?.rol === 'admin'
   const { gestores: gestoresEquipo } = useGestoresEquipo()
   const { gestores: gestoresMulta }  = useGestoresMulta()
 
@@ -296,6 +300,16 @@ export default function GestorMultaWorkflow({ tramiteId, numeroLITExterno }: Pro
   const [pasosColapsados, setPasosColapsados] = useState<Record<number, boolean>>({})
   const toggle = (n: number) => setPasosColapsados(p => ({ ...p, [n]: !p[n] }))
 
+  // ── Edición de fecha del trámite ──────────────────────────────────────────
+  const [editandoFecha, setEditandoFecha]     = useState(false)
+  const [nuevaFecha, setNuevaFecha]           = useState('')
+  const [notaFecha, setNotaFecha]             = useState('')
+  const [guardandoFecha, setGuardandoFecha]   = useState(false)
+  const [mostrarHistFecha, setMostrarHistFecha] = useState(false)
+
+  // ── Confirmación de asignación de admin ───────────────────────────────────
+  const [confirmAsignacion, setConfirmAsignacion] = useState<{ uid: string; nombre: string } | null>(null)
+
   // ── Agregar pago al historial ─────────────────────────────────────────────
   const agregarPagoLocal = () => {
     if (!user || nuevoPago.monto <= 0) return
@@ -312,6 +326,36 @@ export default function GestorMultaWorkflow({ tramiteId, numeroLITExterno }: Pro
       montoTotal: hist.reduce((s, p) => s + p.monto, 0),
     }))
     setNuevoPago({ monto: 0, metodoPago: 'efectivo', nota: '' })
+  }
+
+  // ── Guardar edición de fecha del trámite ──────────────────────────────────
+  const handleGuardarFecha = async () => {
+    if (!nuevaFecha || !user) return
+    setGuardandoFecha(true)
+    try {
+      await editarFechaTramiteMulta(
+        tramiteId,
+        nuevaFecha,
+        user.uid,
+        `${user.nombre} ${user.apellido}`.trim(),
+        notaFecha || undefined,
+      )
+      toast.success('Fecha del trámite actualizada con registro de auditoría ✓')
+      setEditandoFecha(false)
+      setNuevaFecha('')
+      setNotaFecha('')
+    } catch {
+      toast.error('Error al actualizar la fecha')
+    } finally {
+      setGuardandoFecha(false)
+    }
+  }
+
+  // ── Confirmar asignación de admin ─────────────────────────────────────────
+  const handleConfirmarAsignacion = async () => {
+    if (!confirmAsignacion) return
+    await asignarAdmin(confirmAsignacion.uid, confirmAsignacion.nombre)
+    setConfirmAsignacion(null)
   }
 
   if (loading) return (
@@ -400,7 +444,9 @@ export default function GestorMultaWorkflow({ tramiteId, numeroLITExterno }: Pro
           <select
             onChange={e => {
               const g = gestoresMulta.find((g: any) => g.uid === e.target.value)
-              if (g) asignarAdmin(g.uid, `${(g as any).nombre} ${(g as any).apellido}`.trim())
+              if (g) setConfirmAsignacion({ uid: g.uid, nombre: `${(g as any).nombre} ${(g as any).apellido}`.trim() })
+              // Reset select
+              e.target.value = ''
             }}
             defaultValue=""
             className="w-full px-3 py-2 border border-blue-200 rounded-xl text-sm outline-none
@@ -410,6 +456,7 @@ export default function GestorMultaWorkflow({ tramiteId, numeroLITExterno }: Pro
             {gestoresMulta.filter((g: any) => g.activo !== false).map((g: any) => {
               const rolLabel: Record<string, string> = {
                 propietario: 'Propietario',
+                admin_gral:  'Admin General',
                 admin:       'Administrador',
                 gestor:      'Gestor / Mandatario',
               }
@@ -668,6 +715,7 @@ export default function GestorMultaWorkflow({ tramiteId, numeroLITExterno }: Pro
               </button>
             </>
           ) : (
+            <>
             <ResumenPaso datos={[
               { label: 'Patente',     val: workflow.paso1?.patente ?? '—' },
               { label: 'Titular',     val: workflow.paso1?.nombreCompleto ?? '—' },
@@ -676,6 +724,89 @@ export default function GestorMultaWorkflow({ tramiteId, numeroLITExterno }: Pro
               { label: 'Fecha infracción', val: workflow.paso1?.fechaInfraccion ?? '—' },
               { label: 'SUATS',       val: workflow.paso1?.requiereSUATS ? 'Sí, requerido' : 'No requerido' },
             ]} />
+
+            {/* ── Edición de fecha del trámite ── */}
+            {workflow.paso1?.fechaTramite && (
+              <div className="mt-3 pt-3 border-t border-gray-100">
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-xs font-bold text-gray-600 flex items-center gap-1">
+                    <History size={12} /> Fecha del trámite
+                  </p>
+                  {!editandoFecha && (
+                    <button
+                      onClick={() => { setNuevaFecha(workflow.paso1?.fechaTramite ?? ''); setEditandoFecha(true) }}
+                      className="flex items-center gap-1 text-xs text-[#D4621A] hover:text-[#b8541a] font-semibold"
+                    >
+                      <Pencil size={11} /> Editar fecha
+                    </button>
+                  )}
+                </div>
+                <p className="text-sm font-semibold text-gray-800 mb-2">
+                  📅 {workflow.paso1.fechaTramite}
+                </p>
+
+                {editandoFecha && (
+                  <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 space-y-2">
+                    <p className="text-xs text-amber-700 font-semibold flex items-center gap-1">
+                      <AlertTriangle size={12} /> Editando fecha — se registrará auditoría
+                    </p>
+                    <input
+                      type="date"
+                      value={nuevaFecha}
+                      onChange={e => setNuevaFecha(e.target.value)}
+                      className="w-full px-3 py-2 border border-amber-300 rounded-xl text-sm outline-none focus:border-[#D4621A] bg-white"
+                    />
+                    <input
+                      type="text"
+                      value={notaFecha}
+                      onChange={e => setNotaFecha(e.target.value)}
+                      placeholder="Motivo del cambio (opcional)"
+                      className="w-full px-3 py-2 border border-amber-200 rounded-xl text-sm outline-none focus:border-[#D4621A] bg-white"
+                    />
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => { setEditandoFecha(false); setNuevaFecha(''); setNotaFecha('') }}
+                        className="flex-1 py-2 border border-gray-200 rounded-xl text-xs font-semibold text-gray-600 hover:bg-gray-50"
+                      >Cancelar</button>
+                      <button
+                        disabled={!nuevaFecha || guardandoFecha}
+                        onClick={handleGuardarFecha}
+                        className="flex-1 py-2 bg-[#D4621A] text-white rounded-xl text-xs font-semibold disabled:opacity-50 hover:bg-[#b8541a]"
+                      >{guardandoFecha ? 'Guardando...' : 'Guardar cambio'}</button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Historial de cambios de fecha */}
+                {(workflow.historialFechaTramite?.length ?? 0) > 0 && (
+                  <div className="mt-2">
+                    <button
+                      onClick={() => setMostrarHistFecha(p => !p)}
+                      className="text-xs text-gray-400 hover:text-gray-600 flex items-center gap-1"
+                    >
+                      <History size={11} />
+                      {mostrarHistFecha ? 'Ocultar historial' : `Ver historial (${workflow.historialFechaTramite!.length} cambio${workflow.historialFechaTramite!.length > 1 ? 's' : ''})`}
+                    </button>
+                    {mostrarHistFecha && (
+                      <div className="mt-2 space-y-1.5 bg-gray-50 rounded-xl p-3">
+                        {workflow.historialFechaTramite!.map((h, i) => (
+                          <div key={i} className="text-xs text-gray-600 flex flex-col gap-0.5 border-b border-gray-100 pb-1.5 last:border-0 last:pb-0">
+                            <span className="font-semibold text-gray-800">
+                              {h.valorAnterior} → {h.valorNuevo}
+                            </span>
+                            <span className="text-gray-400">
+                              Por {h.modificadoPorNombre} · {h.modificadoEn?.toDate?.()?.toLocaleDateString('es-AR') ?? '—'}
+                            </span>
+                            {h.nota && <span className="italic text-gray-500">{h.nota}</span>}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+            </>
           )}
         </div>
       )}
@@ -1179,9 +1310,18 @@ export default function GestorMultaWorkflow({ tramiteId, numeroLITExterno }: Pro
         <div className="bg-white border border-gray-100 rounded-2xl p-5 space-y-4">
           {pasoActual === 7 ? (
             <>
-              {pasoActual === 7 && (
-                <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-3 text-xs text-emerald-700 font-semibold">
-                  🔔 El trámite está resuelto. Avisá al cliente y cerrá la gestión.
+              <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-3 text-xs text-emerald-700 font-semibold">
+                🔔 El trámite está resuelto. Avisá al cliente y cerrá la gestión.
+              </div>
+
+              {/* Banner de restricción de rol */}
+              {!puedeCerrarPaso7 && (
+                <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 flex items-start gap-2">
+                  <ShieldCheck size={14} className="text-amber-600 mt-0.5 shrink-0" />
+                  <p className="text-xs text-amber-700">
+                    El cierre y archivo del trámite requiere autorización de un <strong>Administrador, Admin General o Propietario</strong>.
+                    Completá los datos de entrega para que puedan finalizar.
+                  </p>
                 </div>
               )}
 
@@ -1315,6 +1455,7 @@ export default function GestorMultaWorkflow({ tramiteId, numeroLITExterno }: Pro
 
               <button
                 disabled={
+                  !puedeCerrarPaso7 ||
                   !p7.clienteAvisado ||
                   !p7.pagoTotalRecibo ||
                   (!!workflow.paso1?.requiereSUATS && !p7.suatsEntregado) ||
@@ -1324,7 +1465,7 @@ export default function GestorMultaWorkflow({ tramiteId, numeroLITExterno }: Pro
                 onClick={() => confirmarPaso7(p7)}
                 className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-sm disabled:opacity-50 transition-colors"
               >
-                {guardando ? 'Archivando...' : '🗂️ Finalizar y archivar trámite'}
+                {guardando ? 'Archivando...' : puedeCerrarPaso7 ? '🗂️ Finalizar y archivar trámite' : '🔒 Solo Admin / Propietario puede cerrar'}
               </button>
             </>
           ) : (
@@ -1350,6 +1491,42 @@ export default function GestorMultaWorkflow({ tramiteId, numeroLITExterno }: Pro
               </div>
             </div>
           )}
+        </div>
+      )}
+
+      {/* Modal confirmación asignación */}
+      {confirmAsignacion && (
+        <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4"
+          onClick={() => setConfirmAsignacion(null)}>
+          <div className="bg-white rounded-2xl p-6 max-w-sm w-full shadow-2xl"
+            onClick={e => e.stopPropagation()}>
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center">
+                <User size={18} className="text-blue-600" />
+              </div>
+              <div>
+                <p className="font-bold text-gray-900 text-sm">Confirmar asignación</p>
+                <p className="text-xs text-gray-500">Esta acción quedará registrada</p>
+              </div>
+            </div>
+            <p className="text-sm text-gray-700 mb-5">
+              ¿Asignar a <strong>{confirmAsignacion.nombre}</strong> como responsable de verificación de esta multa?
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setConfirmAsignacion(null)}
+                className="flex-1 py-2.5 border border-gray-200 rounded-xl text-sm font-semibold text-gray-600 hover:bg-gray-50 transition-colors"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleConfirmarAsignacion}
+                className="flex-1 py-2.5 bg-[#D4621A] text-white rounded-xl text-sm font-semibold hover:bg-[#b8541a] transition-colors"
+              >
+                Confirmar
+              </button>
+            </div>
+          </div>
         </div>
       )}
 

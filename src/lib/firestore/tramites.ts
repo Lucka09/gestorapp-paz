@@ -227,7 +227,7 @@ export async function cambiarEstado(
   const cSnap = await getDoc(clienteDoc(tramite.clienteId))
   if (!cSnap.exists()) return
   const destinatarioId = cSnap.data().userId
-  if (!destinatarioId) return   // cliente sin acceso al portal, no notificar
+  if (!destinatarioId) return   // cliente sin acceso al portal, no notificar — el cambio de estado YA se guardó arriba
 
   // 4. Crear notificación automática (gestoriaId viene del trámite)
   await notificarCambioEstado({

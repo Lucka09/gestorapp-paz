@@ -10,6 +10,9 @@ import { getVencimientosProximos, calcularEstado, diasRestantes } from './vencim
 import { VENCIMIENTO_LABELS } from '@/types'
 import type { Tramite, Turno, Cliente } from '@/types'
 
+// ─── COLECCIÓN MULTA WORKFLOW (para alertas de fecha) ─────────────────────────
+const multaWorkflowCol = collection(db, 'multaWorkflow')
+
 // ─── TIPOS ────────────────────────────────────────────────────────────────────
 
 export type NivelAlerta = 'critica' | 'urgente' | 'advertencia' | 'info'
@@ -344,6 +347,58 @@ export async function ejecutarMotorAlertas(): Promise<number> {
         datos:     { cantidad: porVencer30.length },
       })
     }
+  } catch { /* no romper el motor si falla esta parte */ }
+
+  // ── 14. ALERTAS DE FECHA PRÓXIMA — MULTAS (24hs / 48hs) ─────────────────
+  // Consulta multaWorkflows activos con alertaFechaTramite24h o 48h próximas
+  try {
+    const ahoraTs   = Timestamp.now()
+    const hace1h    = Timestamp.fromMillis(ahoraTs.toMillis() - 60 * 60 * 1000)
+    const proximas48h = Timestamp.fromMillis(ahoraTs.toMillis() + 48 * 60 * 60 * 1000)
+    const proximas24h = Timestamp.fromMillis(ahoraTs.toMillis() + 24 * 60 * 60 * 1000)
+
+    const [snap48, snap24] = await Promise.all([
+      getDocs(query(
+        multaWorkflowCol,
+        where('estadoWorkflow', 'not-in', ['completado']),
+        where('alertaFechaTramite48h', '>=', hace1h),
+        where('alertaFechaTramite48h', '<=', proximas48h),
+      )),
+      getDocs(query(
+        multaWorkflowCol,
+        where('estadoWorkflow', 'not-in', ['completado']),
+        where('alertaFechaTramite24h', '>=', hace1h),
+        where('alertaFechaTramite24h', '<=', proximas24h),
+      )),
+    ])
+
+    snap48.docs.forEach(d => {
+      const wf = d.data() as { tramiteId: string; gestoriaId: string; paso1?: { patente?: string; nombreCompleto?: string; fechaTramite?: string } }
+      const patente = wf.paso1?.patente ?? wf.tramiteId
+      const fecha   = wf.paso1?.fechaTramite ?? '—'
+      upsertAlerta(`multa-fecha-48h-${d.id}`, {
+        nivel:     'urgente',
+        categoria: 'tramites',
+        titulo:    `⏰ Multa ${patente} — trámite en ~48hs`,
+        detalle:   `El trámite de ${wf.paso1?.nombreCompleto ?? patente} está programado para ${fecha}. Verificá que todo esté listo.`,
+        link:      `/admin/tramites/${wf.tramiteId}`,
+        datos:     { tramiteId: wf.tramiteId, fechaTramite: fecha },
+      })
+    })
+
+    snap24.docs.forEach(d => {
+      const wf = d.data() as { tramiteId: string; gestoriaId: string; paso1?: { patente?: string; nombreCompleto?: string; fechaTramite?: string } }
+      const patente = wf.paso1?.patente ?? wf.tramiteId
+      const fecha   = wf.paso1?.fechaTramite ?? '—'
+      upsertAlerta(`multa-fecha-24h-${d.id}`, {
+        nivel:     'critica',
+        categoria: 'tramites',
+        titulo:    `🚨 Multa ${patente} — trámite HOY/MAÑANA`,
+        detalle:   `¡Acción inmediata! El trámite de multa de ${wf.paso1?.nombreCompleto ?? patente} es el ${fecha}.`,
+        link:      `/admin/tramites/${wf.tramiteId}`,
+        datos:     { tramiteId: wf.tramiteId, fechaTramite: fecha },
+      })
+    })
   } catch { /* no romper el motor si falla esta parte */ }
 
   await batch.commit()
