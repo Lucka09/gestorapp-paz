@@ -20,6 +20,8 @@ export interface DatosRecibo {
   periodoServicio?:     string
   recibeConforme?:      string
   urlSeguimiento?:      string
+  /** Monto a imprimir cuando difiere de tramite.honorarios (ej: multas con pagos parciales) */
+  montoOverride?:       number
 }
 
 type RGB = [number, number, number]
@@ -115,7 +117,10 @@ export async function generarComprobantePago(datos: DatosRecibo): Promise<Blob> 
 
   // ── SUMA + FORMA DE PAGO ──────────────────────────────────────────────────
   y += 12
-  const monto = tramite.honorarios > 0 ? formatPesos(tramite.honorarios) : '$ _______________'
+  // montoOverride permite pasar el total real de multas (paso2.montoTotal)
+  // cuando tramite.honorarios está en 0 por ser un campo no usado en multas
+  const montoBase = datos.montoOverride ?? tramite.honorarios
+  const monto = montoBase > 0 ? formatPesos(montoBase) : '$ _______________'
 
   doc.setTextColor(...GRIS1); doc.setFont('helvetica', 'normal'); doc.setFontSize(9)
   doc.text('La suma de', margin, y)

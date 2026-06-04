@@ -9,12 +9,14 @@ import type { Vehiculo }         from '@/types'
 import toast                     from 'react-hot-toast'
 
 interface Props {
-  tramite:  Tramite
-  cliente:  Cliente | null | undefined
-  vehiculo: Vehiculo | null | undefined
+  tramite:       Tramite
+  cliente:       Cliente | null | undefined
+  vehiculo:      Vehiculo | null | undefined
+  /** Monto real a imprimir (cuando tramite.honorarios es 0, ej: trámites de multas) */
+  montoOverride?: number
 }
 
-export default function BotonComprobantePago({ tramite, cliente, vehiculo }: Props) {
+export default function BotonComprobantePago({ tramite, cliente, vehiculo, montoOverride }: Props) {
   const [loading, setLoading]       = useState(false)
   const [modalOpen, setModalOpen]   = useState(false)
   const [metodoPago, setMetodoPago] = useState('Efectivo')
@@ -40,6 +42,7 @@ export default function BotonComprobantePago({ tramite, cliente, vehiculo }: Pro
         periodoServicio:     periodo || undefined,
         recibeConforme:      recibe || config.responsable || config.nombreComercial,
         urlSeguimiento:      `${window.location.origin}/seguimiento/${tramite.id}`,
+        montoOverride,
       })
       descargarRecibo(blob, `recibo-${tramite.numero ?? tramite.id}-${tramite.patente}.pdf`)
       toast.success('Recibo generado')
@@ -86,8 +89,8 @@ export default function BotonComprobantePago({ tramite, cliente, vehiculo }: Pro
               <div className="flex justify-between">
                 <span className="text-gray-500">Monto</span>
                 <span className="font-bold text-emerald-700">
-                  {tramite.honorarios > 0
-                    ? `$${tramite.honorarios.toLocaleString('es-AR')}`
+                  {(montoOverride ?? tramite.honorarios) > 0
+                    ? `$${(montoOverride ?? tramite.honorarios).toLocaleString('es-AR')}`
                     : 'No especificado'}
                 </span>
               </div>

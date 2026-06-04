@@ -206,13 +206,25 @@ export async function getTopClientes(
     const cid = d.data().clienteId as string
     if (cid) ingresosPorCliente[cid] = (ingresosPorCliente[cid] ?? 0) + (d.data().honorarios ?? 0)
   })
-  return Object.entries(conteo)
+  const top = Object.entries(conteo)
     .sort(([, a], [, b]) => b - a)
     .slice(0, cantidad)
-    .map(([clienteId, tramites]) => ({
+
+  // Resolver nombres reales en paralelo (solo `cantidad` lecturas extra)
+  const clienteSnaps = await Promise.all(
+    top.map(([clienteId]) => getDoc(doc(clientesCol, clienteId)).catch(() => null))
+  )
+
+  return top.map(([clienteId, tramites], i) => {
+    const data = clienteSnaps[i]?.data() as { nombre?: string; apellido?: string; razonSocial?: string } | undefined
+    const nombre = data
+      ? (data.razonSocial ?? `${data.nombre ?? ''} ${data.apellido ?? ''}`.trim() || clienteId)
+      : clienteId
+    return {
       clienteId,
-      nombre:   clienteId,   // DashboardPage muestra el nombre del cliente por ID — se resuelve en el componente
+      nombre,
       tramites,
       ingresos: ingresosPorCliente[clienteId] ?? 0,
-    }))
+    }
+  })
 }

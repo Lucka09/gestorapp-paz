@@ -10,7 +10,8 @@ import { useCliente } from '@/hooks/useClientes'
 import { useVehiculo } from '@/hooks/useVehiculos'
 import { cambiarEstado, actualizarTramite, marcarPagado, eliminarTramite } from '@/lib/firestore/tramites'
 import { subscribeWorkflow, crearWorkflow } from '@/lib/firestore/inscripcionworkflow'
-import { crearMultaWorkflow }               from '@/lib/firestore/MultaWorwflow'
+import { onSnapshot } from 'firebase/firestore'
+import { crearMultaWorkflow, multaWorkflowDoc } from '@/lib/firestore/MultaWorwflow'
 import { crearTransferenciaWorkflow }       from '@/lib/firestore/transferenciaWorkflow'
 import TransferenciaWorkflow               from '@/components/TransferenciaWorkflow'
 import { useAuth }    from '@/hooks/useAuth'
@@ -52,12 +53,23 @@ export default function TramiteDetallePage() {
   const esMulta         = tramite?.tipo === 'descargo_multa'
   const esTransferencia = tramite?.tipo === 'transferencia'
   const [wfInscripcion, setWfInscripcion] = useState<InscripcionWorkflow | null>(null)
+  const [montoMulta, setMontoMulta] = useState(0)
 
   // Suscribir al workflow de inscripción
   useEffect(() => {
     if (!id || !esInscripcion) return
     return subscribeWorkflow(id, setWfInscripcion)
   }, [id, esInscripcion])
+
+  // Suscribir al montoTotal del workflow de multa (para recibo)
+  useEffect(() => {
+    if (!id || !esMulta) return
+    return onSnapshot(multaWorkflowDoc(id), snap => {
+      if (!snap.exists()) return
+      const monto = snap.data()?.paso2?.montoTotal ?? snap.data()?.paso7?.pagoTotalRecibo ?? 0
+      setMontoMulta(monto)
+    })
+  }, [id, esMulta])
 
   // Auto-crear workflows si el trámite existe pero no tiene workflow todavía
   useEffect(() => {
@@ -192,7 +204,7 @@ export default function TramiteDetallePage() {
               tipo={TIPO_TRAMITE_LABELS[tramite.tipo] ?? tramite.tipo}
             />
             <BotonComprobante tramite={tramite} cliente={cliente} vehiculo={vehiculo} />
-            <BotonComprobantePago tramite={tramite} cliente={cliente} vehiculo={vehiculo} />
+            <BotonComprobantePago tramite={tramite} cliente={cliente} vehiculo={vehiculo} montoOverride={esMulta && montoMulta > 0 ? montoMulta : undefined} />
             <div>
               <p className="text-xs text-gray-400 mb-2 uppercase tracking-wide font-semibold">Estado</p>
               <EstadoSelector estadoActual={tramite.estado} onCambiar={handleCambiarEstado} />

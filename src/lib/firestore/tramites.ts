@@ -218,28 +218,31 @@ export async function cambiarEstado(
     }),
   })
 
-  // 2. Obtener el trámite para saber a quién notificar
-  const tSnap = await getDoc(tramiteDoc(id))
-  if (!tSnap.exists()) return
-  const tramite = { ...tSnap.data(), id: tSnap.id } as Tramite
+  // 2-4. Notificación al portal del cliente (best-effort — no bloquea si falla)
+  try {
+    const tSnap = await getDoc(tramiteDoc(id))
+    if (!tSnap.exists()) return
+    const tramite = { ...tSnap.data(), id: tSnap.id } as Tramite
 
-  // 3. Buscar el userId del cliente
-  const cSnap = await getDoc(clienteDoc(tramite.clienteId))
-  if (!cSnap.exists()) return
-  const destinatarioId = cSnap.data().userId
-  if (!destinatarioId) return   // cliente sin acceso al portal, no notificar — el cambio de estado YA se guardó arriba
+    const cSnap = await getDoc(clienteDoc(tramite.clienteId))
+    if (!cSnap.exists()) return
+    const destinatarioId = cSnap.data().userId
+    if (!destinatarioId) return  // cliente sin acceso al portal
 
-  // 4. Crear notificación automática (gestoriaId viene del trámite)
-  await notificarCambioEstado({
-    destinatarioId,
-    tramiteId:  id,
-    gestoriaId: tramite.gestoriaId,
-    numero:     tramite.numero,
-    tipo:       tramite.tipo,
-    patente:    tramite.patente,
-    estadoNuevo: nuevoEstado,
-    nota,
-  })
+    await notificarCambioEstado({
+      destinatarioId,
+      tramiteId:   id,
+      gestoriaId:  tramite.gestoriaId,
+      numero:      tramite.numero,
+      tipo:        tramite.tipo,
+      patente:     tramite.patente,
+      estadoNuevo: nuevoEstado,
+      nota,
+    })
+  } catch {
+    // El estado ya se guardó — la notificación es secundaria
+    console.warn('[cambiarEstado] No se pudo notificar al cliente, estado actualizado correctamente')
+  }
 }
 
 export async function actualizarTramite(
