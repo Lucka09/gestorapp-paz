@@ -218,7 +218,7 @@ export async function getTopClientes(
   return top.map(([clienteId, tramites], i) => {
     const data = clienteSnaps[i]?.data() as { nombre?: string; apellido?: string; razonSocial?: string } | undefined
     const nombre = data
-      ? (data.razonSocial ?? `${data.nombre ?? ''} ${data.apellido ?? ''}`.trim() || clienteId)
+      ? (data.razonSocial ?? (`${data.nombre ?? ''} ${data.apellido ?? ''}`.trim() || clienteId))
       : clienteId
     return {
       clienteId,
