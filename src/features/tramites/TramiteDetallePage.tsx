@@ -62,14 +62,24 @@ export default function TramiteDetallePage() {
   }, [id, esInscripcion])
 
   // Suscribir al montoTotal del workflow de multa (para recibo)
+  // [FIX] Guard gestoriaId: sin él el listener se abre antes de que Auth resuelva,
+  // lanza permission-denied y corrompe el SDK de Firestore para TODOS los listeners.
   useEffect(() => {
-    if (!id || !esMulta) return
-    return onSnapshot(multaWorkflowDoc(id), snap => {
-      if (!snap.exists()) return
-      const monto = snap.data()?.paso2?.montoTotal ?? snap.data()?.paso7?.pagoTotalRecibo ?? 0
-      setMontoMulta(monto)
-    })
-  }, [id, esMulta])
+    if (!id || !esMulta || !gestoriaId) return
+    const unsub = onSnapshot(
+      multaWorkflowDoc(id),
+      snap => {
+        if (!snap.exists()) return
+        const monto = snap.data()?.paso2?.montoTotal ?? snap.data()?.paso7?.pagoTotalRecibo ?? 0
+        setMontoMulta(monto)
+      },
+      err => {
+        if (err.code === 'permission-denied') return  // Auth aún no resolvió — ignorar
+        console.warn('[TramiteDetallePage] multaWorkflow listener:', err.message)
+      }
+    )
+    return unsub
+  }, [id, esMulta, gestoriaId])
 
   // Auto-crear workflows si el trámite existe pero no tiene workflow todavía
   useEffect(() => {
@@ -208,6 +218,38 @@ export default function TramiteDetallePage() {
             <div>
               <p className="text-xs text-gray-400 mb-2 uppercase tracking-wide font-semibold">Estado</p>
               <EstadoSelector estadoActual={tramite.estado} onCambiar={handleCambiarEstado} />
+
+              {/* [FIX] Cierre forzado: workflow completado pero estado no actualizado.
+                  Propietario/Admin pueden resolver el bloqueo directamente. */}
+              {esMulta &&
+               !['entregado','completado','cancelado'].includes(tramite.estado) &&
+               puede('cambiarEstadoTramite') && (
+                <div className="mt-3 bg-amber-50 border border-amber-200 rounded-xl p-3">
+                  <p className="text-xs text-amber-700 font-semibold mb-2">
+                    ⚠️ Workflow completado pero estado sin actualizar
+                  </p>
+                  <p className="text-xs text-amber-600 mb-2.5 leading-relaxed">
+                    El paso 7/7 del workflow está marcado como <strong>Completado</strong>,
+                    pero el trámite sigue en <strong>{tramite.estado}</strong>.
+                    Esto suele ocurrir cuando la conexión se interrumpió durante el cierre.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      try {
+                        await handleCambiarEstado('entregado', 'Cierre forzado por Admin/Propietario — workflow paso 7/7 completado')
+                        toast.success('Estado actualizado a Entregado ✓')
+                      } catch {
+                        toast.error('Error al forzar el estado — intentá de nuevo')
+                      }
+                    }}
+                    className="w-full py-2 bg-amber-500 hover:bg-amber-600 text-white text-xs
+                               font-bold rounded-lg transition-colors"
+                  >
+                    🗂️ Marcar como Entregado (cierre forzado)
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         </div>
