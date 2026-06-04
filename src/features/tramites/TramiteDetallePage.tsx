@@ -105,13 +105,19 @@ export default function TramiteDetallePage() {
     }
   }
 
+  const [cambiandoEstado, setCambiandoEstado] = useState(false)
+
   const handleCambiarEstado = async (nuevo: EstadoTramite, nota: string) => {
-    if (!tramite || !user) return
+    if (!tramite || !user || cambiandoEstado) return
+    setCambiandoEstado(true)
     try {
       await cambiarEstado(id!, nuevo, nota, user.uid, tramite.estado)
       toast.success(`Estado actualizado → ${nuevo.replace(/_/g, ' ')}`)
-    } catch {
+    } catch (err: any) {
+      console.error('[handleCambiarEstado]', err?.code, err?.message)
       toast.error('Error al cambiar el estado')
+    } finally {
+      setCambiandoEstado(false)
     }
   }
 
@@ -219,8 +225,7 @@ export default function TramiteDetallePage() {
               <p className="text-xs text-gray-400 mb-2 uppercase tracking-wide font-semibold">Estado</p>
               <EstadoSelector estadoActual={tramite.estado} onCambiar={handleCambiarEstado} />
 
-              {/* [FIX] Cierre forzado: workflow completado pero estado no actualizado.
-                  Propietario/Admin pueden resolver el bloqueo directamente. */}
+              {/* [FIX] Cierre forzado: workflow completado pero estado bloqueado */}
               {esMulta &&
                !['entregado','completado','cancelado'].includes(tramite.estado) &&
                puede('cambiarEstadoTramite') && (
@@ -229,24 +234,20 @@ export default function TramiteDetallePage() {
                     ⚠️ Workflow completado pero estado sin actualizar
                   </p>
                   <p className="text-xs text-amber-600 mb-2.5 leading-relaxed">
-                    El paso 7/7 del workflow está marcado como <strong>Completado</strong>,
-                    pero el trámite sigue en <strong>{tramite.estado}</strong>.
-                    Esto suele ocurrir cuando la conexión se interrumpió durante el cierre.
+                    El paso 7/7 está marcado como <strong>Completado</strong>, pero el trámite
+                    sigue en <strong>{tramite.estado}</strong>. Hacé click para sincronizarlo.
                   </p>
                   <button
                     type="button"
-                    onClick={async () => {
-                      try {
-                        await handleCambiarEstado('entregado', 'Cierre forzado por Admin/Propietario — workflow paso 7/7 completado')
-                        toast.success('Estado actualizado a Entregado ✓')
-                      } catch {
-                        toast.error('Error al forzar el estado — intentá de nuevo')
-                      }
-                    }}
-                    className="w-full py-2 bg-amber-500 hover:bg-amber-600 text-white text-xs
-                               font-bold rounded-lg transition-colors"
+                    disabled={cambiandoEstado}
+                    onClick={() => handleCambiarEstado(
+                      'entregado',
+                      'Cierre forzado por Admin/Propietario — workflow paso 7/7 completado'
+                    )}
+                    className="w-full py-2 bg-amber-500 hover:bg-amber-600 disabled:opacity-50
+                               text-white text-xs font-bold rounded-lg transition-colors"
                   >
-                    🗂️ Marcar como Entregado (cierre forzado)
+                    {cambiandoEstado ? 'Actualizando...' : '🗂️ Marcar como Entregado'}
                   </button>
                 </div>
               )}

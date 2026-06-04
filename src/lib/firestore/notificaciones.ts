@@ -52,15 +52,19 @@ export async function crearNotificacion(data: {
   tramiteId?:     string | null
   turnoId?:       string | null
 }): Promise<void> {
-  const docRef = await addDoc(notificacionesCol, {
-    id:        '',  // se asigna luego con el ID del doc
+  // [FIX] Usamos doc() para pre-generar el ID y escribirlo en un solo setDoc.
+  // El updateDoc posterior era innecesario y fallaba con permission-denied porque
+  // la regla de notificaciones solo permite update al destinatario, no al staff.
+  const { doc: firestoreDoc, setDoc } = await import('firebase/firestore')
+  const docRef = firestoreDoc(notificacionesCol)
+  await setDoc(docRef, {
+    id:        docRef.id,
     ...data,
     tramiteId: data.tramiteId ?? null,
     turnoId:   data.turnoId   ?? null,
     leida:     false,
     creadoEn:  serverTimestamp(),
   })
-  await updateDoc(docRef, { id: docRef.id })
 }
 
 export async function marcarLeida(id: string): Promise<void> {
