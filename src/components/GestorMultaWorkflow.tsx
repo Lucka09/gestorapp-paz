@@ -294,6 +294,8 @@ export default function GestorMultaWorkflow({ tramiteId, numeroLITExterno }: Pro
     observacionFinal: '',
     suatsAbonado: false,
     montoSUATS: 0,
+    informePersonaRealizado: false,
+    montoInformePersona: 0,
     pagoTotalRecibo: 0,
   })
 
@@ -1416,6 +1418,51 @@ export default function GestorMultaWorkflow({ tramiteId, numeroLITExterno }: Pro
                 )}
               </div>
 
+              {/* ── Informe de Persona ──────────────────────────────────── */}
+              <div className="border border-gray-100 rounded-xl overflow-hidden">
+                <label className="flex items-center gap-2 p-3 cursor-pointer text-sm hover:bg-gray-50 transition-colors">
+                  <input
+                    type="checkbox"
+                    checked={p7.informePersonaRealizado}
+                    onChange={e => setP7(prev => ({
+                      ...prev,
+                      informePersonaRealizado: e.target.checked,
+                      montoInformePersona: e.target.checked ? prev.montoInformePersona : 0,
+                    }))}
+                    className="accent-[#D4621A]"
+                  />
+                  <span className="font-medium text-gray-700">¿Se realizó informe de persona?</span>
+                  <span className="text-xs text-gray-400 ml-auto">(opcional)</span>
+                </label>
+                {p7.informePersonaRealizado && (
+                  <div className="px-3 pb-3 border-t border-gray-100 bg-blue-50/50">
+                    <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider block mb-1.5 mt-2.5">
+                      Costo informe de persona *
+                    </label>
+                    <div className="relative">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm font-bold text-gray-400">$</span>
+                      <input
+                        type="number"
+                        min={0}
+                        step={100}
+                        value={p7.montoInformePersona || ''}
+                        onChange={e => setP7(prev => ({ ...prev, montoInformePersona: Number(e.target.value) }))}
+                        placeholder="0"
+                        className="w-full pl-7 pr-3 py-2.5 border border-blue-200 rounded-xl text-sm
+                                   font-bold text-blue-800 bg-white outline-none
+                                   focus:border-[#D4621A] focus:shadow-[0_0_0_3px_rgba(212,98,26,0.1)]"
+                      />
+                    </div>
+                    {p7.montoInformePersona > 0 && (
+                      <p className="text-xs text-blue-600 mt-1.5 flex items-center gap-1">
+                        <span>📋</span>
+                        Se registrará en el reporte mensual como informe de persona.
+                      </p>
+                    )}
+                  </div>
+                )}
+              </div>
+
               {/* Canal de entrega */}
               <div>
                 <label className="text-xs font-semibold text-gray-500 mb-1 block">Canal de entrega</label>
@@ -1452,6 +1499,50 @@ export default function GestorMultaWorkflow({ tramiteId, numeroLITExterno }: Pro
                   ⚠ Ingresá el monto abonado por SUATS para poder finalizar.
                 </p>
               )}
+              {p7.informePersonaRealizado && !p7.montoInformePersona && (
+                <p className="text-xs text-red-500 flex items-center gap-1">
+                  ⚠ Ingresá el costo del informe de persona para poder finalizar.
+                </p>
+              )}
+
+              {/* Resumen de totales */}
+              {p7.pagoTotalRecibo > 0 && (
+                <div className="bg-gray-50 rounded-xl p-3 space-y-1.5 text-xs">
+                  <p className="font-bold text-gray-700 mb-2">Desglose del cobro:</p>
+                  <div className="flex justify-between">
+                    <span className="text-gray-500">Honorarios gestoría</span>
+                    <span className="font-semibold text-gray-800">
+                      {new Intl.NumberFormat('es-AR',{style:'currency',currency:'ARS'}).format(
+                        p7.pagoTotalRecibo
+                        - (p7.suatsAbonado ? p7.montoSUATS : 0)
+                        - (p7.informePersonaRealizado ? p7.montoInformePersona : 0)
+                      )}
+                    </span>
+                  </div>
+                  {p7.suatsAbonado && p7.montoSUATS > 0 && (
+                    <div className="flex justify-between">
+                      <span className="text-amber-600">SUATS abonado</span>
+                      <span className="font-semibold text-amber-700">
+                        {new Intl.NumberFormat('es-AR',{style:'currency',currency:'ARS'}).format(p7.montoSUATS)}
+                      </span>
+                    </div>
+                  )}
+                  {p7.informePersonaRealizado && p7.montoInformePersona > 0 && (
+                    <div className="flex justify-between">
+                      <span className="text-blue-600">Informe de persona</span>
+                      <span className="font-semibold text-blue-700">
+                        {new Intl.NumberFormat('es-AR',{style:'currency',currency:'ARS'}).format(p7.montoInformePersona)}
+                      </span>
+                    </div>
+                  )}
+                  <div className="flex justify-between border-t border-gray-200 pt-1.5 mt-1.5">
+                    <span className="font-bold text-gray-800">Total recibo</span>
+                    <span className="font-bold text-emerald-700">
+                      {new Intl.NumberFormat('es-AR',{style:'currency',currency:'ARS'}).format(p7.pagoTotalRecibo)}
+                    </span>
+                  </div>
+                </div>
+              )}
 
               <button
                 disabled={
@@ -1460,6 +1551,7 @@ export default function GestorMultaWorkflow({ tramiteId, numeroLITExterno }: Pro
                   !p7.pagoTotalRecibo ||
                   (!!workflow.paso1?.requiereSUATS && !p7.suatsEntregado) ||
                   (p7.suatsAbonado && !p7.montoSUATS) ||
+                  (p7.informePersonaRealizado && !p7.montoInformePersona) ||
                   guardando
                 }
                 onClick={() => confirmarPaso7(p7)}
@@ -1485,6 +1577,11 @@ export default function GestorMultaWorkflow({ tramiteId, numeroLITExterno }: Pro
                   {workflow.paso7?.suatsAbonado && workflow.paso7?.montoSUATS && (
                     <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-amber-50 border border-amber-200 rounded-lg text-xs font-bold text-amber-700">
                       SUATS: {new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' }).format(workflow.paso7.montoSUATS)}
+                    </span>
+                  )}
+                  {workflow.paso7?.informePersonaRealizado && workflow.paso7?.montoInformePersona && (
+                    <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-blue-50 border border-blue-200 rounded-lg text-xs font-bold text-blue-700">
+                      Informe persona: {new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' }).format(workflow.paso7.montoInformePersona)}
                     </span>
                   )}
                 </div>

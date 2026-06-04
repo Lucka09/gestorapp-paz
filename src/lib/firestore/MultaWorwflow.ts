@@ -7,6 +7,7 @@ import {
 import { db }           from '@/lib/firebase'
 import { crearNotificacion } from '@/lib/firestore/notificaciones'
 import { cambiarEstadoTramite } from '@/lib/firestore/tramites'
+import { tramitesCol } from '@/lib/firestore/collections'
 import type {
   MultaWorkflow, MultaPaso1Data, MultaPaso2Data,
   MultaPaso3Data, MultaReboteResolucion,
@@ -44,79 +45,17 @@ export async function crearMultaWorkflow(
   } as any)
 }
  
-// ─── HELPERS DE FECHA ─────────────────────────────────────────────────────────
-
-function calcularAlertasFechaTramite(fechaStr: string): {
-  alertaFechaTramite48h: ReturnType<typeof Timestamp.fromDate>,
-  alertaFechaTramite24h: ReturnType<typeof Timestamp.fromDate>,
-} {
-  // fechaStr: 'YYYY-MM-DD' — tomamos las 09:00 de ese día (hora Argentina)
-  const fechaBase = new Date(fechaStr + 'T09:00:00-03:00')
-  const alerta48h = new Date(fechaBase)
-  alerta48h.setHours(alerta48h.getHours() - 48)
-  const alerta24h = new Date(fechaBase)
-  alerta24h.setHours(alerta24h.getHours() - 24)
-  return {
-    alertaFechaTramite48h: Timestamp.fromDate(alerta48h),
-    alertaFechaTramite24h: Timestamp.fromDate(alerta24h),
-  }
-}
-
 // ─── PASO 1: Recepción ────────────────────────────────────────────────────────
  
 export async function confirmarPaso1Multa(
   tramiteId: string,
   data: Omit<MultaPaso1Data, 'completadoEn'>,
 ): Promise<void> {
-  const extras: Record<string, unknown> = {
-    fechaTramiteActual: data.fechaTramite,
-  }
-  if (data.fechaTramite) {
-    const alertas = calcularAlertasFechaTramite(data.fechaTramite)
-    extras['alertaFechaTramite48h'] = alertas.alertaFechaTramite48h
-    extras['alertaFechaTramite24h'] = alertas.alertaFechaTramite24h
-  }
   await updateDoc(workflowDoc(tramiteId), {
     paso1:          { ...data, completadoEn: Timestamp.now() },
     pasoActual:     2,
     estadoWorkflow: 'recepcion',
     actualizadoEn:  serverTimestamp(),
-    ...extras,
-  })
-}
-
-// ─── EDITAR FECHA DEL TRÁMITE (con auditoría completa) ───────────────────────
-
-export async function editarFechaTramiteMulta(
-  tramiteId:      string,
-  nuevaFecha:     string,    // YYYY-MM-DD
-  modificadoPor:  string,
-  modificadoPorNombre: string,
-  nota?:          string,
-): Promise<void> {
-  const snap = await getDoc(workflowDoc(tramiteId))
-  if (!snap.exists()) throw new Error('Workflow no encontrado')
-  const wf = snap.data() as MultaWorkflow
-
-  const valorAnterior = wf.paso1?.fechaTramite ?? wf.fechaTramiteActual ?? '—'
-  const entradaHistorial = {
-    valorAnterior,
-    valorNuevo:       nuevaFecha,
-    modificadoPor,
-    modificadoPorNombre,
-    modificadoEn:     Timestamp.now(),
-    ...(nota ? { nota } : {}),
-  }
-
-  const alertas = calcularAlertasFechaTramite(nuevaFecha)
-
-  await updateDoc(workflowDoc(tramiteId), {
-    'paso1.fechaTramite':      nuevaFecha,
-    fechaTramiteActual:        nuevaFecha,
-    alertaFechaTramite48h:     alertas.alertaFechaTramite48h,
-    alertaFechaTramite24h:     alertas.alertaFechaTramite24h,
-    historialFechaTramite:     arrayUnion(entradaHistorial),
-    actualizadoEn:             serverTimestamp(),
   })
 }
  
@@ -287,6 +226,13 @@ export async function confirmarPaso7Multa(
     if (v !== undefined) paso7Clean[k] = v
   }
 
+  // ── Calcular totales para el trámite principal ─────────────────────────────
+  // El campo honorarios del trámite = total cobrado al cliente (honorarios gestoría)
+  // Los costos adicionales (SUATS, informe persona) se guardan en paso7 para reportes
+  const honorariosGestoria = data.pagoTotalRecibo
+    - (data.suatsAbonado && data.montoSUATS ? data.montoSUATS : 0)
+    - (data.informePersonaRealizado && data.montoInformePersona ? data.montoInformePersona : 0)
+
   // 1. Cerrar el workflow de multa
   await updateDoc(workflowDoc(tramiteId), {
     paso7:          paso7Clean,
@@ -295,8 +241,22 @@ export async function confirmarPaso7Multa(
     actualizadoEn:  serverTimestamp(),
   })
 
-  // 2. Marcar el trámite principal como entregado — desaparece de Torre de Control
-  //    y no genera más alertas de demora ni "sin movimiento".
+  // 2. Actualizar el trámite principal con el desglose financiero completo
+  //    - honorarios: lo que cobró la gestoría por sus servicios
+  //    - pagado: true (se confirmó el pago del recibo)
+  //    - campos extra de costos para reportes y cobranzas
+  await updateDoc(doc(tramitesCol, tramiteId), {
+    honorarios:      honorariosGestoria > 0 ? honorariosGestoria : data.pagoTotalRecibo,
+    pagado:          true,
+    fechaPago:       serverTimestamp(),
+    // Desglose completo para reportes
+    costosSUATS:        data.suatsAbonado ? (data.montoSUATS ?? 0) : 0,
+    costosInformePersona: data.informePersonaRealizado ? (data.montoInformePersona ?? 0) : 0,
+    totalCobradoCliente: data.pagoTotalRecibo,
+    actualizadoEn:   serverTimestamp(),
+  })
+
+  // 3. Marcar como entregado — desaparece de Torre de Control
   await cambiarEstadoTramite(tramiteId, 'entregado', {
     completadoPor:       data.completadoPor,
     completadoPorNombre: data.completadoPorNombre,

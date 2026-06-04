@@ -76,9 +76,10 @@ export function useMultaWorkflow(tramiteId: string) {
   const [error,    setError]    = useState<string | null>(null)
   const [progreso, setProgreso] = useState(0)
 
-  // Suscripción al documento
+  // Suscripción al documento — requiere gestoriaId para evitar permission-denied
+  // antes de que Firebase Auth resuelva el token del usuario
   useEffect(() => {
-    if (!tramiteId) return
+    if (!tramiteId || !gestoriaId) return
     return onSnapshot(
       multaWorkflowDoc(tramiteId),
       snap => {
@@ -86,11 +87,12 @@ export function useMultaWorkflow(tramiteId: string) {
         setLoading(false)
       },
       err => {
-        setError(err.message)
+        // Solo loguear — no mostrar error si es permission-denied transitorio al cargar
+        if (err.code !== 'permission-denied') setError(err.message)
         setLoading(false)
       },
     )
-  }, [tramiteId])
+  }, [tramiteId, gestoriaId])
 
   // Auto-crear si no existe
   useEffect(() => {

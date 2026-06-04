@@ -156,11 +156,21 @@ export interface MultaPaso7Data {
   suatsEntregado?:  boolean    // solo si requiereSUATS
   canalEntrega:     'presencial' | 'whatsapp' | 'email' | 'otro'
   observacionFinal?: string
-  // ─── SUATS abonado (M1) ───────────────────────────────────────────────────
+
+  // ─── SUATS abonado ────────────────────────────────────────────────────────
+  // Si la gestoría tuvo que abonar el SUATS por el cliente
   suatsAbonado?:    boolean
-  montoSUATS?:      number
+  montoSUATS?:      number   // monto abonado por SUATS
+
+  // ─── Informe de persona ───────────────────────────────────────────────────
+  // Si se requirió informe de persona (datos del titular para el descargo)
+  informePersonaRealizado?: boolean
+  montoInformePersona?:     number   // costo del informe de persona
+
   // ─── Pago total del recibo (OBLIGATORIO para finalizar) ──────────────────
+  // Suma de: honorarios gestoría + SUATS (si abonado) + informe persona (si realizado)
   pagoTotalRecibo:  number
+
   completadoPor:       string
   completadoPorNombre: string
   completadoEn:        Timestamp
@@ -185,20 +195,6 @@ export interface MultaWorkflow {
 
   // Recordatorio mesa de ayuda (para alertas)
   recordatorioMesaAyuda?: Timestamp
-
-  // ─── FECHA DEL TRÁMITE EDITABLE ───────────────────────────────────────────
-  // Permite editar la fecha del trámite en cualquier paso con auditoría completa
-  fechaTramiteActual?:    string   // copia sincronizada del paso1.fechaTramite (para alertas)
-  alertaFechaTramite48h?: Timestamp  // 48hs antes → alerta in-app
-  alertaFechaTramite24h?: Timestamp  // 24hs antes → alerta in-app
-  historialFechaTramite?: {
-    valorAnterior:    string
-    valorNuevo:       string
-    modificadoPor:    string
-    modificadoPorNombre: string
-    modificadoEn:     Timestamp
-    nota?:            string
-  }[]
 
   creadoEn:      Timestamp
   actualizadoEn: Timestamp
