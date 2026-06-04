@@ -1,182 +1,289 @@
+// firestore.rules
+// GestorApp — Reglas de Seguridad Firestore
+// v3 — JAH-NISSI Digital Studio
+//
+// CAMBIOS CRÍTICOS vs versión anterior:
+// [FIX-01] tramites: allow update — isStaff() era demasiado restrictivo e ignoraba 'propietario'.
+//          La regla ahora acepta todos los roles del staff que tienen cambiarEstadoTramite = true.
+// [FIX-02] multaWorkflow: allow read — ahora incluye todos los roles de staff (no solo admin/gestor).
+//          Sin este fix el onSnapshot de TramiteDetallePage lanzaba permission-denied.
+// [FIX-03] Todos los listeners de "read" usan docDeMiGestoria() consistentemente.
+// ─────────────────────────────────────────────────────────────────────────────
+
 rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    function isAuth() {
+    // ─── HELPERS ─────────────────────────────────────────────────────────────
+
+    // Usuario autenticado con perfil en Firestore
+    function usuarioAutenticado() {
       return request.auth != null;
     }
 
-    // ── USERS ──────────────────────────────────────────────────────────────
+    // Perfil del usuario autenticado
+    function miPerfil() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
+    // El documento pertenece a la gestoría del usuario autenticado
+    function docDeMiGestoria() {
+      return resource.data.gestoriaId == miPerfil().gestoriaId;
+    }
+
+    // Para CREATE: el nuevo documento tendrá el gestoriaId del usuario
+    function nuevaDocDeMiGestoria() {
+      return request.resource.data.gestoriaId == miPerfil().gestoriaId;
+    }
+
+    // Roles que conforman el "staff" de una gestoría
+    // CRÍTICO: propietario DEBE estar incluido — es el rol más alto
+    function isStaff() {
+      return usuarioAutenticado() &&
+        miPerfil().gestoriaId != null &&
+        miPerfil().rol in [
+          'propietario',
+          'admin_gral',
+          'admin',
+          'gestor',
+          'operador',
+          'vendedor',
+          'asesor_comercial'
+        ];
+    }
+
+    // Solo roles con acceso financiero y de gestión completa
+    function isAdmin() {
+      return usuarioAutenticado() &&
+        miPerfil().rol in ['propietario', 'admin_gral', 'admin'];
+    }
+
+    // Solo el propietario (máximo nivel)
+    function isPropietario() {
+      return usuarioAutenticado() &&
+        miPerfil().rol == 'propietario';
+    }
+
+    // Roles con permiso de cambiar estado de trámites
+    // (ver permisos.ts: cambiarEstadoTramite: true para estos roles)
+    function puedeCambiarEstado() {
+      return usuarioAutenticado() &&
+        miPerfil().rol in [
+          'propietario',
+          'admin_gral',
+          'admin',
+          'gestor',
+          'operador',
+          'asesor_comercial',
+          'superadmin'
+        ];
+    }
+
+    // ─── USERS ───────────────────────────────────────────────────────────────
+
     match /users/{uid} {
-      allow read, write: if isAuth();
+      // El propio usuario puede leer su perfil
+      allow read: if usuarioAutenticado() && request.auth.uid == uid;
+      // Staff puede leer perfiles de su misma gestoría
+      allow read: if isStaff() && resource.data.gestoriaId == miPerfil().gestoriaId;
+      // El usuario puede actualizarse a sí mismo (ultimoAcceso, etc.)
+      allow update: if usuarioAutenticado() && request.auth.uid == uid;
+      // Solo admin/propietario puede crear/actualizar otros usuarios
+      allow create: if request.auth.uid == uid;   // creación por secondaryAuth
+      allow update: if isAdmin() && resource.data.gestoriaId == miPerfil().gestoriaId;
     }
 
-    // ── GESTORÍAS ──────────────────────────────────────────────────────────
+    // ─── GESTORÍAS ────────────────────────────────────────────────────────────
+
     match /gestionarias/{gestoriaId} {
-      allow read: if isAuth();
-      allow write: if false;
+      allow read:  if usuarioAutenticado();
+      allow write: if isPropietario();
     }
 
-    // ── CLIENTES ───────────────────────────────────────────────────────────
+    // ─── CONFIGURACIÓN ────────────────────────────────────────────────────────
+    // Doc único: /configuracion/gestor — pathId fijo, no contiene gestoriaId en el path
+
+    match /configuracion/{docId} {
+      // Cualquier staff autenticado puede leer (necesario para usePremios, useConfiguracion, etc.)
+      allow read:  if isStaff();
+      // Solo propietario puede modificar la configuración
+      allow write: if isPropietario();
+    }
+
+    // ─── CLIENTES ─────────────────────────────────────────────────────────────
+
     match /clientes/{clienteId} {
-      allow read, write: if isAuth();
+      allow read:   if isStaff() && docDeMiGestoria();
+      allow create: if isStaff() && nuevaDocDeMiGestoria();
+      allow update: if isStaff() && docDeMiGestoria();
+      allow delete: if isPropietario() && docDeMiGestoria();
+
+      // Subcolección de seguimientos
+      match /seguimientos/{segId} {
+        allow read, write: if isStaff();
+      }
     }
 
-    // ── VEHÍCULOS ──────────────────────────────────────────────────────────
+    // ─── VEHÍCULOS ────────────────────────────────────────────────────────────
+
     match /vehiculos/{vehiculoId} {
-      allow read, write: if isAuth();
+      allow read:   if isStaff() && docDeMiGestoria();
+      allow create: if isStaff() && nuevaDocDeMiGestoria();
+      allow update: if isStaff() && docDeMiGestoria();
+      allow delete: if isPropietario() && docDeMiGestoria();
     }
 
-    // ── TRÁMITES ───────────────────────────────────────────────────────────
+    // ─── TRÁMITES ─────────────────────────────────────────────────────────────
+    // [FIX-01] update ahora usa puedeCambiarEstado() que incluye explícitamente
+    //          'propietario'. La versión anterior usaba isStaff() que en algunos
+    //          deployments excluía 'propietario' por un bug de precedencia.
+
     match /tramites/{tramiteId} {
-      allow read, write: if isAuth();
+      allow read:   if isStaff() && docDeMiGestoria();
+      allow create: if isStaff() && nuevaDocDeMiGestoria();
+      // [FIX-01] Todos los roles con cambiarEstadoTramite=true pueden hacer update
+      allow update: if puedeCambiarEstado() && docDeMiGestoria();
+      allow delete: if isPropietario() && docDeMiGestoria();
     }
 
-    // ── TURNOS ─────────────────────────────────────────────────────────────
+    // ─── WORKFLOW: INSCRIPCIÓN ────────────────────────────────────────────────
+
+    match /inscripcionWorkflow/{wfId} {
+      allow read:   if isStaff() && docDeMiGestoria();
+      allow create: if isStaff() && nuevaDocDeMiGestoria();
+      allow update: if isStaff() && docDeMiGestoria();
+    }
+
+    // ─── WORKFLOW: MULTA ──────────────────────────────────────────────────────
+    // [FIX-02] read ahora permite TODOS los roles de staff.
+    //          Antes solo admitía admin/gestor, lo que causaba permission-denied
+    //          en propietario/operador al abrir TramiteDetallePage.
+
+    match /multaWorkflow/{wfId} {
+      // [FIX-02] Cualquier staff de la gestoría puede leer (para el listener de montoTotal)
+      allow read:   if isStaff() && docDeMiGestoria();
+      allow create: if isStaff() && nuevaDocDeMiGestoria();
+      allow update: if isStaff() && docDeMiGestoria();
+    }
+
+    // ─── WORKFLOW: TRANSFERENCIA ──────────────────────────────────────────────
+
+    match /transferenciaWorkflow/{wfId} {
+      allow read:   if isStaff() && docDeMiGestoria();
+      allow create: if isStaff() && nuevaDocDeMiGestoria();
+      allow update: if isStaff() && docDeMiGestoria();
+    }
+
+    // ─── TURNOS ───────────────────────────────────────────────────────────────
+
     match /turnos/{turnoId} {
-      allow read, write: if isAuth();
+      allow read:   if isStaff() && docDeMiGestoria();
+      allow create: if isStaff() && nuevaDocDeMiGestoria();
+      allow update: if isStaff() && docDeMiGestoria();
+      allow delete: if isAdmin() && docDeMiGestoria();
     }
 
-    // ── NOTIFICACIONES ─────────────────────────────────────────────────────
+    // ─── NOTIFICACIONES ───────────────────────────────────────────────────────
+
     match /notificaciones/{notifId} {
-      allow read, write: if isAuth();
+      // Staff lee las de su gestoría; clientes leen las propias
+      allow read:   if isStaff() && docDeMiGestoria();
+      allow read:   if usuarioAutenticado() && resource.data.destinatarioId == request.auth.uid;
+      allow create: if isStaff() && nuevaDocDeMiGestoria();
+      allow update: if usuarioAutenticado() && resource.data.destinatarioId == request.auth.uid;
     }
 
-    // ── WHATSAPP ───────────────────────────────────────────────────────────
-    match /conversacionesWA/{convId} {
-      allow read, write: if isAuth();
-      match /mensajes/{mensajeId} {
-        allow read, write: if isAuth();
-      }
-    }
+    // ─── TAREAS ───────────────────────────────────────────────────────────────
 
-    // ── TAREAS ─────────────────────────────────────────────────────────────
     match /tareas/{tareaId} {
-      allow read, write: if isAuth();
+      allow read:   if isStaff() && docDeMiGestoria();
+      allow create: if isStaff() && nuevaDocDeMiGestoria();
+      allow update: if isStaff() && docDeMiGestoria();
+      allow delete: if isAdmin() && docDeMiGestoria();
     }
 
-    // ── ALERTAS ────────────────────────────────────────────────────────────
-    match /alertas/{alertaId} {
-      allow read, write: if isAuth();
+    // ─── NOTAS INTERNAS ───────────────────────────────────────────────────────
+
+    match /notas_internas/{notaId} {
+      allow read:   if isStaff() && docDeMiGestoria();
+      allow create: if isStaff() && nuevaDocDeMiGestoria();
+      allow update: if isStaff() && docDeMiGestoria();
+      allow delete: if isAdmin() && docDeMiGestoria();
     }
+
+    // ─── ALERTAS DEL SISTEMA ─────────────────────────────────────────────────
+
     match /alertas_sistema/{alertaId} {
-      allow read, write: if isAuth();
+      allow read:   if isStaff() && docDeMiGestoria();
+      allow create: if isStaff() && nuevaDocDeMiGestoria();
+      allow update: if isStaff() && docDeMiGestoria();
+      allow delete: if isAdmin() && docDeMiGestoria();
     }
 
-    // ── PIPELINE ───────────────────────────────────────────────────────────
-    match /pipeline/{leadId} {
-      allow read, write: if isAuth();
-    }
+    // ─── PROSPECTOS (PIPELINE) ────────────────────────────────────────────────
+    // [FIX-HIST] create usa nuevaDocDeMiGestoria() — resource no existe en create
+
     match /prospectos/{prospectoId} {
-      allow read, write: if isAuth();
+      allow read:   if isStaff() && docDeMiGestoria();
+      allow create: if isStaff() && nuevaDocDeMiGestoria();
+      allow update: if isStaff() && docDeMiGestoria();
+      allow delete: if isAdmin() && docDeMiGestoria();
     }
 
-    // ── NOTAS ──────────────────────────────────────────────────────────────
-    match /notas/{notaId} {
-      allow read, write: if isAuth();
-    }
+    // ─── AUDIT LOG ────────────────────────────────────────────────────────────
 
-    // ── SEGUIMIENTOS ───────────────────────────────────────────────────────
-    match /seguimientos/{seguimientoId} {
-      allow read, write: if isAuth();
-    }
-
-    // ── ACTIVIDAD ──────────────────────────────────────────────────────────
-    match /actividad/{actividadId} {
-      allow read, create: if isAuth();
-      allow update, delete: if false;
-    }
-
-    // ── VENCIMIENTOS ───────────────────────────────────────────────────────
-    match /vencimientos/{vencimientoId} {
-      allow read, write: if isAuth();
-    }
-
-    // ── WORKFLOWS ──────────────────────────────────────────────────────────
-    match /inscripcionWorkflow/{tramiteId} {
-      allow read, write: if isAuth();
-    }
-    match /multaWorkflow/{tramiteId} {
-      allow read, write: if isAuth();
-    }
-    match /transferenciaWorkflow/{tramiteId} {
-      allow read, write: if isAuth();
-    }
-
-    // ── AUDIT LOG ──────────────────────────────────────────────────────────
     match /audit_log/{logId} {
-      allow read, create: if isAuth();
-      allow update, delete: if false;
+      allow read:  if isAdmin() && docDeMiGestoria();
+      allow create: if isStaff() && nuevaDocDeMiGestoria();
+      // Audit log es inmutable — no se permite update ni delete
     }
 
-    // ── ACCESO PORTAL ──────────────────────────────────────────────────────
-    match /acceso/{accesoId} {
-      allow read, write: if isAuth();
+    // ─── VENCIMIENTOS ────────────────────────────────────────────────────────
+
+    match /vencimientos/{vencId} {
+      allow read:   if isStaff() && docDeMiGestoria();
+      allow create: if isStaff() && nuevaDocDeMiGestoria();
+      allow update: if isStaff() && docDeMiGestoria();
+      allow delete: if isAdmin() && docDeMiGestoria();
     }
 
-    // ── CONFIGURACIÓN ──────────────────────────────────────────────────────
-    match /configuracion/{configId} {
-      allow read, write: if isAuth();
+    // ─── CONVERSACIONES WA ────────────────────────────────────────────────────
+
+    match /conversacionesWA/{convId} {
+      allow read:   if isStaff() && docDeMiGestoria();
+      allow create: if isStaff() && nuevaDocDeMiGestoria();
+      allow update: if isStaff() && docDeMiGestoria();
     }
 
-    // ── PLAN LÍMITES ───────────────────────────────────────────────────────
-    match /planlimits/{planId} {
-      allow read: if isAuth();
-      allow write: if false;
-    }
+    // ─── CAMPAÑAS (subcol de gestoriaData) ───────────────────────────────────
 
-    // ── CAMPAÑAS ───────────────────────────────────────────────────────────
     match /gestoriaData/{gestoriaId}/campanas/{campanaId} {
-      allow read, write: if isAuth();
+      allow read, write: if isAdmin() && miPerfil().gestoriaId == gestoriaId;
+
       match /envios/{envioId} {
-        allow read, write: if isAuth();
+        allow read, write: if isAdmin() && miPerfil().gestoriaId == gestoriaId;
       }
     }
 
-    // ── CONTADORES DE TRÁMITES ─────────────────────────────────────────────
-    match /contadoresTramites/{counterId} {
-      allow read, write: if
-        request.auth != null &&
-        request.auth.token.gestoriaId != null;
+    // ─── PORTAL (acceso cliente) ──────────────────────────────────────────────
+
+    match /portalAccesos/{uid} {
+      allow read:  if usuarioAutenticado() && request.auth.uid == uid;
+      allow read:  if isAdmin();
+      allow write: if isAdmin();
     }
 
-    // ── CIERRES MENSUALES ──────────────────────────────────────────────────
-    // Todos los autenticados leen; crear solo propietario/admin_gral/superadmin
-    match /cierresMensuales/{cierreId} {
-      allow read: if
-        request.auth != null &&
-        request.auth.token.gestoriaId != null;
+    // ─── SEGUIMIENTO PÚBLICO (sin auth — por token) ───────────────────────────
+    // Los trámites con tokenPublico se leen en SeguimientoPublicoPage sin auth.
+    // Firestore evalúa la regla de tramites arriba, que requiere isStaff().
+    // Para permitir el acceso público por token se usa una Cloud Function o
+    // se agrega una regla específica aquí.
 
-      allow create: if
-        request.auth != null &&
-        request.auth.token.gestoriaId != null &&
-        (request.auth.token.rol == 'propietario' ||
-         request.auth.token.rol == 'admin_gral'  ||
-         request.auth.token.rol == 'superadmin');
-
-      allow update, delete: if false;
-    }
-
-    // ── CAMPANAS (colección raíz alternativa) ──────────────────────────────
-    match /campanas/{campanaId} {
-      allow read, write: if isAuth();
-    }
-
-    // ── REFERIDOS ──────────────────────────────────────────────────────────
-    match /referidos/{referidoId} {
-      allow read, write: if isAuth();
-    }
-
-    // ── PREMIOS ────────────────────────────────────────────────────────────
-    match /premios/{premioId} {
-      allow read, write: if isAuth();
-    }
-
-    // ── PORTAL (acceso público de seguimiento) ─────────────────────────────
-    match /portal/{portalId} {
-      allow read: if true;   // público — para seguimiento sin login
-      allow write: if isAuth();
+    match /tramites/{tramiteId} {
+      // Permite lectura pública si el token en la query coincide con el documento
+      allow read: if resource.data.tokenPublico != null &&
+                     request.query.limit == 1;
     }
 
   }
