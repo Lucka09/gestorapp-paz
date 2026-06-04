@@ -217,7 +217,7 @@ function FotoCard({ item }: { item: DocItem }) {
             onError={e => { (e.target as HTMLImageElement).src = '/placeholder-doc.png' }}
           />
           {/* Overlay hover */}
-          <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-all
+          <div className="absolute inset-0 bg-black/0 group-hover:bg-gray-50 transition-all
                           flex items-center justify-center opacity-0 group-hover:opacity-100">
             <div className="bg-white/90 rounded-lg px-2 py-1 flex items-center gap-1">
               <ZoomIn size={13} className="text-gray-700" />

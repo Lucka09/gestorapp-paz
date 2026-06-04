@@ -1,24 +1,27 @@
 // src/features/gestor/GestorHomePage.tsx
+// Portal del Gestor/Mandatario — tema claro, alineado al branding GestorApp
+// v2 — JAH-NISSI Digital Studio
+// ─────────────────────────────────────────────────────────────────────────────
+
 import { useState, useMemo }  from 'react'
 import { useNavigate }        from 'react-router-dom'
 import {
   RefreshCw, CheckCircle2, Clock, AlertTriangle,
-  Plus, FileText, ClipboardList, ChevronRight,
-  Car, BarChart3,
+  Plus, FileText, ClipboardList, ChevronRight, Car,
 } from 'lucide-react'
-import { useAuth }            from '@/hooks/useAuth'
-import { useTramites }        from '@/hooks/useTramites'
-import { usePageTitle }       from '@/hooks/usePageTitle'
-import { useGestoriaId }      from '@/context/GestoriaContext'
-import { crearTramite }       from '@/lib/firestore/tramites'
-import { formatRelativo }     from '@/utils'
+import { useAuth }         from '@/hooks/useAuth'
+import { useTramites }     from '@/hooks/useTramites'
+import { usePageTitle }    from '@/hooks/usePageTitle'
+import { useGestoriaId }   from '@/context/GestoriaContext'
+import { crearTramite }    from '@/lib/firestore/tramites'
+import { formatRelativo }  from '@/utils'
 import { TIPO_TRAMITE_LABELS, type TipoTramite } from '@/types'
-import Modal                  from '@/components/shared/Modal'
-import TramiteForm            from '@/features/tramites/TramiteForm'
-import NumeroBadge            from '@/components/shared/NumeroBadge'
-import toast                  from 'react-hot-toast'
+import Modal               from '@/components/shared/Modal'
+import TramiteForm         from '@/features/tramites/TramiteForm'
+import NumeroBadge         from '@/components/shared/NumeroBadge'
+import toast               from 'react-hot-toast'
 
-// ─── TIPOS DE TRAMITE QUE PUEDE CREAR EL GESTOR ───────────────────────────────
+// ─── TIPOS DE TRÁMITE DISPONIBLES PARA EL GESTOR ─────────────────────────────
 
 const TIPOS_GESTOR: TipoTramite[] = [
   'transferencia',
@@ -38,24 +41,30 @@ const TIPOS_GESTOR: TipoTramite[] = [
 
 // ─── BADGE DE ESTADO ──────────────────────────────────────────────────────────
 
-const ESTADO_CONFIG: Record<string, { label: string; color: string; bg: string }> = {
-  pendiente:   { label: 'Pendiente',   color: '#94a3b8', bg: 'rgba(148,163,184,0.1)' },
-  en_proceso:  { label: 'En proceso',  color: '#f59e0b', bg: 'rgba(245,158,11,0.1)'  },
-  completado:  { label: 'Completado',  color: '#22c55e', bg: 'rgba(34,197,94,0.1)'   },
-  cancelado:   { label: 'Cancelado',   color: '#ef4444', bg: 'rgba(239,68,68,0.1)'   },
+const ESTADO_CONFIG: Record<string, { label: string; color: string; bg: string; border: string }> = {
+  pendiente:   { label: 'Pendiente',   color: '#6B7280', bg: '#F3F4F6', border: '#E5E7EB' },
+  en_proceso:  { label: 'En proceso',  color: '#D97706', bg: '#FFFBEB', border: '#FDE68A' },
+  completado:  { label: 'Completado',  color: '#059669', bg: '#ECFDF5', border: '#A7F3D0' },
+  cancelado:   { label: 'Cancelado',   color: '#DC2626', bg: '#FEF2F2', border: '#FECACA' },
+  en_organismo:{ label: 'Organismo',   color: '#7C3AED', bg: '#F5F3FF', border: '#DDD6FE' },
+  listo_para_retirar: { label: 'Para retirar', color: '#059669', bg: '#ECFDF5', border: '#6EE7B7' },
+  entregado:   { label: 'Entregado',   color: '#15803D', bg: '#F0FDF4', border: '#86EFAC' },
+  documentacion_requerida: { label: 'Docs. Req.', color: '#B45309', bg: '#FFFBEB', border: '#FCD34D' },
 }
 
 function EstadoBadgeGestor({ estado }: { estado: string }) {
   const cfg = ESTADO_CONFIG[estado] ?? ESTADO_CONFIG['pendiente']
   return (
-    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full"
-      style={{ color: cfg.color, background: cfg.bg }}>
+    <span
+      className="text-[10px] font-bold px-2 py-0.5 rounded-full border"
+      style={{ color: cfg.color, background: cfg.bg, borderColor: cfg.border }}
+    >
       {cfg.label}
     </span>
   )
 }
 
-// ─── ALERTA NIVEL ─────────────────────────────────────────────────────────────
+// ─── CÁLCULO DE NIVEL DE ALERTA ───────────────────────────────────────────────
 
 function calcularAlerta(diasSinMov: number): 0 | 1 | 2 | 3 {
   if (diasSinMov > 5) return 1
@@ -64,51 +73,45 @@ function calcularAlerta(diasSinMov: number): 0 | 1 | 2 | 3 {
   return 0
 }
 
-const ALERTA_BORDER: Record<number, string> = {
-  0: 'border-white/8',
-  1: 'border-red-600/35',
-  2: 'border-orange-500/30',
-  3: 'border-yellow-500/25',
-}
-
 // ─── COMPONENTE PRINCIPAL ─────────────────────────────────────────────────────
 
-type Tab = 'asignados' | 'mis_tramites' | 'nuevo'
+type Tab = 'asignados' | 'mis_tramites'
 
 export default function GestorHomePage() {
   usePageTitle('Portal Gestor')
-  const { user }      = useAuth()
-  const navigate      = useNavigate()
-  const gestoriaId    = useGestoriaId()
+  const { user }   = useAuth()
+  const navigate   = useNavigate()
+  const gestoriaId = useGestoriaId()
   const { tramites, loading } = useTramites()
 
-  const [tab,       setTab]       = useState<Tab>('asignados')
+  const [tab,        setTab]        = useState<Tab>('asignados')
   const [modalNuevo, setModalNuevo] = useState(false)
 
-  // ── Trámites asignados al gestor ──────────────────────────────────────────
-  // Trámites activos: asignados al gestor O creados por él
+  // Trámites asignados al gestor (activos)
   const tramitesAsignados = useMemo(() =>
-    tramites.filter(t =>
-      (t.asignadoA === user?.uid || t.creadoPor === user?.uid) &&
-      !['completado', 'cancelado'].includes(t.estado)
-    ).sort((a, b) =>
-      (b.actualizadoEn?.toDate?.()?.getTime() ?? 0) -
-      (a.actualizadoEn?.toDate?.()?.getTime() ?? 0)
-    ),
-  [tramites, user?.uid])
+    tramites
+      .filter(t =>
+        (t.asignadoA === user?.uid || t.creadoPor === user?.uid) &&
+        !['completado', 'cancelado'].includes(t.estado)
+      )
+      .sort((a, b) =>
+        (b.actualizadoEn?.toDate?.()?.getTime() ?? 0) -
+        (a.actualizadoEn?.toDate?.()?.getTime() ?? 0)
+      ),
+    [tramites, user?.uid]
+  )
 
-  // ── Trámites creados por el gestor ────────────────────────────────────────
+  // Trámites creados por el gestor
   const misTramites = useMemo(() =>
-    tramites.filter(t =>
-      t.creadoPor === user?.uid &&
-      !['cancelado'].includes(t.estado)
-    ).sort((a, b) =>
-      (b.creadoEn?.toDate?.()?.getTime() ?? 0) -
-      (a.creadoEn?.toDate?.()?.getTime() ?? 0)
-    ),
-  [tramites, user?.uid])
+    tramites
+      .filter(t => t.creadoPor === user?.uid && t.estado !== 'cancelado')
+      .sort((a, b) =>
+        (b.creadoEn?.toDate?.()?.getTime() ?? 0) -
+        (a.creadoEn?.toDate?.()?.getTime() ?? 0)
+      ),
+    [tramites, user?.uid]
+  )
 
-  // ── Stats ─────────────────────────────────────────────────────────────────
   const stats = useMemo(() => ({
     asignados:   tramitesAsignados.length,
     propios:     misTramites.length,
@@ -118,7 +121,6 @@ export default function GestorHomePage() {
     ).length,
   }), [tramitesAsignados, misTramites, tramites, user?.uid])
 
-  // ── Crear trámite ─────────────────────────────────────────────────────────
   const handleCrear = async (data: any) => {
     try {
       const id = await crearTramite(
@@ -133,57 +135,64 @@ export default function GestorHomePage() {
     }
   }
 
-  // ── Navegar al detalle según tipo ─────────────────────────────────────────
-  // Navegar al workflow correcto según tipo de trámite
+  // Navegar al workflow correcto según tipo
   const irAlTramite = (tramite: any) => {
     if (tramite.tipo === 'inscripcion_inicial') {
-      // Inscripción: portal gestor con workflow paso a paso
-      navigate(`/admin/gestor/${tramite.id}`)
+      navigate(`/admin/gestor/tramite/${tramite.id}`)
     } else {
-      // Transferencia, Multa y otros: TramiteDetallePage con workflow integrado
       navigate(`/admin/tramites/${tramite.id}`)
     }
   }
 
-  // ── Card de trámite ───────────────────────────────────────────────────────
+  // ─── CARD DE TRÁMITE ───────────────────────────────────────────────────────
+
   const TramiteCard = ({ t }: { t: any }) => {
-    const ahora        = new Date()
-    const ultima       = t.actualizadoEn?.toDate?.() ?? t.creadoEn?.toDate?.() ?? ahora
-    const diasSinMov   = (ahora.getTime() - ultima.getTime()) / 86_400_000
-    const nivelAlerta  = calcularAlerta(diasSinMov)
+    const ahora      = new Date()
+    const ultima     = t.actualizadoEn?.toDate?.() ?? t.creadoEn?.toDate?.() ?? ahora
+    const diasSinMov = (ahora.getTime() - ultima.getTime()) / 86_400_000
+    const nivel      = calcularAlerta(diasSinMov)
+
+    const borderStyle: Record<number, string> = {
+      0: 'border-gray-200',
+      1: 'border-red-300',
+      2: 'border-orange-300',
+      3: 'border-yellow-300',
+    }
 
     return (
       <div
         onClick={() => irAlTramite(t)}
-        className={`rounded-2xl border bg-[#0d1117] p-4 mb-3 cursor-pointer
-          transition-all hover:bg-white/3 active:scale-[0.98] ${ALERTA_BORDER[nivelAlerta]}`}
+        className={`rounded-2xl border bg-white p-4 mb-3 cursor-pointer shadow-sm
+          transition-all hover:shadow-md active:scale-[0.99] ${borderStyle[nivel]}`}
       >
         <div className="flex items-start justify-between mb-2">
           <div className="min-w-0 flex-1">
-            <div className="flex items-center gap-2 mb-1 flex-wrap">
+            <div className="flex items-center gap-2 mb-1.5 flex-wrap">
               <NumeroBadge numero={t.numero ?? t.id.slice(-8)} tipo={t.tipo} size="sm" />
-              {nivelAlerta === 1 && (
-                <span className="text-[9px] font-bold px-1.5 py-0.5 rounded
-                  bg-red-600/15 text-red-400 border border-red-600/25">🚨 URGENTE</span>
+              {nivel === 1 && (
+                <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-red-100 text-red-700 border border-red-200">
+                  🚨 URGENTE
+                </span>
               )}
-              {nivelAlerta === 2 && (
-                <span className="text-[9px] font-bold px-1.5 py-0.5 rounded
-                  bg-orange-500/15 text-orange-400 border border-orange-500/25">⏱ DEMORADO</span>
+              {nivel === 2 && (
+                <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-orange-100 text-orange-700 border border-orange-200">
+                  ⏱ DEMORADO
+                </span>
               )}
             </div>
-            <p className="text-sm font-bold text-gray-100 truncate">
+            <p className="text-sm font-bold text-gray-900 truncate">
               {t.patente || 'Sin patente'}
             </p>
             <p className="text-[11px] text-gray-500 mt-0.5 truncate">
               {TIPO_TRAMITE_LABELS[t.tipo as TipoTramite] ?? t.tipo}
             </p>
           </div>
-          <ChevronRight size={14} className="text-gray-700 mt-1 shrink-0 ml-2" />
+          <ChevronRight size={14} className="text-gray-400 mt-1 shrink-0 ml-2" />
         </div>
 
         <div className="flex items-center justify-between">
           <EstadoBadgeGestor estado={t.estado} />
-          <span className="text-[10px] text-gray-600 flex items-center gap-1">
+          <span className="text-[10px] text-gray-400 flex items-center gap-1">
             <Clock size={9} /> {formatRelativo(t.actualizadoEn)}
           </span>
         </div>
@@ -194,14 +203,15 @@ export default function GestorHomePage() {
   // ─── RENDER ───────────────────────────────────────────────────────────────
 
   return (
-    <div className="min-h-screen bg-[#080d14] text-gray-200"
-      style={{ fontFamily: "'DM Sans', system-ui, sans-serif" }}>
+    <div className="min-h-screen bg-[var(--color-bg)]">
 
       {/* Header */}
-      <div className="bg-[#0a0f1a] border-b border-white/8 px-4 py-4">
+      <div className="bg-white border-b border-gray-200 px-4 py-4 shadow-sm">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-base font-bold text-white">Portal del Gestor</h1>
+            <h1 className="text-base font-extrabold text-gray-900" style={{ fontFamily: 'var(--font-display)' }}>
+              Portal del Gestor
+            </h1>
             <p className="text-[11px] text-gray-500 mt-0.5">
               {user?.nombre} {user?.apellido}
             </p>
@@ -209,7 +219,7 @@ export default function GestorHomePage() {
           <button
             onClick={() => setModalNuevo(true)}
             className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold
-              text-white transition-all active:scale-95"
+                       text-white transition-all active:scale-95 hover:opacity-90 shadow-sm"
             style={{ background: '#D4621A' }}
           >
             <Plus size={14} /> Nuevo trámite
@@ -220,34 +230,33 @@ export default function GestorHomePage() {
       {/* Stats */}
       <div className="grid grid-cols-3 gap-2 px-4 py-3">
         {[
-          { label: 'Asignados',   value: stats.asignados,   color: '#3b82f6' },
+          { label: 'Asignados',   value: stats.asignados,   color: '#3B82F6' },
           { label: 'Propios',     value: stats.propios,     color: '#D4621A' },
-          { label: 'Completados', value: stats.completados, color: '#22c55e' },
+          { label: 'Completados', value: stats.completados, color: '#22C55E' },
         ].map(s => (
-          <div key={s.label}
-            className="rounded-xl border border-white/8 bg-[#0d1117] p-3 text-center">
+          <div key={s.label} className="rounded-xl border border-gray-200 bg-white p-3 text-center shadow-sm">
             <p className="text-xl font-extrabold" style={{ color: s.color }}>{s.value}</p>
-            <p className="text-[10px] text-gray-600 mt-0.5">{s.label}</p>
+            <p className="text-[10px] text-gray-500 mt-0.5 font-medium">{s.label}</p>
           </div>
         ))}
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-1 px-4 mb-4">
+      <div className="flex gap-2 px-4 mb-4">
         {([
-          { key: 'asignados',   label: 'Asignados a mí', icon: <ClipboardList size={12} /> },
-          { key: 'mis_tramites',label: 'Mis iniciados',  icon: <FileText size={12} /> },
+          { key: 'asignados',    label: 'Asignados a mí', icon: <ClipboardList size={12} /> },
+          { key: 'mis_tramites', label: 'Mis iniciados',  icon: <FileText size={12} /> },
         ] as const).map(t => (
           <button
             key={t.key}
             onClick={() => setTab(t.key)}
             className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl
-              text-xs font-semibold transition-all ${
+                        text-xs font-semibold transition-all border ${
               tab === t.key
-                ? 'text-white'
-                : 'text-gray-600 bg-white/4 hover:bg-white/6'
+                ? 'text-white border-transparent shadow-sm'
+                : 'text-gray-500 bg-white border-gray-200 hover:bg-gray-50'
             }`}
-            style={tab === t.key ? { background: '#D4621A' } : {}}
+            style={tab === t.key ? { background: '#D4621A', borderColor: '#D4621A' } : {}}
           >
             {t.icon} {t.label}
           </button>
@@ -258,18 +267,18 @@ export default function GestorHomePage() {
       <div className="px-4 pb-8">
         {loading ? (
           <div className="flex items-center justify-center py-16">
-            <RefreshCw size={20} className="animate-spin text-gray-600" />
+            <RefreshCw size={20} className="animate-spin text-gray-400" />
           </div>
         ) : tab === 'asignados' ? (
           <>
-            <p className="text-[10px] font-bold text-gray-600 uppercase tracking-wider mb-3">
+            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-3">
               Trámites asignados — {tramitesAsignados.length} activos
             </p>
             {tramitesAsignados.length === 0 ? (
               <div className="text-center py-16">
-                <CheckCircle2 size={36} className="text-emerald-500/30 mx-auto mb-3" />
-                <p className="text-sm text-gray-600 mb-1">Sin trámites asignados</p>
-                <p className="text-xs text-gray-700">
+                <CheckCircle2 size={36} className="text-emerald-400 mx-auto mb-3 opacity-50" />
+                <p className="text-sm text-gray-500 mb-1">Sin trámites asignados</p>
+                <p className="text-xs text-gray-400">
                   Cuando un Admin te asigne un trámite, aparecerá acá.
                 </p>
               </div>
@@ -279,17 +288,17 @@ export default function GestorHomePage() {
           </>
         ) : (
           <>
-            <p className="text-[10px] font-bold text-gray-600 uppercase tracking-wider mb-3">
+            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-3">
               Trámites iniciados por vos — {misTramites.length} total
             </p>
             {misTramites.length === 0 ? (
               <div className="text-center py-16">
-                <Car size={36} className="text-gray-700 mx-auto mb-3" />
-                <p className="text-sm text-gray-600 mb-1">Todavía no iniciaste ningún trámite</p>
+                <Car size={36} className="text-gray-300 mx-auto mb-3" />
+                <p className="text-sm text-gray-500 mb-1">Todavía no iniciaste ningún trámite</p>
                 <button
                   onClick={() => setModalNuevo(true)}
                   className="mt-3 flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm
-                    font-semibold text-white mx-auto"
+                             font-semibold text-white mx-auto shadow-sm hover:opacity-90 transition-all"
                   style={{ background: '#D4621A' }}
                 >
                   <Plus size={14} /> Crear primer trámite

@@ -265,7 +265,7 @@ function ModalChapaPatente({
 
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/70 px-4 pb-4 sm:pb-0">
-      <div className="w-full max-w-sm bg-[#111827] border border-white/12 rounded-2xl overflow-hidden shadow-2xl">
+      <div className="w-full max-w-sm bg-gray-50 border border-white/12 rounded-2xl overflow-hidden shadow-2xl">
 
         {/* Header */}
         <div className="bg-orange-500/10 border-b border-orange-500/20 px-5 py-4">
@@ -362,7 +362,7 @@ function ModalAlertaRetiro({
 }) {
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/70 px-4 pb-4 sm:pb-0">
-      <div className="w-full max-w-sm bg-[#111827] border border-red-600/30 rounded-2xl overflow-hidden shadow-2xl">
+      <div className="w-full max-w-sm bg-gray-50 border border-red-600/30 rounded-2xl overflow-hidden shadow-2xl">
         <div className="bg-red-900/20 border-b border-red-600/20 px-5 py-4 text-center">
           <span className="text-3xl">🚨</span>
           <h3 className="text-sm font-bold text-red-300 mt-1">HOY es el día de retiro de chapa</h3>
@@ -402,7 +402,7 @@ function ModalPostergar({ onConfirmar, onCancelar }: { onConfirmar: (dias: numbe
 
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/70 px-4 pb-4 sm:pb-0">
-      <div className="w-full max-w-sm bg-[#111827] border border-white/12 rounded-2xl overflow-hidden shadow-2xl">
+      <div className="w-full max-w-sm bg-gray-50 border border-white/12 rounded-2xl overflow-hidden shadow-2xl">
         <div className="flex items-center justify-between px-5 py-4 border-b border-white/8">
           <h3 className="text-sm font-bold text-gray-200">Nueva fecha de retiro</h3>
           <button onClick={onCancelar} className="text-gray-600 hover:text-gray-300 transition-colors"><X size={16} /></button>
@@ -453,9 +453,9 @@ function GestorMultaView({ tramiteId, patente, navigate }: {
 }) {
   usePageTitle(`Multa ${patente}`)
   return (
-    <div className="min-h-screen bg-[#080d14] text-gray-200" style={{ fontFamily: "'DM Sans', system-ui, sans-serif" }}>
+    <div className="min-h-screen bg-[var(--color-bg)] text-gray-200" style={{ fontFamily: "'DM Sans', system-ui, sans-serif" }}>
       {/* Header sticky */}
-      <div className="sticky top-0 z-40 bg-[#0a0f1a] border-b border-white/8 px-4 py-3">
+      <div className="sticky top-0 z-40 bg-white border-b border-white/8 px-4 py-3">
         <div className="flex items-center gap-3">
           <button
             onClick={() => navigate('/admin/gestor')}
@@ -553,7 +553,7 @@ export default function GestorTramitePage() {
 
   if (loadingTramite || loadingWf) {
     return (
-      <div className="min-h-screen bg-[#080d14] flex items-center justify-center">
+      <div className="min-h-screen bg-[var(--color-bg)] flex items-center justify-center">
         <div className="text-center">
           <RefreshCw size={24} className="animate-spin text-[#D4621A] mx-auto mb-3" />
           <p className="text-xs text-gray-600">Cargando trámite...</p>
@@ -564,7 +564,7 @@ export default function GestorTramitePage() {
 
   if (!tramite) {
     return (
-      <div className="min-h-screen bg-[#080d14] flex items-center justify-center px-6">
+      <div className="min-h-screen bg-[var(--color-bg)] flex items-center justify-center px-6">
         <div className="text-center">
           <AlertTriangle size={28} className="text-yellow-500 mx-auto mb-2" />
           <p className="text-sm text-gray-400">Trámite no encontrado.</p>
@@ -579,7 +579,7 @@ export default function GestorTramitePage() {
 
   if (!workflow) {
     return (
-      <div className="min-h-screen bg-[#080d14] flex items-center justify-center">
+      <div className="min-h-screen bg-[var(--color-bg)] flex items-center justify-center">
         <div className="text-center">
           <RefreshCw size={24} className="animate-spin text-[#D4621A] mx-auto mb-3" />
           <p className="text-xs text-gray-600">Iniciando workflow...</p>
@@ -591,10 +591,10 @@ export default function GestorTramitePage() {
   const paso6 = workflow.paso6
 
   return (
-    <div className="min-h-screen bg-[#080d14] text-gray-200" style={{ fontFamily: "'DM Sans', system-ui, sans-serif" }}>
+    <div className="min-h-screen bg-[var(--color-bg)] text-gray-200" style={{ fontFamily: "'DM Sans', system-ui, sans-serif" }}>
 
       {/* Header sticky */}
-      <div className="sticky top-0 z-40 bg-[#0a0f1a] border-b border-white/8 px-4 py-3">
+      <div className="sticky top-0 z-40 bg-white border-b border-white/8 px-4 py-3">
         <div className="flex items-center gap-3">
           <button onClick={() => navigate('/admin/gestor')}
             className="w-8 h-8 rounded-lg bg-white/6 border border-white/10 flex items-center justify-center text-gray-400 hover:text-gray-200 transition-colors shrink-0">

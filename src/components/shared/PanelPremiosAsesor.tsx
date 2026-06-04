@@ -96,7 +96,7 @@ function AsesorPremioRow({ uid, nombre }: { uid: string; nombre: string }) {
           </div>
           <div style={{ fontSize: 14, fontWeight: 800, color: 'var(--color-text-1)', fontFamily: 'var(--font-display)', lineHeight: 1 }}>
             {data.tramitesEnCicloActual}
-            <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.3)', fontWeight: 400 }}>/{cfg.tramitesPorPremioA}</span>
+            <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.3)', fontWeight: 400 }}>/{cfg.tramitesPorPremioAuto}</span>
           </div>
           <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.4)', marginTop: 2 }}>del próximo</div>
         </div>
@@ -124,7 +124,7 @@ function AsesorPremioRow({ uid, nombre }: { uid: string; nombre: string }) {
         {/* Ciclo Premio A */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.4)', minWidth: 60 }}>Premio A</span>
-          <MiniBar value={data.tramitesEnCicloActual} max={cfg.tramitesPorPremioA} color="#D4621A" />
+          <MiniBar value={data.tramitesEnCicloActual} max={cfg.tramitesPorPremioAuto} color="#D4621A" />
           <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.5)', fontWeight: 600, minWidth: 50, textAlign: 'right' }}>
             {data.tramitesFaltanProximo === 1 ? '¡1 más!' : `${data.tramitesFaltanProximo} faltan`}
           </span>

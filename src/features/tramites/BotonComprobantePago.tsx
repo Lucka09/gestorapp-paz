@@ -67,7 +67,7 @@ export default function BotonComprobantePago({ tramite, cliente, vehiculo, monto
       </button>
 
       {modalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-50 px-4">
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6 space-y-4">
             <div className="flex items-center justify-between">
               <h3 className="font-bold text-gray-900 text-base">Generar recibo de pago</h3>
