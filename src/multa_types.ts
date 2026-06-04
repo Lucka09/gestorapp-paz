@@ -196,6 +196,19 @@ export interface MultaWorkflow {
   // Recordatorio mesa de ayuda (para alertas)
   recordatorioMesaAyuda?: Timestamp
 
+  // ─── FECHA DEL TRÁMITE EDITABLE ───────────────────────────────────────────
+  fechaTramiteActual?:     string      // copia sincronizada de paso1.fechaTramite (para alertas)
+  alertaFechaTramite48h?:  Timestamp   // 48hs antes → alerta in-app
+  alertaFechaTramite24h?:  Timestamp   // 24hs antes → alerta in-app
+  historialFechaTramite?: {
+    valorAnterior:       string
+    valorNuevo:          string
+    modificadoPor:       string
+    modificadoPorNombre: string
+    modificadoEn:        Timestamp
+    nota?:               string
+  }[]
+
   creadoEn:      Timestamp
   actualizadoEn: Timestamp
 

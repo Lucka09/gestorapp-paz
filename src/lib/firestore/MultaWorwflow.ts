@@ -45,17 +45,72 @@ export async function crearMultaWorkflow(
   } as any)
 }
  
+// ─── HELPERS DE FECHA ─────────────────────────────────────────────────────────
+
+function calcularAlertasFechaTramite(fechaStr: string) {
+  const fechaBase = new Date(fechaStr + 'T09:00:00-03:00')
+  const alerta48h = new Date(fechaBase.getTime() - 48 * 60 * 60 * 1000)
+  const alerta24h = new Date(fechaBase.getTime() - 24 * 60 * 60 * 1000)
+  return {
+    alertaFechaTramite48h: Timestamp.fromDate(alerta48h),
+    alertaFechaTramite24h: Timestamp.fromDate(alerta24h),
+  }
+}
+
 // ─── PASO 1: Recepción ────────────────────────────────────────────────────────
- 
+
 export async function confirmarPaso1Multa(
   tramiteId: string,
   data: Omit<MultaPaso1Data, 'completadoEn'>,
 ): Promise<void> {
+  const extras: Record<string, unknown> = {
+    fechaTramiteActual: data.fechaTramite ?? null,
+  }
+  if (data.fechaTramite) {
+    const alertas = calcularAlertasFechaTramite(data.fechaTramite)
+    extras['alertaFechaTramite48h'] = alertas.alertaFechaTramite48h
+    extras['alertaFechaTramite24h'] = alertas.alertaFechaTramite24h
+  }
   await updateDoc(workflowDoc(tramiteId), {
     paso1:          { ...data, completadoEn: Timestamp.now() },
     pasoActual:     2,
     estadoWorkflow: 'recepcion',
     actualizadoEn:  serverTimestamp(),
+    ...extras,
+  })
+}
+
+// ─── EDITAR FECHA DEL TRÁMITE (con auditoría) ─────────────────────────────────
+
+export async function editarFechaTramiteMulta(
+  tramiteId:           string,
+  nuevaFecha:          string,
+  modificadoPor:       string,
+  modificadoPorNombre: string,
+  nota?:               string,
+): Promise<void> {
+  const snap = await getDoc(workflowDoc(tramiteId))
+  if (!snap.exists()) throw new Error('Workflow no encontrado')
+  const wf = snap.data() as MultaWorkflow
+  const valorAnterior = wf.paso1?.fechaTramite ?? wf.fechaTramiteActual ?? '—'
+
+  const alertas = calcularAlertasFechaTramite(nuevaFecha)
+  const entradaHistorial = {
+    valorAnterior,
+    valorNuevo:          nuevaFecha,
+    modificadoPor,
+    modificadoPorNombre,
+    modificadoEn:        Timestamp.now(),
+    ...(nota ? { nota } : {}),
+  }
+
+  await updateDoc(workflowDoc(tramiteId), {
+    'paso1.fechaTramite':     nuevaFecha,
+    fechaTramiteActual:       nuevaFecha,
+    alertaFechaTramite48h:    alertas.alertaFechaTramite48h,
+    alertaFechaTramite24h:    alertas.alertaFechaTramite24h,
+    historialFechaTramite:    arrayUnion(entradaHistorial),
+    actualizadoEn:            serverTimestamp(),
   })
 }
  
