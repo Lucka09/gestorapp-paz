@@ -300,15 +300,28 @@ export async function confirmarPaso7Multa(
   //    - honorarios: lo que cobró la gestoría por sus servicios
   //    - pagado: true (se confirmó el pago del recibo)
   //    - campos extra de costos para reportes y cobranzas
+  // Canal → formaPago: mapear el canal de entrega a una forma de pago legible
+  // para que CobranzasPage y ReportesPage lo muestren correctamente.
+  const formaPagoMap: Record<string, string> = {
+    presencial: 'efectivo',
+    whatsapp:   'transferencia',
+    email:      'transferencia',
+    otro:       'mixto',
+  }
+  const formaPago = formaPagoMap[data.canalEntrega] ?? 'efectivo'
+
   await updateDoc(doc(tramitesCol, tramiteId), {
     honorarios:      honorariosGestoria > 0 ? honorariosGestoria : data.pagoTotalRecibo,
     pagado:          true,
     fechaPago:       serverTimestamp(),
-    // Desglose completo para reportes
-    costosSUATS:        data.suatsAbonado ? (data.montoSUATS ?? 0) : 0,
+    // [FIX] formaPago — necesario para que Cobranzas muestre el método de cobro
+    formaPago,
+    notasPago:       data.observacionFinal ?? '',
+    // Desglose completo para reportes y usePremios
+    costosSUATS:          data.suatsAbonado ? (data.montoSUATS ?? 0) : 0,
     costosInformePersona: data.informePersonaRealizado ? (data.montoInformePersona ?? 0) : 0,
-    totalCobradoCliente: data.pagoTotalRecibo,
-    actualizadoEn:   serverTimestamp(),
+    totalCobradoCliente:  data.pagoTotalRecibo,
+    actualizadoEn:        serverTimestamp(),
   })
 
   // 3. Marcar como entregado — desaparece de Torre de Control
@@ -334,6 +347,75 @@ export async function agregarPagoMulta(
     'paso2.pagoConfirmado': true,
     actualizadoEn:          serverTimestamp(),
   })
+}
+
+// ─── SINCRONIZAR PAGO AL TRÁMITE ─────────────────────────────────────────────
+// Usado cuando el workflow completó pero confirmarPaso7Multa falló antes de
+// escribir pagado/honorarios/fechaPago en el documento del trámite.
+// Lee los datos del workflow y los aplica al trámite manualmente.
+
+export async function sincronizarPagoMultaAlTramite(
+  tramiteId:  string,
+  gestoriaId: string,
+): Promise<{
+  honorarios:          number
+  totalCobradoCliente: number
+  costosSUATS:         number
+  costosInformePersona: number
+}> {
+  const snap = await getDoc(workflowDoc(tramiteId))
+  if (!snap.exists()) throw new Error('Workflow no encontrado')
+
+  const wf = snap.data() as any
+
+  // Leer totales: si existe paso7 usarlo, si no usar historialPagos del paso2
+  const paso7 = wf.paso7
+  const paso2 = wf.paso2
+
+  let pagoTotalRecibo   = 0
+  let costosSUATS       = 0
+  let costosInforme     = 0
+
+  if (paso7?.pagoTotalRecibo) {
+    // Workflow completado normalmente — usar datos del paso7
+    pagoTotalRecibo = Number(paso7.pagoTotalRecibo ?? 0)
+    costosSUATS     = paso7.suatsAbonado ? Number(paso7.montoSUATS ?? 0) : 0
+    costosInforme   = paso7.informePersonaRealizado ? Number(paso7.montoInformePersona ?? 0) : 0
+  } else if (paso2?.montoTotal) {
+    // Workflow sin paso7 — usar el total del historial de pagos
+    pagoTotalRecibo = Number(paso2.montoTotal ?? 0)
+  }
+
+  const honorariosGestoria = pagoTotalRecibo - costosSUATS - costosInforme
+
+  // Mapear canal de entrega → formaPago
+  const formaPagoMap: Record<string, string> = {
+    presencial: 'efectivo',
+    whatsapp:   'transferencia',
+    email:      'transferencia',
+    otro:       'mixto',
+  }
+  const canalEntrega = paso7?.canalEntrega ?? 'otro'
+  const formaPago    = formaPagoMap[canalEntrega] ?? 'efectivo'
+
+  await updateDoc(doc(tramitesCol, tramiteId), {
+    honorarios:           honorariosGestoria > 0 ? honorariosGestoria : pagoTotalRecibo,
+    pagado:               pagoTotalRecibo > 0,
+    fechaPago:            serverTimestamp(),
+    formaPago,
+    notasPago:            paso7?.observacionFinal ?? '',
+    costosSUATS,
+    costosInformePersona: costosInforme,
+    totalCobradoCliente:  pagoTotalRecibo,
+    actualizadoEn:        serverTimestamp(),
+  })
+
+  return {
+    honorarios:           honorariosGestoria > 0 ? honorariosGestoria : pagoTotalRecibo,
+    totalCobradoCliente:  pagoTotalRecibo,
+    costosSUATS,
+    costosInformePersona: costosInforme,
+  }
 }
  
 // ─── ASIGNAR ADMIN ────────────────────────────────────────────────────────────
