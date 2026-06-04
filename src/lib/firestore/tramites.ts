@@ -205,16 +205,17 @@ export async function cambiarEstado(
   cambiadoPorNombre?: string,
 ): Promise<void> {
   // 1. Actualizar el trámite
+  // [FIX] arrayUnion() no acepta undefined — todos los campos deben tener valor concreto
   await updateDoc(tramiteDoc(id), {
     estado:        nuevoEstado,
     actualizadoEn: serverTimestamp(),
     historialEstados: arrayUnion({
       estadoAnterior,
-      estadoNuevo: nuevoEstado,
+      estadoNuevo:         nuevoEstado,
       cambiadoPor,
-      cambiadoPorNombre,
-      fecha:       new Date(),
-      nota,
+      cambiadoPorNombre:   cambiadoPorNombre ?? null,   // undefined → null
+      fecha:               new Date(),
+      nota:                nota ?? '',
     }),
   })
 
