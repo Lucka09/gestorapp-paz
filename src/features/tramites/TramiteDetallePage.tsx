@@ -253,7 +253,7 @@ export default function TramiteDetallePage() {
                         try {
                           const resultado = await sincronizarPagoMultaAlTramite(tramite.id, gestoriaId)
                           if (resultado.totalCobradoCliente > 0) {
-                            toast.success()
+                            toast.success(`✅ $${resultado.honorarios.toLocaleString('es-AR')} sincronizados`)
                           } else {
                             toast('ℹ️ Sin montos para sincronizar', { icon: 'ℹ️' })
                           }
