@@ -339,17 +339,36 @@ export async function confirmarPaso7Multa(
 // Permite registrar pagos en cualquier momento del workflow sin rehacer el paso 2.
  
 export async function agregarPagoMulta(
-  tramiteId:  string,
-  pago:       RegistroPago,
+  tramiteId:   string,
+  pago:        RegistroPago,
   pagosPrevios: RegistroPago[],
 ): Promise<void> {
   const nuevoTotal = [...pagosPrevios, pago].reduce((s, p) => s + p.monto, 0)
- 
+
+  // 1. Escribir el pago en el workflow
   await updateDoc(workflowDoc(tramiteId), {
     'paso2.historialPagos': arrayUnion(pago),
     'paso2.montoTotal':     nuevoTotal,
     'paso2.pagoConfirmado': true,
     actualizadoEn:          serverTimestamp(),
+  })
+
+  // 2. Propagar el monto al trámite principal para que aparezca en
+  //    Cobranzas y Reportes sin esperar al cierre (paso 7).
+  //    formaPago se mapea desde el metodoPago del último pago registrado.
+  const formaPagoMap: Record<string, string> = {
+    efectivo:     'efectivo',
+    transferencia: 'transferencia',
+    mixto:        'mixto',
+  }
+  const formaPago = formaPagoMap[pago.metodoPago] ?? 'mixto'
+
+  await updateDoc(doc(tramitesCol, tramiteId), {
+    honorarios:          nuevoTotal,
+    totalCobradoCliente: nuevoTotal,
+    formaPago,
+    // pagado=false mientras no se complete el workflow — solo se marca true en paso7
+    actualizadoEn: serverTimestamp(),
   })
 }
 
