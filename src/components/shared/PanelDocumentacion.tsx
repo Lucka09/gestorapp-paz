@@ -1,7 +1,7 @@
 // src/components/shared/PanelDocumentacion.tsx
 // ─── PANEL DE DOCUMENTACIÓN DE TRÁMITE ────────────────────────────────────────
 // Muestra todas las fotos/documentos cargados en los workflows de un trámite.
-// Visible solo para propietario, admin_gral y admin.
+// Visible para todo el staff con acceso a trámites (admin, asesor, gestor).
 // Soporta los tres tipos de workflow: inscripción, multa y transferencia.
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -9,6 +9,7 @@ import { useState, useEffect } from 'react'
 import { onSnapshot, doc } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
 import { usePermisos } from '@/hooks/usePermisos'
+import { useGestoriaId } from '@/context/GestoriaContext'
 import type { FotoWorkflow } from '@/torre_types'
 import type { TipoTramite } from '@/types'
 import {
@@ -217,7 +218,7 @@ function FotoCard({ item }: { item: DocItem }) {
             onError={e => { (e.target as HTMLImageElement).src = '/placeholder-doc.png' }}
           />
           {/* Overlay hover */}
-          <div className="absolute inset-0 bg-black/0 group-hover:bg-gray-50 transition-all
+          <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-all
                           flex items-center justify-center opacity-0 group-hover:opacity-100">
             <div className="bg-white/90 rounded-lg px-2 py-1 flex items-center gap-1">
               <ZoomIn size={13} className="text-gray-700" />
@@ -345,17 +346,18 @@ interface Props {
 
 export function PanelDocumentacion({ tramiteId, tipo, defaultOpen = true }: Props) {
   const { puede } = usePermisos()
+  const gestoriaId = useGestoriaId()
   const [grupos, setGrupos] = useState<GrupoDoc[]>([])
   const [loading, setLoading] = useState(true)
   const [abierto, setAbierto] = useState(defaultOpen)
 
   // Solo admins pueden ver los documentos
-  const puedeVer = puede('verObsInternas')
+  const puedeVer = puede('verTramites')
   if (!puedeVer) return null
 
   // Suscribirse al workflow correcto según tipo
   useEffect(() => {
-    if (!tramiteId) return
+    if (!tramiteId || !gestoriaId) return
     setLoading(true)
 
     let coleccion: string
@@ -365,18 +367,27 @@ export function PanelDocumentacion({ tramiteId, tipo, defaultOpen = true }: Prop
     else { setLoading(false); return }
 
     const ref = doc(db, coleccion, tramiteId)
-    const unsub = onSnapshot(ref, snap => {
-      if (!snap.exists()) { setGrupos([]); setLoading(false); return }
-      const wf = snap.data()
-      let g: GrupoDoc[] = []
-      if (tipo === 'inscripcion_inicial') g = extraerDocsInscripcion(wf)
-      if (tipo === 'descargo_multa')      g = extraerDocsMulta(wf)
-      if (tipo === 'transferencia')       g = extraerDocsTransferencia(wf)
-      setGrupos(g)
-      setLoading(false)
-    })
+    const unsub = onSnapshot(
+      ref,
+      snap => {
+        if (!snap.exists()) { setGrupos([]); setLoading(false); return }
+        const wf = snap.data()
+        let g: GrupoDoc[] = []
+        if (tipo === 'inscripcion_inicial') g = extraerDocsInscripcion(wf)
+        if (tipo === 'descargo_multa')      g = extraerDocsMulta(wf)
+        if (tipo === 'transferencia')       g = extraerDocsTransferencia(wf)
+        setGrupos(g)
+        setLoading(false)
+      },
+      err => {
+        if (err.code !== 'permission-denied') {
+          console.warn('[PanelDocumentacion] listener error:', err.message)
+        }
+        setLoading(false)
+      },
+    )
     return () => unsub()
-  }, [tramiteId, tipo])
+  }, [tramiteId, tipo, gestoriaId])
 
   const totalFotos = grupos.reduce((s, g) => s + g.docs.length, 0)
 

@@ -54,6 +54,7 @@ export default function TramiteDetallePage() {
   const esTransferencia = tramite?.tipo === 'transferencia'
   const [wfInscripcion, setWfInscripcion] = useState<InscripcionWorkflow | null>(null)
   const [montoMulta, setMontoMulta] = useState(0)
+  const [wfMultaCompletado, setWfMultaCompletado] = useState(false)
 
   // Suscribir al workflow de inscripción
   useEffect(() => {
@@ -70,8 +71,12 @@ export default function TramiteDetallePage() {
       multaWorkflowDoc(id),
       snap => {
         if (!snap.exists()) return
-        const monto = snap.data()?.paso2?.montoTotal ?? snap.data()?.paso7?.pagoTotalRecibo ?? 0
+        const data = snap.data()
+        const monto = data?.paso2?.montoTotal ?? data?.paso7?.pagoTotalRecibo ?? 0
         setMontoMulta(monto)
+        // El workflow está completo cuando alcanza pasoActual 8 o estadoWorkflow='completado'
+        const completado = data?.pasoActual >= 8 || data?.estadoWorkflow === 'completado'
+        setWfMultaCompletado(completado)
       },
       err => {
         if (err.code === 'permission-denied') return  // Auth aún no resolvió — ignorar
@@ -226,76 +231,94 @@ export default function TramiteDetallePage() {
               <p className="text-xs text-gray-400 mb-2 uppercase tracking-wide font-semibold">Estado</p>
               <EstadoSelector estadoActual={tramite.estado} onCambiar={handleCambiarEstado} />
 
-              {/* Cierre forzado + sincronización de pago */}
-              {esMulta && puede('cambiarEstadoTramite') && (
+              {/* Alertas de sincronización — solo se muestran cuando el workflow está completo */}
+              {esMulta && puede('cambiarEstadoTramite') && wfMultaCompletado && (
                 <>
-                  {/* Botón 1: marcar como entregado (si el estado aún no lo es) */}
+                  {/* Botón 1: marcar como entregado */}
                   {!['entregado','completado','cancelado'].includes(tramite.estado) && (
-                    <div className="mt-3 bg-amber-50 border border-amber-200 rounded-xl p-3">
-                      <p className="text-xs text-amber-700 font-semibold mb-1.5">
-                        ⚠️ Workflow completado — estado sin sincronizar
-                      </p>
-                      <p className="text-xs text-amber-600 mb-2.5 leading-relaxed">
-                        El paso 7/7 está como <strong>Completado</strong> pero el trámite
-                        sigue en <strong>{tramite.estado}</strong>.
-                      </p>
-                      <button
-                        type="button"
-                        disabled={cambiandoEstado}
-                        onClick={() => handleCambiarEstado(
-                          'entregado',
-                          'Cierre forzado por Admin/Propietario — workflow paso 7/7 completado'
-                        )}
-                        className="w-full py-2 bg-amber-500 hover:bg-amber-600 disabled:opacity-50
-                                   text-white text-xs font-bold rounded-lg transition-colors"
-                      >
-                        {cambiandoEstado ? 'Actualizando...' : '🗂️ Marcar como Entregado'}
-                      </button>
+                    <div className="mt-3 rounded-xl overflow-hidden border border-amber-200 shadow-sm">
+                      <div className="bg-amber-500 px-4 py-2.5 flex items-center gap-2">
+                        <span className="text-white text-base leading-none">⚠️</span>
+                        <p className="text-white text-xs font-bold tracking-wide">
+                          Workflow completado — estado pendiente
+                        </p>
+                      </div>
+                      <div className="bg-amber-50 px-4 py-3">
+                        <p className="text-xs text-amber-700 mb-3 leading-relaxed">
+                          El paso 7/7 está <strong>Completado</strong> pero el trámite sigue
+                          en estado <strong className="uppercase">{tramite.estado.replace(/_/g,' ')}</strong>.
+                          Sincronizá para cerrar el ciclo.
+                        </p>
+                        <button
+                          type="button"
+                          disabled={cambiandoEstado}
+                          onClick={() => handleCambiarEstado(
+                            'entregado',
+                            'Cierre por Admin — workflow paso 7/7 completado'
+                          )}
+                          className="w-full py-2.5 px-4 bg-amber-500 hover:bg-amber-600
+                                     active:bg-amber-700 disabled:opacity-50 disabled:cursor-not-allowed
+                                     text-white text-xs font-bold rounded-lg transition-all
+                                     flex items-center justify-center gap-2 shadow-sm"
+                        >
+                          {cambiandoEstado
+                            ? <><span className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" /> Actualizando...</>
+                            : <>🗂️ Marcar como Entregado</>
+                          }
+                        </button>
+                      </div>
                     </div>
                   )}
 
-                  {/* Botón 2: sincronizar pago del workflow al trámite (si pagado:false) */}
+                  {/* Botón 2: sincronizar pago */}
                   {!tramite.pagado && (
-                    <div className="mt-3 bg-blue-50 border border-blue-200 rounded-xl p-3">
-                      <p className="text-xs text-blue-700 font-semibold mb-1.5">
-                        💳 Pago registrado en el workflow pero sin sincronizar
-                      </p>
-                      <p className="text-xs text-blue-600 mb-2.5 leading-relaxed">
-                        Los cobros cargados en el workflow no se reflejaron en el trámite.
-                        Al sincronizar, el monto y la fecha de pago quedarán registrados y
-                        aparecerán en <strong>Cobranzas</strong> y <strong>Reportes</strong>.
-                      </p>
-                      <button
-                        type="button"
-                        disabled={sincronizando}
-                        onClick={async () => {
-                          setSincronizando(true)
-                          try {
-                            const resultado = await sincronizarPagoMultaAlTramite(
-                              tramite.id,
-                              gestoriaId,
-                            )
-                            if (resultado.totalCobradoCliente > 0) {
-                              toast.success(
-                                `✅ Pago sincronizado — $${resultado.honorarios.toLocaleString('es-AR')} honorarios`
+                    <div className="mt-3 rounded-xl overflow-hidden border border-blue-200 shadow-sm">
+                      <div className="bg-blue-600 px-4 py-2.5 flex items-center gap-2">
+                        <span className="text-white text-base leading-none">💳</span>
+                        <p className="text-white text-xs font-bold tracking-wide">
+                          Pago registrado sin sincronizar
+                        </p>
+                      </div>
+                      <div className="bg-blue-50 px-4 py-3">
+                        <p className="text-xs text-blue-700 mb-3 leading-relaxed">
+                          Los cobros del workflow no se reflejaron en el trámite. Al sincronizar
+                          quedarán en <strong>Cobranzas</strong> y <strong>Reportes</strong>.
+                        </p>
+                        <button
+                          type="button"
+                          disabled={sincronizando}
+                          onClick={async () => {
+                            setSincronizando(true)
+                            try {
+                              const resultado = await sincronizarPagoMultaAlTramite(
+                                tramite.id,
+                                gestoriaId,
                               )
-                            } else {
-                              toast(`ℹ️ El workflow no tiene montos registrados aún`, {
-                                icon: 'ℹ️',
-                              })
+                              if (resultado.totalCobradoCliente > 0) {
+                                toast.success(
+                                  `✅ Pago sincronizado — $${resultado.honorarios.toLocaleString('es-AR')} honorarios`
+                                )
+                              } else {
+                                toast(`ℹ️ El workflow no tiene montos registrados aún`, { icon: 'ℹ️' })
+                              }
+                            } catch (err: any) {
+                              console.error('[sincronizarPago]', err?.message)
+                              toast.error('Error al sincronizar el pago')
+                            } finally {
+                              setSincronizando(false)
                             }
-                          } catch (err: any) {
-                            console.error('[sincronizarPago]', err?.message)
-                            toast.error('Error al sincronizar el pago — revisá la consola')
-                          } finally {
-                            setSincronizando(false)
+                          }}
+                          className="w-full py-2.5 px-4 bg-blue-600 hover:bg-blue-700
+                                     active:bg-blue-800 disabled:opacity-50 disabled:cursor-not-allowed
+                                     text-white text-xs font-bold rounded-lg transition-all
+                                     flex items-center justify-center gap-2 shadow-sm"
+                        >
+                          {sincronizando
+                            ? <><span className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" /> Sincronizando...</>
+                            : <>💳 Sincronizar pago del workflow</>
                           }
-                        }}
-                        className="w-full py-2 bg-blue-500 hover:bg-blue-600 disabled:opacity-50
-                                   text-white text-xs font-bold rounded-lg transition-colors"
-                      >
-                        {sincronizando ? 'Sincronizando...' : '💳 Sincronizar pago del workflow'}
-                      </button>
+                        </button>
+                      </div>
                     </div>
                   )}
                 </>
