@@ -94,13 +94,16 @@ export function useMultaWorkflow(tramiteId: string) {
     )
   }, [tramiteId, gestoriaId])
 
-  // Auto-crear si no existe
+  // Auto-crear si no existe (loading=false y workflow=null = doc no existe en Firestore)
   useEffect(() => {
     if (!tramiteId || !gestoriaId || !user || loading || workflow) return
-    crearMultaWorkflow(
-      tramiteId, gestoriaId, user.uid,
-      `${user.nombre} ${user.apellido}`.trim(),
-    ).catch(console.error)
+    const nombre = `${user.nombre ?? ''} ${user.apellido ?? ''}`.trim()
+    crearMultaWorkflow(tramiteId, gestoriaId, user.uid, nombre).catch(err => {
+      // Si falla por already-exists es idempotente — ignorar
+      if (err?.code !== 'already-exists') {
+        console.error('[useMultaWorkflow] crearMultaWorkflow failed:', err?.message ?? err)
+      }
+    })
   }, [tramiteId, gestoriaId, user, loading, workflow])
 
   // Helper para subir múltiples fotos

@@ -361,7 +361,19 @@ export default function GestorMultaWorkflow({ tramiteId, numeroLITExterno }: Pro
       <div className="w-6 h-6 border-2 border-[#D4621A] border-t-transparent rounded-full animate-spin" />
     </div>
   )
-  if (!workflow) return null
+
+  // Si el workflow no existe aún (doc no creado todavía), mostrar estado de inicialización.
+  // El useEffect de auto-crear en useMultaWorkflow lo creará y el onSnapshot re-disparará.
+  // Nunca debe retornar null silencioso — eso deja la pantalla vacía sin feedback.
+  if (!workflow) return (
+    <div className="flex flex-col items-center justify-center py-12 gap-4">
+      <div className="w-8 h-8 border-2 border-[#D4621A] border-t-transparent rounded-full animate-spin" />
+      <div className="text-center">
+        <p className="text-sm font-semibold text-gray-300">Inicializando workflow...</p>
+        <p className="text-xs text-gray-500 mt-1">Esto tarda solo un momento</p>
+      </div>
+    </div>
+  )
 
   const estadoActual = workflow.estadoWorkflow
   const esRebotado   = estadoActual === 'rebotado'

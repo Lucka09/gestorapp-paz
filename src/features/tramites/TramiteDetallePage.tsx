@@ -11,7 +11,7 @@ import { useVehiculo } from '@/hooks/useVehiculos'
 import { cambiarEstado, actualizarTramite, marcarPagado, eliminarTramite } from '@/lib/firestore/tramites'
 import { subscribeWorkflow, crearWorkflow } from '@/lib/firestore/inscripcionworkflow'
 import { onSnapshot } from 'firebase/firestore'
-import { crearMultaWorkflow, multaWorkflowDoc, sincronizarPagoMultaAlTramite } from '@/lib/firestore/MultaWorwflow'
+import { multaWorkflowDoc, sincronizarPagoMultaAlTramite } from '@/lib/firestore/MultaWorwflow'
 import { crearTransferenciaWorkflow }       from '@/lib/firestore/transferenciaWorkflow'
 import TransferenciaWorkflow               from '@/components/TransferenciaWorkflow'
 import { useAuth }    from '@/hooks/useAuth'
@@ -86,16 +86,14 @@ export default function TramiteDetallePage() {
     return unsub
   }, [id, esMulta, gestoriaId])
 
-  // Auto-crear workflows si el trámite existe pero no tiene workflow todavía
+  // Auto-crear workflow de inscripción y transferencia si no existen.
+  // NOTA: el workflow de MULTA lo auto-crea useMultaWorkflow internamente — no duplicar aquí.
   useEffect(() => {
     if (!id || !tramite || !gestoriaId || !user?.uid) return
-    const nombre = `${user.nombre ?? ''} ${user.apellido ?? ''}`.trim()
     if (esInscripcion) {
       crearWorkflow(id, gestoriaId, user.uid).catch(() => {})
-    } else if (esMulta) {
-      crearMultaWorkflow(id, gestoriaId, user.uid, nombre).catch(() => {})
     } else if (esTransferencia) {
-      crearTransferenciaWorkflow(id, gestoriaId, user.uid, nombre).catch(() => {})
+      crearTransferenciaWorkflow(id, gestoriaId, user.uid, `${user.nombre ?? ''} ${user.apellido ?? ''}`.trim()).catch(() => {})
     }
   }, [id, tramite?.tipo, gestoriaId, user?.uid])
 
