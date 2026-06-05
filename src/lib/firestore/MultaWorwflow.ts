@@ -28,10 +28,14 @@ export async function crearMultaWorkflow(
   iniciadoPor: string,
   iniciadoPorNombre: string,
 ): Promise<void> {
-  const ref = workflowDoc(tramiteId)
-  const snap = await getDoc(ref)
-  if (snap.exists()) return  // idempotente
- 
+  // No usamos getDoc previo porque:
+  // 1) getDoc sobre un doc inexistente puede fallar con permission-denied si la
+  //    regla de read usa resource.data (null cuando el doc no existe).
+  // 2) setDoc con merge:false es idempotente para nuestro caso: si el doc ya
+  //    existe en Firestore, el onSnapshot ya lo habrá cargado y useMultaWorkflow
+  //    no llamará a esta función (guard: if (loading || workflow) return).
+  //    Si por alguna race condition se llama dos veces, sobreescribe con los
+  //    mismos datos de inicialización — inofensivo.
   await setDoc(workflowDoc(tramiteId), {
     id:                tramiteId,
     tramiteId,
