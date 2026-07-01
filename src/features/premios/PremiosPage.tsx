@@ -1,475 +1,858 @@
-import { useState, useMemo } from 'react'
-import { Trophy, TrendingUp, Award, Target, Zap, ChevronDown, ChevronUp, Download } from 'lucide-react'
-import { usePremios } from '@/hooks/usePremios'
-import { useAuth } from '@/hooks/useAuth'
-import { usePermisos } from '@/hooks/usePermisos'
-import { formatPesos } from '@/utils'
-import { PageHeader, Card, Button, Spinner } from '@/components/ui'
-import { usePageTitle } from '@/hooks/usePageTitle'
-import toast from 'react-hot-toast'
-import { useGestoriaId } from '@/context/GestoriaContext'
-import { useTramites } from '@/hooks/useTramites'
-import { calcularHonorariosNetos } from '@/utils/reportesUtility'
+// src/features/premios/PremiosPage.tsx
+// Branching por rol: propietario/admin_gral → vista de supervisión del equipo
+// asesor_comercial y otros con verPremios → vista personal (sin cambios)
 
-interface PremioDetalle {
-  id: string
-  tipoTramite: 'auto' | 'moto'
-  tipo: 'por_cantidad' | 'por_monto'
-  titulo: string
-  descripcion?: string
-  montoUmbral?: number // Para premios por monto
-  tramitesPorPremio?: number // Para premios por cantidad
-  montoMonto?: number // $ del premio si es por monto
-  montoTramites?: number // $ del premio si es por cantidad
-  alcanzado: boolean
-  progreso: number // 0-100
-  valorActual: number
-  faltaAlcanzar: number
+import {
+  Trophy, Star, CheckCircle2, Lock,
+  ChevronRight, FileText, AlertCircle,
+  Sparkles, Settings, Calendar, Car, Bike, Users,
+} from 'lucide-react'
+import { useNavigate }       from 'react-router-dom'
+import { getDocs, query, where, collection } from 'firebase/firestore'
+import { db } from '@/lib/firebase'
+import { useQuery } from '@tanstack/react-query'
+import { usePageTitle }      from '@/hooks/usePageTitle'
+import { useAuth }           from '@/hooks/useAuth'
+import { Spinner }           from '@/components/ui'
+import {
+  usePremios, usePremiosEquipo,
+  HITO_VISUAL,
+  
+  formatPesosCompacto,
+  type HitoMultaConfig,
+  type CicloTramites,
+  type PremiosData,
+  type AsesorPremios,
+} from '@/hooks/usePremios'
+import { useCierreMensual }  from '@/hooks/useCierreMensual'
+
+const formatPesos = (n: number) => new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS', maximumFractionDigits: 0 }).format(n)
+const MESES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre']
+
+// ─── BARRA DE PROGRESO ────────────────────────────────────────────────────────
+
+function ProgressBar({
+  value, max, color = '#D4621A', height = 8,
+}: { value: number; max: number; color?: string; height?: number }) {
+  const pct = max > 0 ? Math.min(100, (value / max) * 100) : 0
+  return (
+    <div className="w-full rounded-full bg-gray-100 overflow-hidden" style={{ height }}>
+      <div
+        className="h-full rounded-full transition-all duration-700"
+        style={{
+          width:      `${pct}%`,
+          background: `linear-gradient(90deg, ${color}cc, ${color})`,
+          boxShadow:  pct > 0 ? `0 0 8px ${color}44` : undefined,
+        }}
+      />
+    </div>
+  )
 }
 
-export default function PremiosPage() {
-  usePageTitle('Premios & Logros')
-  const { uid } = useAuth()
-  const puede = usePermisos()
-  const gestoriaId = useGestoriaId()
-  const { tramites, loading: loadT } = useTramites()
-  const { data: rawPremios, isLoading: isLoadingPremios, asesores } = usePremios(uid)
+// ─── MINI BARRA (para las tarjetas de equipo) ─────────────────────────────────
 
-  const [expandidoAuto, setExpandidoAuto] = useState(true)
-  const [expandidoMoto, setExpandidoMoto] = useState(true)
-  const [expandidoHitos, setExpandidoHitos] = useState(true)
-  const [expandidoHistorial, setExpandidoHistorial] = useState(false)
+function MiniProgress({ value, max, color }: { value: number; max: number; color: string }) {
+  const pct = max > 0 ? Math.min(100, (value / max) * 100) : 0
+  return (
+    <div className="w-full h-1.5 rounded-full bg-gray-100 overflow-hidden">
+      <div className="h-full rounded-full transition-all" style={{ width: `${pct}%`, background: color }} />
+    </div>
+  )
+}
 
-  // Calcular premios con la data actual
-  const dataPremios = useMemo(() => {
-    if (!uid || loadT || !rawPremios) return null
+// ─── CICLO CARD ───────────────────────────────────────────────────────────────
 
-    const data = rawPremios
+function CicloCard({ ciclo }: { ciclo: CicloTramites }) {
+  const {
+    tipo, tipoLabel, montoPremio, tramitesPorCiclo,
+    tramitesCalificantes, premiosGanados, premiosPesos,
+    tramitesEnCiclo, tramitesFaltan,
+  } = ciclo
 
-    // Filtrar solo trámites pagados para cálculos de premios
-    const tramitesPagados = tramites.filter(t => t.pagado && t.estado !== 'cancelado')
-
-    // PREMIOS POR CANTIDAD (Solo honorarios, SIN SUATS)
-    const tramitesAutoCalificantes = tramitesPagados.filter(t => {
-      const esAuto = !['moto', 'ciclomotor'].some(m => t.tipo?.toLowerCase().includes(m))
-      return esAuto
-    })
-
-    const tramitesMotoCalificantes = tramitesPagados.filter(t => {
-      const esMoto = ['moto', 'ciclomotor'].some(m => t.tipo?.toLowerCase().includes(m))
-      return esMoto
-    })
-
-    const enCicloAuto = tramitesAutoCalificantes.length % (data.cfg.tramitesPorPremioAuto || 1)
-    const enCicloMoto = tramitesMotoCalificantes.length % (data.cfg.tramitesPorPremioMoto || 1)
-
-    // PREMIOS POR MONTO (Facturación de gestoría, SIN SUATS)
-    const facturacionAutoHonorarios = tramitesAutoCalificantes.reduce(
-      (s, t) => s + calcularHonorariosNetos(t),
-      0
-    )
-    const facturacionMotoHonorarios = tramitesMotoCalificantes.reduce(
-      (s, t) => s + calcularHonorariosNetos(t),
-      0
-    )
-    const facturacionTotalHonorarios = facturacionAutoHonorarios + facturacionMotoHonorarios
-
-    // Calcular hitos alcanzados basados en honorarios (SIN SUATS)
-    const hitosOrdenados = [...data.cfg.hitosMultas].sort((a, b) => a.montoUmbral - b.montoUmbral)
-    const hitosAlcanzadosAhora = hitosOrdenados.filter(h => facturacionTotalHonorarios >= h.montoUmbral)
-    const proximoHito = hitosOrdenados.find(h => facturacionTotalHonorarios < h.montoUmbral)
-
-    return {
-      ...data,
-      facturacionAutoHonorarios,
-      facturacionMotoHonorarios,
-      facturacionTotalHonorarios,
-      tramitesAutoCalificantes: tramitesAutoCalificantes.length,
-      tramitesMotoCalificantes: tramitesMotoCalificantes.length,
-      enCicloAuto,
-      enCicloMoto,
-      hitosAlcanzadosAhora,
-      proximoHito,
-    }
-  }, [uid, tramites, loadT])
-
-  if (isLoadingPremios || !asesores) return <Spinner label="Cargando historial de premios..." />
-  if (!dataPremios) return null
-
-  const cfg = dataPremios.cfg
-  const nombreAsesor = dataPremios.cicloAuto?.tipoTramite === 'Automóviles / Camiones' ? 'Automóviles' : 'Motos'
-
-  // ─── DETALLES DE PREMIOS POR CANTIDAD (AUTOS) ───────────────────────
-  const premiosAutoPorCantidad: PremioDetalle[] = []
-  for (let i = 1; i <= dataPremios.cicloAuto.premiosGanados + 3; i++) {
-    const yoGane = i <= dataPremios.cicloAuto.premiosGanados
-    premiosAutoPorCantidad.push({
-      id: `auto-cantidad-${i}`,
-      tipoTramite: 'auto',
-      tipo: 'por_cantidad',
-      titulo: `Premio #${i} (Automóviles)`,
-      descripcion: `${cfg.tramitesPorPremioAuto} trámites`,
-      tramitesPorPremio: cfg.tramitesPorPremioAuto,
-      montoTramites: cfg.montoPremioAuto,
-      alcanzado: yoGane,
-      progreso: Math.min(100, (dataPremios.enCicloAuto / cfg.tramitesPorPremioAuto) * 100),
-      valorActual: dataPremios.enCicloAuto,
-      faltaAlcanzar: Math.max(0, cfg.tramitesPorPremioAuto - dataPremios.enCicloAuto),
-    })
-  }
-
-  const premiosMotoPorCantidad: PremioDetalle[] = []
-  for (let i = 1; i <= dataPremios.cicloMoto.premiosGanados + 3; i++) {
-    const yoGane = i <= dataPremios.cicloMoto.premiosGanados
-    premiosMotoPorCantidad.push({
-      id: `moto-cantidad-${i}`,
-      tipoTramite: 'moto',
-      tipo: 'por_cantidad',
-      titulo: `Premio #${i} (Motos)`,
-      descripcion: `${cfg.tramitesPorPremioMoto} trámites`,
-      tramitesPorPremio: cfg.tramitesPorPremioMoto,
-      montoTramites: cfg.montoPremioMoto,
-      alcanzado: yoGane,
-      progreso: Math.min(100, (dataPremios.enCicloMoto / cfg.tramitesPorPremioMoto) * 100),
-      valorActual: dataPremios.enCicloMoto,
-      faltaAlcanzar: Math.max(0, cfg.tramitesPorPremioMoto - dataPremios.enCicloMoto),
-    })
-  }
-
-  // ─── DETALLES DE PREMIOS POR MONTO (HITOS) ────────────────────────────
-  const hitosPremios: PremioDetalle[] = cfg.hitosMultas
-    .sort((a, b) => a.montoUmbral - b.montoUmbral)
-    .map((hito, idx) => {
-      const alcanzado = dataPremios.hitosAlcanzadosAhora.some(h => h.id === hito.id)
-      const esProximo = dataPremios.proximoHito?.id === hito.id
-      return {
-        id: `hito-${hito.id}`,
-        tipoTramite: 'auto',
-        tipo: 'por_monto',
-        titulo: hito.nombre || `Hito ${idx + 1}`,
-        descripcion: hito.descripcion,
-        montoUmbral: hito.montoUmbral,
-        montoMonto: hito.premioMonto,
-        alcanzado,
-        progreso: Math.min(
-          100,
-          (dataPremios.facturacionTotalHonorarios / hito.montoUmbral) * 100
-        ),
-        valorActual: dataPremios.facturacionTotalHonorarios,
-        faltaAlcanzar: Math.max(0, hito.montoUmbral - dataPremios.facturacionTotalHonorarios),
-      }
-    })
-
-  const premiosGanados = [
-    ...premiosAutoPorCantidad.filter(p => p.alcanzado),
-    ...premiosMotoPorCantidad.filter(p => p.alcanzado),
-    ...hitosPremios.filter(p => p.alcanzado),
-  ].length
-
-  const montoTotalPremios = [
-    ...premiosAutoPorCantidad.filter(p => p.alcanzado).reduce((s, p) => s + (p.montoTramites ?? 0), 0),
-    ...premiosMotoPorCantidad.filter(p => p.alcanzado).reduce((s, p) => s + (p.montoTramites ?? 0), 0),
-    ...hitosPremios.filter(p => p.alcanzado).reduce((s, p) => s + (p.montoMonto ?? 0), 0),
-  ].reduce((s, x) => s + x, 0)
+  const esMoto  = tipo === 'moto'
+  const color   = esMoto ? '#7C3AED' : '#D4621A'
+  const bgLight = esMoto ? 'bg-violet-50'      : 'bg-orange-50'
+  const border  = esMoto ? 'border-violet-200' : 'border-orange-200'
+  const textC   = esMoto ? 'text-violet-700'   : 'text-[#B45316]'
+  const Icon    = esMoto ? Bike : Car
 
   return (
-    <div className="space-y-5 animate-fadein">
-
-      <PageHeader
-        title="Premios & Logros"
-        subtitle="Sistema de incentivos para Asesores Comerciales"
-      />
-
-      {/* ─── KPI RESUMEN ──────────────────────────────────────────────────── */}
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-        <Card className="p-5 bg-gradient-to-br from-emerald-50 to-emerald-50 border-emerald-200">
-          <div className="flex items-start justify-between">
-            <div>
-              <p className="text-xs font-bold text-emerald-600 uppercase tracking-wider mb-1">
-                Premios ganados
-              </p>
-              <p className="text-3xl font-bold text-emerald-700" style={{ fontFamily: 'var(--font-display)' }}>
-                {premiosGanados}
-              </p>
-              <p className="text-xs text-emerald-600 mt-1">
-                {formatPesos(montoTotalPremios)}
-              </p>
-            </div>
-            <Trophy size={28} className="text-emerald-400" />
+    <div className={`rounded-2xl border ${border} ${bgLight} p-5`}>
+      <div className="flex items-start justify-between mb-4 gap-3">
+        <div className="flex items-center gap-2.5">
+          <div className="w-10 h-10 rounded-xl flex items-center justify-center"
+               style={{ background: `${color}15`, border: `1.5px solid ${color}30` }}>
+            <Icon size={18} style={{ color }} />
           </div>
-        </Card>
-
-        <Card className="p-5 bg-gradient-to-br from-blue-50 to-blue-50 border-blue-200">
-          <div className="flex items-start justify-between">
-            <div>
-              <p className="text-xs font-bold text-blue-600 uppercase tracking-wider mb-1">
-                Trámites totales
-              </p>
-              <p className="text-3xl font-bold text-blue-700" style={{ fontFamily: 'var(--font-display)' }}>
-                {dataPremios.tramitesAutoCalificantes + dataPremios.tramitesMotoCalificantes}
-              </p>
-              <p className="text-xs text-blue-600 mt-1">
-                (Solo trámites pagados)
-              </p>
-            </div>
-            <TrendingUp size={28} className="text-blue-400" />
-          </div>
-        </Card>
-
-        <Card className="p-5 bg-gradient-to-br from-orange-50 to-orange-50 border-orange-200">
-          <div className="flex items-start justify-between">
-            <div>
-              <p className="text-xs font-bold text-orange-600 uppercase tracking-wider mb-1">
-                Honorarios facturados
-              </p>
-              <p className="text-2xl font-bold text-orange-700" style={{ fontFamily: 'var(--font-display)' }}>
-                {formatPesos(dataPremios.facturacionTotalHonorarios)}
-              </p>
-              <p className="text-xs text-orange-600 mt-1">
-                (Sin SUATS ni informe)
-              </p>
-            </div>
-            <Award size={28} className="text-orange-400" />
-          </div>
-        </Card>
-      </div>
-
-      {/* ─── INFORMACIÓN IMPORTANTE ────────────────────────────────────────── */}
-      <Card className="p-4 border-blue-200 bg-blue-50">
-        <div className="flex gap-3">
-          <Zap size={18} className="text-blue-600 flex-shrink-0 mt-0.5" />
-          <div className="text-sm text-blue-800">
-            <p className="font-semibold mb-1">⚡ Cálculo correcto de premios</p>
-            <p className="text-xs leading-relaxed">
-              Los premios se calculan sobre <strong>honorarios de gestoría</strong> únicamente.
-              El costo de SUATS ($16.000) y el informe de persona se excluyen de estos cálculos
-              para no afectar tu desempeño.
+          <div>
+            <p className="text-sm font-extrabold text-gray-900" style={{ fontFamily: 'var(--font-display)' }}>
+              {tipoLabel}
+            </p>
+            <p className="text-[11px] text-gray-500 mt-0.5">
+              Premio: <strong className={textC}>{formatPesos(montoPremio)}</strong>
+              {' '}cada {tramitesPorCiclo} trámites
             </p>
           </div>
         </div>
-      </Card>
-
-      {/* ─── PREMIOS POR CANTIDAD — AUTOMÓVILES ──────────────────────────── */}
-      <div className="space-y-3">
-        <button
-          onClick={() => setExpandidoAuto(!expandidoAuto)}
-          className="w-full flex items-center justify-between p-4 bg-white border border-gray-200
-                     rounded-xl hover:border-orange-300 transition-colors"
-        >
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-orange-100 rounded-lg flex items-center justify-center">
-              <span className="text-lg">🚗</span>
-            </div>
-            <div className="text-left">
-              <p className="font-semibold text-gray-900">Premios por cantidad (Automóviles)</p>
-              <p className="text-xs text-gray-500">
-                {dataPremios.cicloAuto.premiosGanados} ganados · {cfg.tramitesPorPremioAuto} trámites por premio
-              </p>
-            </div>
-          </div>
-          {expandidoAuto ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
-        </button>
-
-        {expandidoAuto && (
-          <div className="space-y-2 pl-3">
-            {premiosAutoPorCantidad.map((premio, idx) => (
-              <div
-                key={premio.id}
-                className={`p-4 rounded-lg border transition-all ${
-                  premio.alcanzado
-                    ? 'bg-emerald-50 border-emerald-200'
-                    : 'bg-white border-gray-200'
-                }`}
-              >
-                <div className="flex items-start justify-between mb-2">
-                  <div>
-                    <p className="font-semibold text-gray-900">{premio.titulo}</p>
-                    <p className="text-xs text-gray-500">
-                      {premio.alcanzado
-                        ? `✅ Ganado · ${formatPesos(premio.montoTramites)}`
-                        : `⏳ En progreso · Falta ${premio.faltaAlcanzar} trámite(s)`
-                      }
-                    </p>
-                  </div>
-                  {premio.alcanzado && <Trophy size={20} className="text-emerald-600" />}
-                </div>
-
-                <div className="flex items-center gap-3">
-                  <div className="flex-1 h-2 bg-gray-200 rounded-full overflow-hidden">
-                    <div
-                      className={`h-full transition-all ${
-                        premio.alcanzado ? 'bg-emerald-500' : 'bg-orange-400'
-                      }`}
-                      style={{ width: `${Math.min(100, premio.progreso)}%` }}
-                    />
-                  </div>
-                  <span className="text-xs font-semibold text-gray-600 w-10 text-right">
-                    {Math.round(premio.progreso)}%
-                  </span>
-                </div>
-
-                <div className="text-xs text-gray-600 mt-2">
-                  {premio.valorActual} / {premio.tramitesPorPremio} trámites
-                </div>
-              </div>
-            ))}
+        {premiosGanados > 0 && (
+          <div className="text-right shrink-0">
+            <p className="text-[10px] text-gray-400 mb-0.5">Ganado</p>
+            <p className="text-lg font-extrabold" style={{ color, fontFamily: 'var(--font-display)' }}>
+              {formatPesosCompacto(premiosPesos)}
+            </p>
           </div>
         )}
       </div>
 
-      {/* ─── PREMIOS POR CANTIDAD — MOTOS ─────────────────────────────────── */}
-      {dataPremios.tramitesMotoCalificantes > 0 && (
-        <div className="space-y-3">
-          <button
-            onClick={() => setExpandidoMoto(!expandidoMoto)}
-            className="w-full flex items-center justify-between p-4 bg-white border border-gray-200
-                       rounded-xl hover:border-orange-300 transition-colors"
-          >
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
-                <span className="text-lg">🏍️</span>
+      <div className="flex gap-2 mb-3">
+        {Array.from({ length: tramitesPorCiclo }).map((_, i) => {
+          const done = i < tramitesEnCiclo
+          return (
+            <div key={i} className="flex flex-col items-center gap-1 flex-1">
+              <div
+                className="w-10 h-10 rounded-xl flex items-center justify-center font-bold text-sm transition-all"
+                style={
+                  done
+                    ? { background: color, color: '#fff', boxShadow: `0 2px 8px ${color}40` }
+                    : { border: `2px dashed ${color}40`, background: '#fff', color: '#9CA3AF' }
+                }
+              >
+                {done ? <CheckCircle2 size={16} className="text-white" /> : i + 1}
               </div>
-              <div className="text-left">
-                <p className="font-semibold text-gray-900">Premios por cantidad (Motos)</p>
-                <p className="text-xs text-gray-500">
-                  {dataPremios.cicloMoto.premiosGanados} ganados · {cfg.tramitesPorPremioMoto} trámites por premio
-                </p>
-              </div>
+              <span className="text-[9px] font-bold uppercase tracking-wide"
+                    style={{ color: done ? color : '#9CA3AF' }}>
+                {done ? 'OK' : '—'}
+              </span>
             </div>
-            {expandidoMoto ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
-          </button>
+          )
+        })}
+      </div>
 
-          {expandidoMoto && (
-            <div className="space-y-2 pl-3">
-              {premiosMotoPorCantidad.map((premio) => (
-                <div
-                  key={premio.id}
-                  className={`p-4 rounded-lg border transition-all ${
-                    premio.alcanzado
-                      ? 'bg-emerald-50 border-emerald-200'
-                      : 'bg-white border-gray-200'
-                  }`}
-                >
-                  <div className="flex items-start justify-between mb-2">
-                    <div>
-                      <p className="font-semibold text-gray-900">{premio.titulo}</p>
-                      <p className="text-xs text-gray-500">
-                        {premio.alcanzado
-                          ? `✅ Ganado · ${formatPesos(premio.montoTramites)}`
-                          : `⏳ En progreso · Falta ${premio.faltaAlcanzar} trámite(s)`
-                        }
-                      </p>
-                    </div>
-                    {premio.alcanzado && <Trophy size={20} className="text-emerald-600" />}
-                  </div>
+      <ProgressBar value={tramitesEnCiclo} max={tramitesPorCiclo} color={color} height={6} />
+      <p className={`text-xs font-semibold mt-2 ${tramitesFaltan < tramitesPorCiclo ? textC : 'text-gray-500'}`}>
+        {tramitesFaltan === tramitesPorCiclo
+          ? `Completá ${tramitesPorCiclo} trámites para ganar ${formatPesos(montoPremio)}`
+          : tramitesFaltan === 1
+            ? `¡Solo 1 trámite más para ganar ${formatPesos(montoPremio)}! 🔥`
+            : `${tramitesFaltan} trámites más para ganar ${formatPesos(montoPremio)}`}
+      </p>
 
-                  <div className="flex items-center gap-3">
-                    <div className="flex-1 h-2 bg-gray-200 rounded-full overflow-hidden">
-                      <div
-                        className={`h-full transition-all ${
-                          premio.alcanzado ? 'bg-emerald-500' : 'bg-blue-400'
-                        }`}
-                        style={{ width: `${Math.min(100, premio.progreso)}%` }}
-                      />
-                    </div>
-                    <span className="text-xs font-semibold text-gray-600 w-10 text-right">
-                      {Math.round(premio.progreso)}%
-                    </span>
-                  </div>
+      <div className="flex flex-wrap gap-1.5 mt-3 pt-3 border-t border-gray-200/60">
+        <span className="text-[10px] text-gray-400 font-medium self-center">Califican:</span>
+        {(['Transferencia', 'Baja', 'Inscripción Inicial'] as const).map(t => (
+          <span key={t} className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border ${border} ${bgLight} ${textC}`}>
+            {t}
+          </span>
+        ))}
+        <span className="text-[10px] text-gray-400 self-center">· pagados</span>
+      </div>
 
-                  <div className="text-xs text-gray-600 mt-2">
-                    {premio.valorActual} / {premio.tramitesPorPremio} trámites
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* ─── PREMIOS POR MONTO (HITOS) ────────────────────────────────────── */}
-      {hitosPremios.length > 0 && (
-        <div className="space-y-3">
-          <button
-            onClick={() => setExpandidoHitos(!expandidoHitos)}
-            className="w-full flex items-center justify-between p-4 bg-white border border-gray-200
-                       rounded-xl hover:border-orange-300 transition-colors"
-          >
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center">
-                <Target size={20} className="text-purple-600" />
-              </div>
-              <div className="text-left">
-                <p className="font-semibold text-gray-900">Hitos por facturación</p>
-                <p className="text-xs text-gray-500">
-                  {dataPremios.hitosAlcanzadosAhora.length} alcanzado(s) · Basado en honorarios netos
-                </p>
-              </div>
-            </div>
-            {expandidoHitos ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
-          </button>
-
-          {expandidoHitos && (
-            <div className="space-y-2 pl-3">
-              {hitosPremios.map((hito) => (
-                <div
-                  key={hito.id}
-                  className={`p-4 rounded-lg border transition-all ${
-                    hito.alcanzado
-                      ? 'bg-emerald-50 border-emerald-200'
-                      : 'bg-white border-gray-200'
-                  }`}
-                >
-                  <div className="flex items-start justify-between mb-2">
-                    <div>
-                      <p className="font-semibold text-gray-900">{hito.titulo}</p>
-                      <p className="text-xs text-gray-500">
-                        {hito.alcanzado
-                          ? `✅ Alcanzado · ${formatPesos(hito.montoMonto)} de premio`
-                          : `⏳ En progreso · Falta ${formatPesos(hito.faltaAlcanzar)}`
-                        }
-                      </p>
-                    </div>
-                    {hito.alcanzado && <Trophy size={20} className="text-emerald-600" />}
-                  </div>
-
-                  <div className="flex items-center gap-3">
-                    <div className="flex-1 h-2 bg-gray-200 rounded-full overflow-hidden">
-                      <div
-                        className={`h-full transition-all ${
-                          hito.alcanzado ? 'bg-emerald-500' : 'bg-purple-400'
-                        }`}
-                        style={{ width: `${Math.min(100, hito.progreso)}%` }}
-                      />
-                    </div>
-                    <span className="text-xs font-semibold text-gray-600 w-10 text-right">
-                      {Math.round(hito.progreso)}%
-                    </span>
-                  </div>
-
-                  <div className="text-xs text-gray-600 mt-2">
-                    {formatPesos(hito.valorActual)} / {formatPesos(hito.montoUmbral ?? 0)} objetivo
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* ─── INFORMACIÓN SOBRE EL CÁLCULO ─────────────────────────────────── */}
-      <Card className="p-4 bg-gray-50 border-gray-200">
-        <p className="text-xs font-bold text-gray-600 uppercase tracking-wider mb-2">
-          ℹ️ Cómo se calcula
+      {tramitesCalificantes === 0 && (
+        <p className="text-[11px] text-gray-400 mt-3 text-center italic">
+          Todavía no hay trámites {esMoto ? 'de moto' : 'de auto'} cobrados este mes.
         </p>
-        <ul className="space-y-1 text-xs text-gray-600">
-          <li>• <strong>Premios por cantidad:</strong> 1 premio cada {cfg.tramitesPorPremioAuto} (Autos) o {cfg.tramitesPorPremioMoto} (Motos) trámites pagados</li>
-          <li>• <strong>Premios por monto:</strong> Hitos de facturación alcanzados (sin SUATS ni informe)</li>
-          <li>• <strong>Base de cálculo:</strong> Honorarios de gestoría únicamente (excluye costos de SUATS e informe de persona)</li>
-          <li>• <strong>Trámites calificantes:</strong> Solo trámites pagados y no cancelados</li>
-        </ul>
-      </Card>
+      )}
+    </div>
+  )
+}
 
+// ─── HITO CARD ────────────────────────────────────────────────────────────────
+
+function HitoCard({
+  hito, alcanzado, facturacion,
+}: { hito: HitoMultaConfig; alcanzado: boolean; facturacion: number }) {
+  const visual = HITO_VISUAL[hito.id] ?? HITO_VISUAL[1]
+  const pct    = Math.min(100, (facturacion / hito.montoUmbral) * 100)
+  const esProx = !alcanzado && facturacion < hito.montoUmbral
+  const tieneP = hito.premioMonto > 0
+
+  return (
+    <div className={`rounded-2xl border p-5 transition-all
+      ${alcanzado ? 'bg-white border-gray-200 shadow-md'
+      : esProx    ? 'bg-white border-gray-200 shadow-sm'
+      :             'bg-gray-50 border-gray-100'}`}>
+      <div className="flex items-start gap-4 mb-4">
+        <div className="w-14 h-14 rounded-2xl flex items-center justify-center text-2xl shrink-0"
+             style={{
+               background: alcanzado ? `${visual.color}20` : '#F3F4F6',
+               border:     alcanzado ? `2px solid ${visual.color}40` : '2px solid #E5E7EB',
+             }}>
+          {alcanzado ? visual.icon : <Lock size={20} className="text-gray-400" />}
+        </div>
+
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 flex-wrap mb-1">
+            <span className={`font-bold text-base ${alcanzado ? 'text-gray-900' : esProx ? 'text-gray-800' : 'text-gray-400'}`}
+                  style={{ fontFamily: 'var(--font-display)' }}>
+              {visual.label}
+            </span>
+            {alcanzado && (
+              <span className="text-xs font-bold px-2 py-0.5 rounded-full"
+                    style={{ background: `${visual.color}15`, color: visual.color }}>
+                ✓ Alcanzado
+              </span>
+            )}
+          </div>
+          <p className={`text-sm ${alcanzado ? 'text-gray-500' : 'text-gray-400'}`}>{hito.descripcion}</p>
+        </div>
+
+        <div className="text-right shrink-0 space-y-1">
+          <div>
+            <div className="text-xs text-gray-400 mb-0.5">Umbral</div>
+            <div className="text-sm font-bold text-gray-700 font-mono">{formatPesosCompacto(hito.montoUmbral)}</div>
+          </div>
+          {tieneP ? (
+            <div className="mt-1.5 px-2.5 py-1.5 rounded-xl"
+                 style={{
+                   background: alcanzado ? `${visual.color}12` : '#F3F4F6',
+                   border:     alcanzado ? `1px solid ${visual.color}30` : '1px solid #E5E7EB',
+                 }}>
+              <div className="text-[10px] font-bold uppercase tracking-wide text-gray-400 mb-0.5">Premio</div>
+              <div className="text-sm font-bold" style={{ color: alcanzado ? visual.color : '#6B7280' }}>
+                {formatPesosCompacto(hito.premioMonto)}
+              </div>
+            </div>
+          ) : (
+            <div className="mt-1.5 px-2.5 py-1.5 rounded-xl border border-dashed border-gray-300 bg-gray-50">
+              <div className="text-[10px] font-semibold text-gray-400">Sin definir</div>
+            </div>
+          )}
+        </div>
+      </div>
+
+      <div>
+        <div className="flex justify-between text-xs mb-1.5">
+          <span className="text-gray-400 font-medium">Progreso</span>
+          <span className="font-bold" style={{ color: alcanzado ? visual.color : '#6B7280' }}>
+            {pct.toFixed(1)}%
+          </span>
+        </div>
+        <ProgressBar value={facturacion} max={hito.montoUmbral}
+                     color={alcanzado ? visual.color : esProx ? '#D4621A' : '#9CA3AF'} height={7} />
+        {!alcanzado && esProx && (
+          <p className="text-xs font-semibold text-[#B45316] mt-1.5">
+            Faltan {formatPesosCompacto(hito.montoUmbral - facturacion)} para desbloquear
+          </p>
+        )}
+        {alcanzado && (
+          <div className="flex items-center gap-1.5 mt-1.5">
+            <Sparkles size={11} style={{ color: visual.color }} />
+            <p className="text-xs font-semibold" style={{ color: visual.color }}>
+              {tieneP
+                ? `Premio: ${formatPesos(hito.premioMonto)} — coordiná la acreditación con el propietario`
+                : 'Premio desbloqueado — el propietario definirá el monto'}
+            </p>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// ─── PANEL DESGLOSE MULTAS ───────────────────────────────────────────────────
+
+function PanelDesgloseMultas({ data }: { data: PremiosData }) {
+  if (data.desgloseMultas.length === 0) return null
+  const hayDetalle = data.desgloseMultas.some(d => d.montoSUATS > 0 || d.montoInformePersona > 0)
+
+  return (
+    <section>
+      <div className="flex items-center gap-2.5 mb-4">
+        <div className="w-1.5 h-6 rounded-full bg-blue-500" />
+        <h2 className="text-base font-bold text-gray-900" style={{ fontFamily: 'var(--font-display)' }}>
+          Desglose de Cobros — Multas
+        </h2>
+      </div>
+
+      <div className="flex items-start gap-2.5 bg-blue-50 border border-blue-100 rounded-xl px-4 py-3 mb-4">
+        <AlertCircle size={14} className="text-blue-500 shrink-0 mt-0.5" />
+        <p className="text-xs text-blue-800 leading-relaxed">
+          Para el cálculo de premios solo se contabilizan los{' '}
+          <strong>honorarios de gestoría</strong>. El costo de{' '}
+          <strong>SUATS</strong> y <strong>Informe de Persona</strong> son gastos del trámite
+          repercutidos al cliente, no honorarios propios.
+        </p>
+      </div>
+
+      <div className="grid grid-cols-3 gap-3 mb-4">
+        {[
+          { label: 'Honorarios Gestoría', value: data.facturacionMultas,   color: '#D4621A', bg: 'bg-orange-50', border: 'border-orange-200', nota: '→ Cuenta para premios' },
+          { label: 'Costos SUATS',        value: data.totalSUATS,          color: '#6B7280', bg: 'bg-gray-50',   border: 'border-gray-200',   nota: 'No cuenta para premios' },
+          { label: 'Informe de Persona',  value: data.totalInformePersona, color: '#6B7280', bg: 'bg-gray-50',   border: 'border-gray-200',   nota: 'No cuenta para premios' },
+        ].map(item => (
+          <div key={item.label} className={`${item.bg} border ${item.border} rounded-xl p-4`}>
+            <p className="text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1">{item.label}</p>
+            <p className="text-xl font-extrabold" style={{ color: item.color, fontFamily: 'var(--font-display)' }}>
+              {formatPesosCompacto(item.value)}
+            </p>
+            <p className="text-[10px] text-gray-400 mt-1">{item.nota}</p>
+          </div>
+        ))}
+      </div>
+
+      {hayDetalle && (
+        <div className="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm">
+          <div className="px-4 py-3 border-b border-gray-100">
+            <p className="text-xs font-bold text-gray-500 uppercase tracking-wider">Detalle por trámite</p>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs">
+              <thead>
+                <tr className="bg-gray-50 border-b border-gray-100">
+                  {['Trámite', 'Honor. Gestoría', 'SUATS', 'Inf. Persona', 'Total Cliente'].map(h => (
+                    <th key={h} className="px-4 py-2 text-left font-bold text-gray-400 uppercase tracking-wider text-[9px] whitespace-nowrap">{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {data.desgloseMultas.map(d => (
+                  <tr key={d.tramiteId} className="border-b border-gray-50 hover:bg-gray-50/50 transition-colors">
+                    <td className="px-4 py-2.5 font-mono text-[10px] text-gray-500">{d.tramiteId.slice(-8)}</td>
+                    <td className="px-4 py-2.5 font-semibold text-[#B45316]">{formatPesos(d.honorariosGestoria)}</td>
+                    <td className="px-4 py-2.5 text-gray-400">{d.montoSUATS > 0 ? formatPesos(d.montoSUATS) : '—'}</td>
+                    <td className="px-4 py-2.5 text-gray-400">{d.montoInformePersona > 0 ? formatPesos(d.montoInformePersona) : '—'}</td>
+                    <td className="px-4 py-2.5 font-bold text-gray-700">{formatPesos(d.totalCobradoCliente)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+    </section>
+  )
+}
+
+// ─── TARJETA DE ASESOR (vista de supervisión) ─────────────────────────────────
+
+function AsesorCard({ asesor }: { asesor: AsesorPremios }) {
+  const { nombre, data } = asesor
+  const totalACobrar = data.premiosA_pesos + data.premiosB_pesos
+  const iniciales = nombre.split(' ').map(p => p[0]).slice(0, 2).join('').toUpperCase()
+
+  return (
+    <div className="bg-white border border-gray-100 rounded-2xl p-5 shadow-sm">
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm shrink-0"
+               style={{ background: '#D4621A18', color: '#D4621A' }}>
+            {iniciales}
+          </div>
+          <div>
+            <p className="text-sm font-bold text-gray-900">{nombre}</p>
+            <p className="text-xs text-gray-400">Asesor Comercial</p>
+          </div>
+        </div>
+        <div className="text-right">
+          <p className="text-xs text-gray-400">A cobrar este mes</p>
+          <p className="text-lg font-extrabold" style={{ color: totalACobrar > 0 ? '#D4621A' : '#9CA3AF' }}>
+            {formatPesos(totalACobrar)}
+          </p>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 gap-3 mb-3">
+        <div className="bg-orange-50 border border-orange-100 rounded-xl p-3">
+          <div className="flex items-center gap-1.5 mb-1.5">
+            <Car size={13} className="text-[#D4621A]" />
+            <span className="text-[10px] font-bold text-gray-500 uppercase">Autos</span>
+            <span className="text-[10px] text-gray-400 ml-auto">
+              {data.cicloAuto.tramitesEnCiclo}/{data.cicloAuto.tramitesPorCiclo}
+            </span>
+          </div>
+          <MiniProgress value={data.cicloAuto.tramitesEnCiclo} max={data.cicloAuto.tramitesPorCiclo} color="#D4621A" />
+          {data.cicloAuto.premiosGanados > 0 && (
+            <p className="text-[10px] font-semibold text-[#B45316] mt-1.5">
+              {data.cicloAuto.premiosGanados} premio{data.cicloAuto.premiosGanados !== 1 ? 's' : ''} · {formatPesosCompacto(data.cicloAuto.premiosPesos)}
+            </p>
+          )}
+        </div>
+        <div className="bg-violet-50 border border-violet-100 rounded-xl p-3">
+          <div className="flex items-center gap-1.5 mb-1.5">
+            <Bike size={13} className="text-violet-600" />
+            <span className="text-[10px] font-bold text-gray-500 uppercase">Motos</span>
+            <span className="text-[10px] text-gray-400 ml-auto">
+              {data.cicloMoto.tramitesEnCiclo}/{data.cicloMoto.tramitesPorCiclo}
+            </span>
+          </div>
+          <MiniProgress value={data.cicloMoto.tramitesEnCiclo} max={data.cicloMoto.tramitesPorCiclo} color="#7C3AED" />
+          {data.cicloMoto.premiosGanados > 0 && (
+            <p className="text-[10px] font-semibold text-violet-700 mt-1.5">
+              {data.cicloMoto.premiosGanados} premio{data.cicloMoto.premiosGanados !== 1 ? 's' : ''} · {formatPesosCompacto(data.cicloMoto.premiosPesos)}
+            </p>
+          )}
+        </div>
+      </div>
+
+      <div className="flex items-center justify-between bg-gray-50 rounded-xl px-3.5 py-2.5">
+        <div className="flex items-center gap-2">
+          <Star size={13} className={data.hitosAlcanzados.length > 0 ? 'text-yellow-500' : 'text-gray-300'} />
+          <span className="text-xs text-gray-600">
+            {formatPesosCompacto(data.facturacionMultas)} en multas
+          </span>
+        </div>
+        <span className="text-xs font-semibold text-gray-500">
+          {data.hitosAlcanzados.length} hito{data.hitosAlcanzados.length !== 1 ? 's' : ''}
+          {data.premiosB_pesos > 0 && <span className="text-yellow-600"> · {formatPesosCompacto(data.premiosB_pesos)}</span>}
+        </span>
+      </div>
+    </div>
+  )
+}
+
+// ─── VISTA DE SUPERVISIÓN (propietario / admin_gral) ─────────────────────────
+
+function SupervisionPremiosView() {
+  const navigate = useNavigate()
+  const { mesActual } = useCierreMensual()
+  const { gestoriaId } = useGestoria()
+  const { config } = useConfiguracion()
+  const periodoLabel = `${MESES[mesActual.mes]} ${mesActual.anio}`
+
+  // Estado para expandir/colapsar secciones
+  const [expandidoAsesores, setExpandidoAsesores] = useState(true)
+
+  // Cargar asesores directamente de Firestore
+  const { data: asesores, isLoading: cargandoAsesores, error: errorAsesores } = useQuery({
+    queryKey: ['asesores-supervisar', gestoriaId],
+    enabled: !!gestoriaId,
+    staleTime: 1000 * 60 * 5,
+    queryFn: async () => {
+      if (!gestoriaId) return []
+      
+      const usersCol = collection(db, 'users')
+      const snap = await getDocs(query(
+        usersCol,
+        where('gestoriaId', '==', gestoriaId),
+        where('rol', '==', 'asesor_comercial'),
+        where('activo', '==', true),
+      ))
+
+      // Para cada asesor, calcular sus premios
+      const asesoresConPremios = await Promise.all(
+        snap.docs.map(async (docUser) => {
+          const userData = docUser.data()
+          const uid = docUser.id
+
+          // Calcular premios del asesor
+          const tramitesSnap = await getDocs(query(
+            collection(db, 'tramites'),
+            where('gestoriaId', '==', gestoriaId),
+            where('creadoPor', '==', uid),
+            where('pagado', '==', true),
+          ))
+
+          const tramitesPagados = tramitesSnap.docs.length
+          const totalCobrado = tramitesSnap.docs.reduce(
+            (sum, doc) => sum + (doc.data().totalCobradoCliente ?? 0),
+            0
+          )
+
+          // Calcular premios (simplificado)
+          const cfg = {
+            tramitesPorPremioAuto: (config as any)?.tramitesPorPremioAuto ?? 5,
+            montoPremioAuto: (config as any)?.montoPremioAuto ?? 5000,
+          }
+
+          const premiosGanados = Math.floor(tramitesPagados / cfg.tramitesPorPremioAuto) * cfg.montoPremioAuto
+          const tramitesEnCiclo = tramitesPagados % cfg.tramitesPorPremioAuto
+          const tramitesFaltan = cfg.tramitesPorPremioAuto - tramitesEnCiclo
+
+          return {
+            uid,
+            nombre: userData.nombre || '',
+            apellido: userData.apellido || '',
+            email: userData.email || '',
+            tramitesPagados,
+            totalCobrado,
+            premiosGanados,
+            tramitesEnCiclo,
+            tramitesFaltan,
+            progreso: (tramitesEnCiclo / cfg.tramitesPorPremioAuto) * 100,
+          }
+        })
+      )
+
+      // Ordenar por premios ganados (mayor primero)
+      return asesoresConPremios.sort((a, b) => b.premiosGanados - a.premiosGanados)
+    },
+  })
+
+  if (cargandoAsesores) return <Spinner label="Cargando supervisión de premios..." />
+
+  if (errorAsesores) {
+    return (
+      <div className="flex flex-col items-center justify-center py-20 gap-3">
+        <AlertCircle size={36} className="text-red-400" />
+        <p className="text-gray-500 text-sm">Error al cargar asesores</p>
+      </div>
+    )
+  }
+
+  const listaAsesores = asesores || []
+  const totalAPagar = listaAsesores.reduce((sum, a) => sum + a.premiosGanados, 0)
+  const totalCobradoEquipo = listaAsesores.reduce((sum, a) => sum + a.totalCobrado, 0)
+
+  return (
+    <div className="space-y-6 max-w-4xl">
+      {/* Header */}
+      <div className="flex items-center gap-2 bg-orange-50 border border-orange-100 rounded-xl px-4 py-2.5">
+        <Trophy size={14} className="text-[#D4621A] shrink-0" />
+        <p className="text-xs font-bold text-[#D4621A]">Período: {periodoLabel}</p>
+        <span className="text-xs text-gray-400 ml-1">· Supervisión de premios del equipo</span>
+      </div>
+
+      {/* Título */}
+      <div className="flex items-start justify-between gap-4 flex-wrap">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-2xl flex items-center justify-center" style={{ background: '#D4621A18' }}>
+            <Users size={20} style={{ color: '#D4621A' }} />
+          </div>
+          <div>
+            <h1 className="text-2xl font-extrabold text-gray-900" style={{ fontFamily: 'var(--font-display)' }}>
+              Premios del Equipo
+            </h1>
+            <p className="text-sm text-gray-500">Gestión de pagos de premios a asesores comerciales</p>
+          </div>
+        </div>
+        <button
+          onClick={() => navigate('/admin/configuracion?tab=premios')}
+          className="flex items-center gap-2 text-sm font-semibold text-gray-600
+                     bg-white border border-gray-200 hover:border-gray-300 px-4 py-2
+                     rounded-xl transition-all shadow-sm hover:shadow-md"
+        >
+          <Settings size={14} /> Configurar premios
+        </button>
+      </div>
+
+      {/* Total a pagar */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div className="bg-white border border-gray-100 rounded-2xl p-5 shadow-sm">
+          <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">
+            Total a pagar este mes
+          </p>
+          <p className="text-3xl font-extrabold" style={{ fontFamily: 'var(--font-display)', color: '#D4621A' }}>
+            {formatPesos(totalAPagar)}
+          </p>
+          <p className="text-xs text-gray-500 mt-1">
+            {listaAsesores.length} asesor{listaAsesores.length !== 1 ? 'es' : ''}
+          </p>
+        </div>
+
+        <div className="bg-white border border-gray-100 rounded-2xl p-5 shadow-sm">
+          <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">
+            Total cobrado del equipo
+          </p>
+          <p className="text-3xl font-extrabold" style={{ fontFamily: 'var(--font-display)', color: '#059669' }}>
+            {formatPesos(totalCobradoEquipo)}
+          </p>
+          <p className="text-xs text-gray-500 mt-1">
+            De {listaAsesores.reduce((sum, a) => sum + a.tramitesPagados, 0)} trámites pagos
+          </p>
+        </div>
+      </div>
+
+      {/* Lista de asesores */}
+      <div className="space-y-3">
+        <button
+          onClick={() => setExpandidoAsesores(!expandidoAsesores)}
+          className="w-full flex items-center justify-between p-4 bg-white border border-gray-200
+                     rounded-xl hover:border-orange-300 transition-colors"
+        >
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
+              <Users size={20} className="text-blue-600" />
+            </div>
+            <div className="text-left">
+              <p className="font-semibold text-gray-900">Asesores comerciales</p>
+              <p className="text-xs text-gray-500">
+                {listaAsesores.length} asesor{listaAsesores.length !== 1 ? 'es' : ''} · Total: {formatPesos(totalAPagar)}
+              </p>
+            </div>
+          </div>
+          {expandidoAsesores ? <ChevronRight size={18} /> : <ChevronRight size={18} />}
+        </button>
+
+        {expandidoAsesores && (
+          <div className="space-y-2 pl-3">
+            {listaAsesores.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-12 text-gray-300">
+                <Users size={36} className="mb-3 opacity-40" />
+                <p className="text-base font-semibold text-gray-400">Sin asesores comerciales</p>
+              </div>
+            ) : (
+              listaAsesores.map((asesor) => (
+                <div
+                  key={asesor.uid}
+                  className="p-4 bg-white rounded-lg border border-gray-200 hover:border-orange-300 transition-colors"
+                >
+                  <div className="flex items-start justify-between mb-3">
+                    <div>
+                      <p className="font-semibold text-gray-900">
+                        {asesor.nombre} {asesor.apellido}
+                      </p>
+                      <p className="text-xs text-gray-500">{asesor.email}</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-xs text-gray-400 mb-0.5">A pagar</p>
+                      <p className="text-lg font-bold" style={{ color: '#D4621A' }}>
+                        {formatPesos(asesor.premiosGanados)}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Progreso */}
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="text-gray-600">Progreso</span>
+                      <span className="font-semibold">{Math.round(asesor.progreso)}%</span>
+                    </div>
+                    <div className="w-full h-2 bg-gray-200 rounded-full overflow-hidden">
+                      <div
+                        className="h-full bg-orange-400 transition-all"
+                        style={{ width: `${Math.min(100, asesor.progreso)}%` }}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Resumen */}
+                  <div className="mt-3 pt-3 border-t border-gray-100 grid grid-cols-3 gap-2 text-center">
+                    <div>
+                      <p className="text-xs text-gray-500">Pagados</p>
+                      <p className="text-sm font-bold">{asesor.tramitesPagados}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-gray-500">Cobrado</p>
+                      <p className="text-sm font-bold">{formatPesosCompacto(asesor.totalCobrado)}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-gray-500">Premios</p>
+                      <p className="text-sm font-bold text-orange-600">{Math.floor(asesor.tramitesPagados / 5)}</p>
+                    </div>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* Info */}
+      <div className="flex items-start gap-3 bg-blue-50 border border-blue-100 rounded-2xl px-5 py-4">
+        <AlertCircle size={16} className="text-blue-400 shrink-0 mt-0.5" />
+        <p className="text-sm text-blue-800">
+          <strong>Premios automáticos:</strong> Se calculan según trámites pagados.
+        </p>
+      </div>
+    </div>
+  )
+}
+
+// ─── PÁGINA PRINCIPAL
+// ─── PÁGINA PRINCIPAL
+// ─── PÁGINA PRINCIPAL
+// ─── PÁGINA PRINCIPAL
+// ─── PÁGINA PRINCIPAL — branching por rol ────────────────────────────────────
+
+export default function PremiosPage() {
+  usePageTitle('Premios')
+  const { user }                   = useAuth()
+  const { data, isLoading, error } = usePremios()
+  const navigate                   = useNavigate()
+
+  const { mesActual: periodoActivo } = useCierreMensual()
+  const periodoLabel = `${MESES[periodoActivo.mes]} ${periodoActivo.anio}`
+  const nombreAsesor = user?.nombre
+    ? `${user.nombre}${user.apellido ? ` ${user.apellido}` : ''}`
+    : 'Asesor'
+
+  // Propietario y admin_gral ven la vista de equipo, no la propia
+  const ROLES_SUPERVISORES = ['propietario', 'admin_gral']
+  if (ROLES_SUPERVISORES.includes(user?.rol ?? '')) {
+    return <SupervisionPremiosView />
+  }
+
+  // ─── Vista personal del asesor ────────────────────────────────────────────
+  if (isLoading) return <Spinner label="Cargando premios..." />
+
+  if (error || !data) {
+    return (
+      <div className="flex flex-col items-center justify-center py-20 gap-3">
+        <AlertCircle size={36} className="text-red-400" />
+        <p className="text-gray-500 text-sm">No se pudo cargar la información de premios.</p>
+      </div>
+    )
+  }
+
+  const { cfg } = data
+  const hitosOrdenados = [...cfg.hitosMultas].sort((a, b) => a.montoUmbral - b.montoUmbral)
+  const maxUmbral      = hitosOrdenados[hitosOrdenados.length - 1]?.montoUmbral ?? 20_000_000
+  const hayPendientes  = hitosOrdenados.some(h => h.premioMonto === 0)
+  const totalGanado    = data.premiosA_pesos + data.premiosB_pesos
+  const esPropietario  = user?.rol === 'propietario'
+
+  return (
+    <div className="space-y-6 max-w-3xl">
+
+      <div className="flex items-center gap-2 bg-orange-50 border border-orange-100 rounded-xl px-4 py-2.5">
+        <Calendar size={14} className="text-[#D4621A] shrink-0" />
+        <p className="text-xs font-bold text-[#D4621A]">Período activo: {periodoLabel}</p>
+        <span className="text-xs text-gray-400 ml-1">· Se calcula sobre los trámites de este mes</span>
+      </div>
+
+      <div className="flex items-start justify-between gap-4 flex-wrap">
+        <div>
+          <div className="flex items-center gap-3 mb-1">
+            <div className="w-10 h-10 rounded-2xl flex items-center justify-center" style={{ background: '#D4621A18' }}>
+              <Trophy size={20} style={{ color: '#D4621A' }} />
+            </div>
+            <h1 className="text-2xl font-extrabold text-gray-900" style={{ fontFamily: 'var(--font-display)' }}>
+              Mis Premios & Objetivos
+            </h1>
+          </div>
+          <p className="text-sm text-gray-500 ml-[52px]">
+            {nombreAsesor} · seguí tu progreso en tiempo real
+          </p>
+        </div>
+        {esPropietario && (
+          <button
+            onClick={() => navigate('/admin/configuracion?tab=premios')}
+            className="flex items-center gap-2 text-sm font-semibold text-gray-600
+                       bg-white border border-gray-200 hover:border-gray-300 px-4 py-2
+                       rounded-xl transition-all shadow-sm hover:shadow-md"
+          >
+            <Settings size={14} /> Configurar premios
+          </button>
+        )}
+      </div>
+
+      {hayPendientes && (
+        <div className="flex items-start gap-3 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3">
+          <AlertCircle size={15} className="text-amber-500 shrink-0 mt-0.5" />
+          <p className="text-sm text-amber-800">
+            El propietario aún no definió el monto de algunos premios por hito.
+          </p>
+        </div>
+      )}
+
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <div className="col-span-2 bg-white border border-gray-100 rounded-2xl p-5 shadow-sm flex items-center gap-4">
+          <div className="w-12 h-12 rounded-2xl flex items-center justify-center shrink-0" style={{ background: '#D4621A18' }}>
+            <Trophy size={22} style={{ color: '#D4621A' }} />
+          </div>
+          <div>
+            <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-0.5">Total ganado</p>
+            <p className="text-3xl font-extrabold"
+               style={{ fontFamily: 'var(--font-display)', color: totalGanado > 0 ? '#D4621A' : '#111827' }}>
+              {formatPesosCompacto(totalGanado)}
+            </p>
+            <p className="text-xs text-gray-400 mt-0.5">
+              {data.premiosA_ganados} premios trámites · {data.hitosAlcanzados.length} hitos facturación
+            </p>
+          </div>
+        </div>
+
+        <div className="bg-white border border-gray-100 rounded-2xl p-4 shadow-sm">
+          <div className="w-9 h-9 rounded-xl flex items-center justify-center mb-2" style={{ background: '#D4621A12' }}>
+            <FileText size={16} style={{ color: '#D4621A' }} />
+          </div>
+          <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-0.5">Trámites</p>
+          <p className="text-2xl font-bold text-gray-900" style={{ fontFamily: 'var(--font-display)' }}>
+            {data.tramitesCalificantes}
+          </p>
+          <p className="text-xs text-gray-400 mt-0.5">Cobrados este mes</p>
+        </div>
+
+        <div className={`bg-white border rounded-2xl p-4 shadow-sm ${data.hitosAlcanzados.length > 0 ? 'border-yellow-200' : 'border-gray-100'}`}>
+          <div className="w-9 h-9 rounded-xl flex items-center justify-center mb-2"
+               style={{ background: data.hitosAlcanzados.length > 0 ? '#FDE04720' : '#F3F4F6' }}>
+            <Star size={16} className={data.hitosAlcanzados.length > 0 ? 'text-yellow-500' : 'text-gray-400'} />
+          </div>
+          <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-0.5">Logros</p>
+          <p className="text-2xl font-bold text-gray-900" style={{ fontFamily: 'var(--font-display)' }}>
+            {data.hitosAlcanzados.length}
+            <span className="text-sm font-medium text-gray-400 ml-1">/ {hitosOrdenados.length}</span>
+          </p>
+          <p className="text-xs text-gray-400 mt-0.5">Hitos de facturación</p>
+        </div>
+      </div>
+
+      <section>
+        <div className="flex items-center gap-2.5 mb-4">
+          <div className="w-1.5 h-6 rounded-full bg-[#D4621A]" />
+          <h2 className="text-base font-bold text-gray-900" style={{ fontFamily: 'var(--font-display)' }}>
+            Premios por Trámites
+          </h2>
+          <span className="text-xs font-semibold text-gray-400 bg-gray-100 px-2.5 py-0.5 rounded-full">
+            Transferencia · Baja · Inscripción
+          </span>
+        </div>
+
+        <div className="flex items-start gap-2 bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 mb-4">
+          <AlertCircle size={13} className="text-gray-400 shrink-0 mt-0.5" />
+          <p className="text-[11px] text-gray-500 leading-relaxed">
+            Los premios se diferencian por tipo de vehículo:{' '}
+            <strong className="text-[#B45316]">{formatPesos(cfg.montoPremioAuto)}</strong>{' '}
+            por cada {cfg.tramitesPorPremioAuto} trámites de auto,{' '}
+            <strong className="text-violet-700">{formatPesos(cfg.montoPremioMoto)}</strong>{' '}
+            por cada {cfg.tramitesPorPremioMoto} trámites de moto.
+          </p>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+          <CicloCard ciclo={data.cicloAuto} />
+          <CicloCard ciclo={data.cicloMoto} />
+        </div>
+      </section>
+
+      <section>
+        <div className="flex items-center gap-2.5 mb-4">
+          <div className="w-1.5 h-6 rounded-full bg-yellow-400" />
+          <h2 className="text-base font-bold text-gray-900" style={{ fontFamily: 'var(--font-display)' }}>
+            Objetivos de Facturación
+          </h2>
+          <span className="text-xs font-semibold text-gray-400 bg-gray-100 px-2.5 py-0.5 rounded-full">
+            Honorarios de multas gestionadas
+          </span>
+        </div>
+
+        <div className="bg-white border border-gray-200 rounded-2xl p-5 shadow-sm mb-4">
+          <div className="flex justify-between items-end mb-3 flex-wrap gap-3">
+            <div>
+              <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">
+                Honorarios acumulados en multas
+              </p>
+              <p className="text-3xl font-extrabold text-gray-900" style={{ fontFamily: 'var(--font-display)' }}>
+                {formatPesosCompacto(data.facturacionMultas)}
+                <span className="text-sm font-medium text-gray-400 ml-2">ARS</span>
+              </p>
+              <p className="text-xs text-gray-400 mt-0.5">{data.totalMultasCreadas} multas gestionadas</p>
+            </div>
+            {data.proximoHito && (
+              <div className="text-right">
+                <p className="text-xs text-gray-400 mb-0.5">Próxima meta</p>
+                <p className="text-lg font-bold flex items-center gap-1.5" style={{ color: '#D4621A' }}>
+                  {HITO_VISUAL[data.proximoHito.id]?.icon}
+                  {formatPesosCompacto(data.proximoHito.montoUmbral)}
+                </p>
+              </div>
+            )}
+          </div>
+
+          <div className="relative mb-1">
+            <ProgressBar value={data.facturacionMultas} max={maxUmbral} color="#EAB308" height={12} />
+            {hitosOrdenados.map(h => {
+              const pos     = (h.montoUmbral / maxUmbral) * 100
+              const reached = data.hitosAlcanzados.includes(h.id)
+              const vis     = HITO_VISUAL[h.id] ?? HITO_VISUAL[1]
+  return (
+    <div className="space-y-6 max-w-3xl">
+      <div className="flex items-center gap-2 bg-blue-50 border border-blue-100 rounded-xl px-4 py-2.5">
+        <AlertCircle size={16} className="text-blue-400" />
+        <p className="text-xs text-blue-800">
+          <strong>Supervisión de premios activa.</strong> Eres propietario, ve la vista de equipo.
+        </p>
+      </div>
     </div>
   )
 }
