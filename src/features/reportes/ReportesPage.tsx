@@ -12,12 +12,12 @@ import {
   getIngresosPorMes, getTiposTramiteFrecuentes, getTopClientes,
 } from '@/lib/firestore/dashboard'
 import { formatPesos } from '@/utils'
-import { TIPO_TRAMITE_LABELS, ESTADO_TRAMITE_LABELS } from '@/types'
+import { , ESTADO_TRAMITE_LABELS }
 import { descargarPDF, previsualizarPDF } from '@/utils/presupuesto'
 import toast from 'react-hot-toast'
 import { useGestoriaId, useGestoria } from '@/context/GestoriaContext'
 import { useConfiguracion }             from '@/hooks/useConfiguracion'
-import { usePaginacion } from '@/usePaginacion'
+import { usePaginacion } from '../../usePaginacion'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import { getDocs, query, where, collection } from 'firebase/firestore'
 import { db } from '@/lib/firebase'

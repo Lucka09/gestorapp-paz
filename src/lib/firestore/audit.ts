@@ -85,6 +85,8 @@ export const ACCION_CONFIG: Record<AccionAudit, {
   cancelar_turno: { label: 'Canceló turno',    emoji: '❌', color: 'text-red-700',     bg: 'bg-red-50'      },
   importar:       { label: 'Importó datos',    emoji: '📥', color: 'text-indigo-700',  bg: 'bg-indigo-50'   },
   login:          { label: 'Inició sesión',    emoji: '👤', color: 'text-gray-700',    bg: 'bg-gray-50'     },
+  autoasignar_gestion_transferencia: { label: 'Autoasignó transferencia', emoji: '⚙️', color: 'text-violet-700', bg: 'bg-violet-50' },
+  asignar_gestor_transferencia: { label: 'Asignó gestor', emoji: '👤', color: 'text-violet-700', bg: 'bg-violet-50' },
 }
 
 export const ENTIDAD_CONFIG: Record<EntidadAudit, {
