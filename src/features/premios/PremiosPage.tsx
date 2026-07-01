@@ -2,7 +2,6 @@
 // Branching por rol: propietario/admin_gral → vista de supervisión del equipo
 // asesor_comercial y otros con verPremios → vista personal (sin cambios)
 
-import { useState } from 'react'
 import {
   Trophy, Star, CheckCircle2, Lock,
   ChevronRight, FileText, AlertCircle,
@@ -14,12 +13,11 @@ import { db } from '@/lib/firebase'
 import { useQuery } from '@tanstack/react-query'
 import { usePageTitle }      from '@/hooks/usePageTitle'
 import { useAuth }           from '@/hooks/useAuth'
-import { useGestoria }       from '@/hooks/useGestoria'
 import { Spinner }           from '@/components/ui'
 import {
   usePremios, usePremiosEquipo,
   HITO_VISUAL,
-
+  
   formatPesosCompacto,
   type HitoMultaConfig,
   type CicloTramites,
@@ -475,7 +473,7 @@ function SupervisionPremiosView() {
   )
 }
 
-export default function PremiosPage() {
+export default function PremiosPageexport default function PremiosPage() {
   usePageTitle('Premios')
   const { user }                   = useAuth()
   const { data, isLoading, error } = usePremios()
@@ -666,56 +664,14 @@ export default function PremiosPage() {
               const pos     = (h.montoUmbral / maxUmbral) * 100
               const reached = data.hitosAlcanzados.includes(h.id)
               const vis     = HITO_VISUAL[h.id] ?? HITO_VISUAL[1]
-              return (
-                <div
-                  key={h.id}
-                  className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2"
-                  style={{ left: `${pos}%` }}
-                  title={`${vis.label} · ${formatPesosCompacto(h.montoUmbral)}`}
-                >
-                  <div
-                    className="w-4 h-4 rounded-full border-2 flex items-center justify-center"
-                    style={{
-                      background:  reached ? vis.color : '#fff',
-                      borderColor: reached ? vis.color : '#D1D5DB',
-                    }}
-                  />
-                </div>
-              )
-            })}
-          </div>
-
-          <div className="flex flex-wrap gap-x-4 gap-y-1 mt-3">
-            {hitosOrdenados.map(h => {
-              const reached = data.hitosAlcanzados.includes(h.id)
-              const vis     = HITO_VISUAL[h.id] ?? HITO_VISUAL[1]
-              return (
-                <span
-                  key={h.id}
-                  className="text-[10px] font-semibold flex items-center gap-1"
-                  style={{ color: reached ? vis.color : '#9CA3AF' }}
-                >
-                  <span>{vis.icon}</span>
-                  {formatPesosCompacto(h.montoUmbral)}
-                </span>
-              )
-            })}
-          </div>
-        </div>
-
-        <div className="grid grid-cols-1 gap-4">
-          {hitosOrdenados.map(h => (
-            <HitoCard
-              key={h.id}
-              hito={h}
-              alcanzado={data.hitosAlcanzados.includes(h.id)}
-              facturacion={data.facturacionMultas}
-            />
-          ))}
-        </div>
-      </section>
-
-      <PanelDesgloseMultas data={data} />
+  return (
+    <div className="space-y-6 max-w-3xl">
+      <div className="flex items-center gap-2 bg-blue-50 border border-blue-100 rounded-xl px-4 py-2.5">
+        <AlertCircle size={16} className="text-blue-400" />
+        <p className="text-xs text-blue-800">
+          <strong>Supervisión de premios activa.</strong> Eres propietario, ve la vista de equipo.
+        </p>
+      </div>
     </div>
   )
 }
