@@ -2,6 +2,7 @@
 // Branching por rol: propietario/admin_gral → vista de supervisión del equipo
 // asesor_comercial y otros con verPremios → vista personal (sin cambios)
 
+import { useState } from 'react'
 import {
   Trophy, Star, CheckCircle2, Lock,
   ChevronRight, FileText, AlertCircle,
@@ -13,11 +14,12 @@ import { db } from '@/lib/firebase'
 import { useQuery } from '@tanstack/react-query'
 import { usePageTitle }      from '@/hooks/usePageTitle'
 import { useAuth }           from '@/hooks/useAuth'
+import { useGestoria }       from '@/hooks/useGestoria'
 import { Spinner }           from '@/components/ui'
 import {
   usePremios, usePremiosEquipo,
   HITO_VISUAL,
-  
+
   formatPesosCompacto,
   type HitoMultaConfig,
   type CicloTramites,
@@ -406,253 +408,72 @@ function SupervisionPremiosView() {
   const navigate = useNavigate()
   const { mesActual } = useCierreMensual()
   const { gestoriaId } = useGestoria()
-  const { config } = useConfiguracion()
-  const periodoLabel = `${MESES[mesActual.mes]} ${mesActual.anio}`
-
-  // Estado para expandir/colapsar secciones
   const [expandidoAsesores, setExpandidoAsesores] = useState(true)
 
-  // Cargar asesores directamente de Firestore
-  const { data: asesores, isLoading: cargandoAsesores, error: errorAsesores } = useQuery({
+  const { data: asesores, isLoading: cargandoAsesores } = useQuery({
     queryKey: ['asesores-supervisar', gestoriaId],
     enabled: !!gestoriaId,
     staleTime: 1000 * 60 * 5,
     queryFn: async () => {
       if (!gestoriaId) return []
-      
-      const usersCol = collection(db, 'users')
-      const snap = await getDocs(query(
-        usersCol,
-        where('gestoriaId', '==', gestoriaId),
-        where('rol', '==', 'asesor_comercial'),
-        where('activo', '==', true),
-      ))
-
-      // Para cada asesor, calcular sus premios
-      const asesoresConPremios = await Promise.all(
-        snap.docs.map(async (docUser) => {
-          const userData = docUser.data()
-          const uid = docUser.id
-
-          // Calcular premios del asesor
-          const tramitesSnap = await getDocs(query(
-            collection(db, 'tramites'),
-            where('gestoriaId', '==', gestoriaId),
-            where('creadoPor', '==', uid),
-            where('pagado', '==', true),
-          ))
-
-          const tramitesPagados = tramitesSnap.docs.length
-          const totalCobrado = tramitesSnap.docs.reduce(
-            (sum, doc) => sum + (doc.data().totalCobradoCliente ?? 0),
-            0
-          )
-
-          // Calcular premios (simplificado)
-          const cfg = {
-            tramitesPorPremioAuto: (config as any)?.tramitesPorPremioAuto ?? 5,
-            montoPremioAuto: (config as any)?.montoPremioAuto ?? 5000,
-          }
-
-          const premiosGanados = Math.floor(tramitesPagados / cfg.tramitesPorPremioAuto) * cfg.montoPremioAuto
-          const tramitesEnCiclo = tramitesPagados % cfg.tramitesPorPremioAuto
-          const tramitesFaltan = cfg.tramitesPorPremioAuto - tramitesEnCiclo
-
-          return {
-            uid,
-            nombre: userData.nombre || '',
-            apellido: userData.apellido || '',
-            email: userData.email || '',
-            tramitesPagados,
-            totalCobrado,
-            premiosGanados,
-            tramitesEnCiclo,
-            tramitesFaltan,
-            progreso: (tramitesEnCiclo / cfg.tramitesPorPremioAuto) * 100,
-          }
-        })
-      )
-
-      // Ordenar por premios ganados (mayor primero)
+      const snap = await getDocs(query(collection(db, 'users'), where('gestoriaId', '==', gestoriaId), where('rol', '==', 'asesor_comercial'), where('activo', '==', true)))
+      const asesoresConPremios = await Promise.all(snap.docs.map(async (docUser) => {
+        const userData = docUser.data()
+        const uid = docUser.id
+        const tramitesSnap = await getDocs(query(collection(db, 'tramites'), where('gestoriaId', '==', gestoriaId), where('creadoPor', '==', uid), where('pagado', '==', true)))
+        const tramitesPagados = tramitesSnap.docs.length
+        const totalCobrado = tramitesSnap.docs.reduce((sum, doc) => sum + ((doc.data() as any).totalCobradoCliente ?? 0), 0)
+        const premiosGanados = Math.floor(tramitesPagados / 5) * 5000
+        const tramitesEnCiclo = tramitesPagados % 5
+        return { uid, nombre: userData.nombre || '', apellido: userData.apellido || '', email: userData.email || '', tramitesPagados, totalCobrado, premiosGanados, tramitesEnCiclo, tramitesFaltan: 5 - tramitesEnCiclo, progreso: (tramitesEnCiclo / 5) * 100 }
+      }))
       return asesoresConPremios.sort((a, b) => b.premiosGanados - a.premiosGanados)
     },
   })
 
-  if (cargandoAsesores) return <Spinner label="Cargando supervisión de premios..." />
-
-  if (errorAsesores) {
-    return (
-      <div className="flex flex-col items-center justify-center py-20 gap-3">
-        <AlertCircle size={36} className="text-red-400" />
-        <p className="text-gray-500 text-sm">Error al cargar asesores</p>
-      </div>
-    )
-  }
+  if (cargandoAsesores) return <Spinner label="Cargando supervisión..." />
 
   const listaAsesores = asesores || []
   const totalAPagar = listaAsesores.reduce((sum, a) => sum + a.premiosGanados, 0)
-  const totalCobradoEquipo = listaAsesores.reduce((sum, a) => sum + a.totalCobrado, 0)
 
   return (
     <div className="space-y-6 max-w-4xl">
-      {/* Header */}
       <div className="flex items-center gap-2 bg-orange-50 border border-orange-100 rounded-xl px-4 py-2.5">
         <Trophy size={14} className="text-[#D4621A] shrink-0" />
-        <p className="text-xs font-bold text-[#D4621A]">Período: {periodoLabel}</p>
-        <span className="text-xs text-gray-400 ml-1">· Supervisión de premios del equipo</span>
+        <p className="text-xs font-bold text-[#D4621A]">Supervisión de Premios</p>
       </div>
 
-      {/* Título */}
-      <div className="flex items-start justify-between gap-4 flex-wrap">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-2xl flex items-center justify-center" style={{ background: '#D4621A18' }}>
-            <Users size={20} style={{ color: '#D4621A' }} />
-          </div>
-          <div>
-            <h1 className="text-2xl font-extrabold text-gray-900" style={{ fontFamily: 'var(--font-display)' }}>
-              Premios del Equipo
-            </h1>
-            <p className="text-sm text-gray-500">Gestión de pagos de premios a asesores comerciales</p>
-          </div>
+      <div className="grid grid-cols-2 gap-3">
+        <div className="bg-white border border-gray-100 rounded-2xl p-5">
+          <p className="text-xs font-bold text-gray-400 mb-1">Total a pagar</p>
+          <p className="text-2xl font-extrabold" style={{ color: '#D4621A' }}>{formatPesos(totalAPagar)}</p>
         </div>
-        <button
-          onClick={() => navigate('/admin/configuracion?tab=premios')}
-          className="flex items-center gap-2 text-sm font-semibold text-gray-600
-                     bg-white border border-gray-200 hover:border-gray-300 px-4 py-2
-                     rounded-xl transition-all shadow-sm hover:shadow-md"
-        >
-          <Settings size={14} /> Configurar premios
-        </button>
-      </div>
-
-      {/* Total a pagar */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        <div className="bg-white border border-gray-100 rounded-2xl p-5 shadow-sm">
-          <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">
-            Total a pagar este mes
-          </p>
-          <p className="text-3xl font-extrabold" style={{ fontFamily: 'var(--font-display)', color: '#D4621A' }}>
-            {formatPesos(totalAPagar)}
-          </p>
-          <p className="text-xs text-gray-500 mt-1">
-            {listaAsesores.length} asesor{listaAsesores.length !== 1 ? 'es' : ''}
-          </p>
-        </div>
-
-        <div className="bg-white border border-gray-100 rounded-2xl p-5 shadow-sm">
-          <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">
-            Total cobrado del equipo
-          </p>
-          <p className="text-3xl font-extrabold" style={{ fontFamily: 'var(--font-display)', color: '#059669' }}>
-            {formatPesos(totalCobradoEquipo)}
-          </p>
-          <p className="text-xs text-gray-500 mt-1">
-            De {listaAsesores.reduce((sum, a) => sum + a.tramitesPagados, 0)} trámites pagos
-          </p>
+        <div className="bg-white border border-gray-100 rounded-2xl p-5">
+          <p className="text-xs font-bold text-gray-400 mb-1">Asesores</p>
+          <p className="text-2xl font-extrabold">{listaAsesores.length}</p>
         </div>
       </div>
 
-      {/* Lista de asesores */}
-      <div className="space-y-3">
-        <button
-          onClick={() => setExpandidoAsesores(!expandidoAsesores)}
-          className="w-full flex items-center justify-between p-4 bg-white border border-gray-200
-                     rounded-xl hover:border-orange-300 transition-colors"
-        >
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
-              <Users size={20} className="text-blue-600" />
+      {listaAsesores.map((a) => (
+        <div key={a.uid} className="p-4 bg-white rounded-xl border border-gray-200">
+          <div className="flex justify-between mb-2">
+            <div>
+              <p className="font-semibold">{a.nombre} {a.apellido}</p>
+              <p className="text-xs text-gray-500">{a.email}</p>
             </div>
-            <div className="text-left">
-              <p className="font-semibold text-gray-900">Asesores comerciales</p>
-              <p className="text-xs text-gray-500">
-                {listaAsesores.length} asesor{listaAsesores.length !== 1 ? 'es' : ''} · Total: {formatPesos(totalAPagar)}
-              </p>
-            </div>
+            <p className="text-lg font-bold" style={{ color: '#D4621A' }}>{formatPesos(a.premiosGanados)}</p>
           </div>
-          {expandidoAsesores ? <ChevronRight size={18} /> : <ChevronRight size={18} />}
-        </button>
-
-        {expandidoAsesores && (
-          <div className="space-y-2 pl-3">
-            {listaAsesores.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-12 text-gray-300">
-                <Users size={36} className="mb-3 opacity-40" />
-                <p className="text-base font-semibold text-gray-400">Sin asesores comerciales</p>
-              </div>
-            ) : (
-              listaAsesores.map((asesor) => (
-                <div
-                  key={asesor.uid}
-                  className="p-4 bg-white rounded-lg border border-gray-200 hover:border-orange-300 transition-colors"
-                >
-                  <div className="flex items-start justify-between mb-3">
-                    <div>
-                      <p className="font-semibold text-gray-900">
-                        {asesor.nombre} {asesor.apellido}
-                      </p>
-                      <p className="text-xs text-gray-500">{asesor.email}</p>
-                    </div>
-                    <div className="text-right">
-                      <p className="text-xs text-gray-400 mb-0.5">A pagar</p>
-                      <p className="text-lg font-bold" style={{ color: '#D4621A' }}>
-                        {formatPesos(asesor.premiosGanados)}
-                      </p>
-                    </div>
-                  </div>
-
-                  {/* Progreso */}
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between text-xs">
-                      <span className="text-gray-600">Progreso</span>
-                      <span className="font-semibold">{Math.round(asesor.progreso)}%</span>
-                    </div>
-                    <div className="w-full h-2 bg-gray-200 rounded-full overflow-hidden">
-                      <div
-                        className="h-full bg-orange-400 transition-all"
-                        style={{ width: `${Math.min(100, asesor.progreso)}%` }}
-                      />
-                    </div>
-                  </div>
-
-                  {/* Resumen */}
-                  <div className="mt-3 pt-3 border-t border-gray-100 grid grid-cols-3 gap-2 text-center">
-                    <div>
-                      <p className="text-xs text-gray-500">Pagados</p>
-                      <p className="text-sm font-bold">{asesor.tramitesPagados}</p>
-                    </div>
-                    <div>
-                      <p className="text-xs text-gray-500">Cobrado</p>
-                      <p className="text-sm font-bold">{formatPesosCompacto(asesor.totalCobrado)}</p>
-                    </div>
-                    <div>
-                      <p className="text-xs text-gray-500">Premios</p>
-                      <p className="text-sm font-bold text-orange-600">{Math.floor(asesor.tramitesPagados / 5)}</p>
-                    </div>
-                  </div>
-                </div>
-              ))
-            )}
+          <div className="h-2 bg-gray-200 rounded" style={{ width: '100%' }}>
+            <div className="h-full bg-orange-400 rounded" style={{ width: `${Math.min(100, a.progreso)}%` }} />
           </div>
-        )}
-      </div>
-
-      {/* Info */}
-      <div className="flex items-start gap-3 bg-blue-50 border border-blue-100 rounded-2xl px-5 py-4">
-        <AlertCircle size={16} className="text-blue-400 shrink-0 mt-0.5" />
-        <p className="text-sm text-blue-800">
-          <strong>Premios automáticos:</strong> Se calculan según trámites pagados.
-        </p>
-      </div>
+          <div className="mt-2 text-xs text-gray-600">
+            {a.tramitesPagados} pagos · {Math.round(a.progreso)}% progreso
+          </div>
+        </div>
+      ))}
     </div>
   )
 }
-
-// ─── PÁGINA PRINCIPAL
-// ─── PÁGINA PRINCIPAL
-// ─── PÁGINA PRINCIPAL
-// ─── PÁGINA PRINCIPAL
-// ─── PÁGINA PRINCIPAL — branching por rol ────────────────────────────────────
 
 export default function PremiosPage() {
   usePageTitle('Premios')
@@ -845,14 +666,56 @@ export default function PremiosPage() {
               const pos     = (h.montoUmbral / maxUmbral) * 100
               const reached = data.hitosAlcanzados.includes(h.id)
               const vis     = HITO_VISUAL[h.id] ?? HITO_VISUAL[1]
-  return (
-    <div className="space-y-6 max-w-3xl">
-      <div className="flex items-center gap-2 bg-blue-50 border border-blue-100 rounded-xl px-4 py-2.5">
-        <AlertCircle size={16} className="text-blue-400" />
-        <p className="text-xs text-blue-800">
-          <strong>Supervisión de premios activa.</strong> Eres propietario, ve la vista de equipo.
-        </p>
-      </div>
+              return (
+                <div
+                  key={h.id}
+                  className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2"
+                  style={{ left: `${pos}%` }}
+                  title={`${vis.label} · ${formatPesosCompacto(h.montoUmbral)}`}
+                >
+                  <div
+                    className="w-4 h-4 rounded-full border-2 flex items-center justify-center"
+                    style={{
+                      background:  reached ? vis.color : '#fff',
+                      borderColor: reached ? vis.color : '#D1D5DB',
+                    }}
+                  />
+                </div>
+              )
+            })}
+          </div>
+
+          <div className="flex flex-wrap gap-x-4 gap-y-1 mt-3">
+            {hitosOrdenados.map(h => {
+              const reached = data.hitosAlcanzados.includes(h.id)
+              const vis     = HITO_VISUAL[h.id] ?? HITO_VISUAL[1]
+              return (
+                <span
+                  key={h.id}
+                  className="text-[10px] font-semibold flex items-center gap-1"
+                  style={{ color: reached ? vis.color : '#9CA3AF' }}
+                >
+                  <span>{vis.icon}</span>
+                  {formatPesosCompacto(h.montoUmbral)}
+                </span>
+              )
+            })}
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 gap-4">
+          {hitosOrdenados.map(h => (
+            <HitoCard
+              key={h.id}
+              hito={h}
+              alcanzado={data.hitosAlcanzados.includes(h.id)}
+              facturacion={data.facturacionMultas}
+            />
+          ))}
+        </div>
+      </section>
+
+      <PanelDesgloseMultas data={data} />
     </div>
   )
 }
