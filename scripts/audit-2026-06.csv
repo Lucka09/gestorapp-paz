@@ -1,0 +1,53 @@
+tramiteId,patente,nombreCompleto,fechaTramite,pasoActual,estadoWorkflow,requiereSUATS,suatsGenerado,suatsAbonadoP7,pagoTotalRecibo,honorariosActual,costosSUATSActual,estado
+9kTGKb4vNfchw6yXCJjv,AB123CD,"Duarte Lucas",2026-06-05,2,recepcion,no,no,no,0,,,no_requiere
+ALbDLfNJvJIsW1ceARqD,AD454WO,"ricardo teodoro gonzalez",2026-06-02,4,en_gestion,no,no,no,132900,132900,0,no_requiere
+gdAKWLqw8EbMdIzC6BXW,HIG865,"garcia diego javier",2026-06-08,6,descargo_subido,no,no,no,134512,134512,0,no_requiere
+GjqYrXlxb4riLpMZtXiM,A165KCD,"ros matias",2026-06-02,6,descargo_subido,no,no,no,193812,193812,0,no_requiere
+sLojjIBW1rgIkLRWeZbB,NQH660,"quiroga rocio celeste ",2026-06-22,3,en_espera_mesa,no,no,no,551600,551600,0,no_requiere
+tXiaqLMgxfLAPLMZcBc6,AB123CD,"Duarte, Luca",2026-06-05,3,en_revision,no,no,no,0,,,no_requiere
+10EthuHtrCF2yC8XamKe,AB419VB,"latyn santiago ricardo",2026-06-08,3,en_espera_mesa,sí,no,no,248575,248575,0,sin_suatsGenerado_paso6
+5DIiyKnBjkWUV8IrRyYQ,AD552OF,"argentino pablo hernan",2026-06-23,3,en_espera_mesa,sí,no,no,752487,752487,0,sin_suatsGenerado_paso6
+6fsGTTvZNo1O0Mhz5eIB,AH928QY,"vera teresa ofelia",2026-06-08,4,en_gestion,sí,no,no,530920,530920,0,sin_suatsGenerado_paso6
+8s9292AS2hARBpXpt28W,CQV849,"soto juan carlos",2026-06-18,3,en_revision,sí,no,no,306718,306718,0,sin_suatsGenerado_paso6
+cGibMdDSZ5YfNsXslLjf,KJY236,"velazquez diego martin",2026-06-29,3,en_espera_mesa,sí,no,no,531600,531600,0,sin_suatsGenerado_paso6
+DQ7L02yaSxdLUwQ1Ldvd,LFD721,"pereira rodriguez erika zaira malena",2026-06-29,3,en_revision,sí,no,no,171050,171050,0,sin_suatsGenerado_paso6
+Fdh2LGeiIh7KNE5UJEQR,a208jks,"nieto julio argentino",2026-06-11,4,en_gestion,sí,no,no,1200000,,,sin_suatsGenerado_paso6
+glKqjfzAtYSkfdLYWkrX,OFX242,"salas hector mariano",2026-06-25,4,en_gestion,sí,no,no,547600,547600,0,sin_suatsGenerado_paso6
+k1iX0DGcs3clv7Iy5JL7,AA183WF,"ibañez yanina vanesa",2026-06-22,4,en_gestion,sí,no,no,215350,215350,0,sin_suatsGenerado_paso6
+PN2VcNerZ0n94xQspbdT,AB292RN,"bonelli martin ricardo",2026-06-08,3,en_espera_mesa,sí,no,no,503912,503912,0,sin_suatsGenerado_paso6
+rDKn15NBn19kFuSffNGe,kbf882,"gustavo ariel naya",2026-06-08,3,en_revision,sí,no,no,705392,,,sin_suatsGenerado_paso6
+v5j9p7XuvdWF3V72gFZK,LPB915,"monica gabriela sambataro",2026-06-29,4,en_gestion,sí,no,no,597000,597000,0,sin_suatsGenerado_paso6
+VFHXfChqElmZa7JyGJZZ,BRO503,"Ameigide Pablo Adrian",2026-06-24,6,descargo_subido,sí,no,no,288575,288575,0,sin_suatsGenerado_paso6
+zj5hZagb0s7QoKnwTgn0,AA858GZ,"cantarella pablo daniel",2026-06-03,4,en_gestion,sí,no,no,2118920,2118920,0,sin_suatsGenerado_paso6
+23JDXwgmBCK9guHJvDeQ,CKP195,"di donato lautaro martin",2026-06-16,8,completado,sí,sí,sí,2038000,2022000,16000,ya_corregido
+2rPm4hg3790yY7Q3AV4u,AAA999MB,"tomasini jose nazareno",2026-06-19,6,descargo_subido,sí,no,no,215350,215350,16000,ya_corregido
+3PCPjhzBa3vv9BhM8qxR,HII914,"acosta gustavo osvaldo",2026-06-19,6,descargo_subido,sí,no,no,514000,514000,16000,ya_corregido
+4G0Fg19GWQZju5OwLuR7,SWT039,"juan carlos chumen",2026-06-05,6,descargo_subido,sí,no,no,535147,535147,16000,ya_corregido
+52eivi5ozjAYnF726hXE,NMQ349,"romaña miguel angel",2026-06-26,8,completado,sí,sí,sí,281800,265800,16000,ya_corregido
+7wd47SKdxX7LCVAF8kvw,A254QKF,"segovia negrin ramon antonio",2026-06-19,8,completado,sí,sí,sí,174060,158060,16000,ya_corregido
+81vBAsPF8hGNJqh0d8MI,JJS433,"aguirre federico lautaro",2026-06-12,8,completado,sí,sí,sí,597400,581400,16000,ya_corregido
+9ANis3HN1NptkhIF8Y4c,NPP688,"zacarias sebastian andres",2026-06-29,8,completado,sí,sí,sí,414400,398400,16000,ya_corregido
+9IbnXsN4bPQDOVzrSuJY,HKC811,"perdomo marcos",2026-06-04,8,completado,sí,sí,sí,149000,133000,16000,ya_corregido
+ahCdW26n034736rOFbYb,AF397WG,"cicero adalberto david",2026-06-25,8,completado,sí,sí,sí,237500,221500,16000,ya_corregido
+bosUZvRxwd96M0hv8CCD,MVB180,"mendieta yanina estefanis",2026-06-22,8,completado,sí,sí,sí,1930165,1914165,16000,ya_corregido
+D2l2zlb1sAKRCv2VxmNo,AB608IK,"garcia morillo rodrigo patricio",2026-06-25,8,completado,sí,sí,sí,519875,503875,16000,ya_corregido
+eOeBAZ5uFOCpXhbXgqSX,AC015ID,"sanchez juan carlos",2026-06-19,8,completado,sí,sí,sí,315025,279025,16000,ya_corregido
+FkIh3yjDrXRtV7n5OuqX,KAB318,"romano miguel angel ",2026-06-08,8,completado,sí,sí,sí,149000,133000,16000,ya_corregido
+gJoEl6iOEQVl9g2G7EXI,AC129AJ,"oggero luciano daniel ",2026-06-12,8,completado,sí,sí,sí,516174,500174,16000,ya_corregido
+jWjceDIdLggMMGAqoeOk,JXN176,"Rodrigo Rojas Hinojosa",2026-06-03,8,completado,sí,sí,sí,3245000,3229000,16000,ya_corregido
+JxaAGKTjrbsYsnl8uzVs,AD071KK,"edgardo adrian gimenez",2026-06-12,8,completado,sí,sí,sí,754000,738000,16000,ya_corregido
+KSXB3cTEUECDk1Y0kcMH,EOP623,"gonzalez lutike alexis ",2026-06-12,8,completado,sí,sí,sí,400000,384000,16000,ya_corregido
+LARL3s5HB68AxutvXS8Z,GTV543,"juan carlos chumen",2026-06-05,6,descargo_subido,sí,no,no,497149,497149,16000,ya_corregido
+LVgbopbKu7I1SsiB0RWd,AE293WL,"liliana evangelina dure",2026-06-08,8,completado,sí,sí,sí,597000,581000,16000,ya_corregido
+M2dBofs7rXHDX4YWZcoo,ETZ680,"gomez alberto nestor",2026-06-19,6,descargo_subido,sí,no,no,946300,946300,16000,ya_corregido
+MqXuzzPNLjWj3KXsuW65,AH834ZS,"lucio quintana duarte",2026-06-02,8,completado,sí,sí,sí,132000,116000,16000,ya_corregido
+NdM4tRXxNVwVFBMHol5U,AC008FG,"renjifo renfijo juanita",2026-06-22,4,en_gestion,sí,no,no,115675,115675,16000,ya_corregido
+nLy5eS74nOIe4LnYnXny,AB134BL,"karczewski maria esther",2026-06-26,8,completado,sí,sí,sí,503300,487300,16000,ya_corregido
+O2WFq07qu3xJOsfKfBic,A051XER,"alfaro natalia",2026-06-05,8,completado,sí,sí,sí,315000,299000,16000,ya_corregido
+ODREPZAxvZenhxAsek7L,BBV969,"uribe laura valeria",2026-06-04,8,completado,sí,sí,sí,200000,184000,16000,ya_corregido
+OpLReLgkVOI3pGUrwTgT,AC229ZH,"tuozzo alejandro",2026-06-19,6,descargo_subido,sí,no,no,379560,379560,16000,ya_corregido
+oSwXoL2tjghdd4nFNjMH,FPB702,"castro leonardo gabriel",2026-06-03,8,completado,sí,sí,sí,167860,151860,16000,ya_corregido
+p3widXQAHaOF2S87rQ2C,AA010XF,"leonardo aquiles garino",2026-06-02,6,descargo_subido,sí,no,no,364862,364862,16000,ya_corregido
+W3NNOqshaMnrhREA5BT9,AG715ZY,"VIEYRA PABLO MARIANO",2026-06-25,8,completado,sí,sí,sí,281800,265800,16000,ya_corregido
+WmHWoqzQLvtmP3L9HyZg,AB792TW,"mijatovic nicolas esteban",2026-06-20,8,completado,sí,sí,sí,281800,265800,16000,ya_corregido
+y6z4rxnc2SFUyD4VJ8pY,A194YHB,"palombo matias esteban",2026-06-22,8,completado,sí,sí,sí,216000,200000,16000,ya_corregido

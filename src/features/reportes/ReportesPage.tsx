@@ -12,15 +12,14 @@ import {
   getIngresosPorMes, getTiposTramiteFrecuentes, getTopClientes,
 } from '@/lib/firestore/dashboard'
 import { formatPesos } from '@/utils'
-import { ESTADO_TRAMITE_LABELS , TIPO_TRAMITE_LABELS } from '@/types'
+import { ESTADO_TRAMITE_LABELS , TIPO_TRAMITE_LABELS} from '@/types'
 import { descargarPDF, previsualizarPDF } from '@/utils/presupuesto'
 import toast from 'react-hot-toast'
 import { useGestoriaId, useGestoria } from '@/context/GestoriaContext'
 import { useConfiguracion }             from '@/hooks/useConfiguracion'
 import { usePaginacion } from '@/hooks/usePaginacion'
 import { usePageTitle } from '@/hooks/usePageTitle'
-import { getDocs, query, where, collection } from 'firebase/firestore'
-import { db } from '@/lib/firebase'
+import ControlPaginacion from '@/components/shared/ControlPaginacion'
 import { useCierreMensual } from '@/hooks/useCierreMensual'
 import { Archive, AlertTriangle as AlertWarn, ChevronDown, ChevronUp } from 'lucide-react'
 
@@ -28,6 +27,16 @@ const MESES = [
   'Enero','Febrero','Marzo','Abril','Mayo','Junio',
   'Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre',
 ]
+
+// ─── FORMAS DE PAGO — catálogo visual (coincide con FORMA_PAGO_OPTS de Cobranzas) ─
+const FORMA_PAGO_META: Record<string, { label: string; color: string }> = {
+  efectivo:            { label: 'Efectivo',        color: '#22c55e' },
+  transferencia:       { label: 'Transferencia',   color: '#6366f1' },
+  mercadopago:         { label: 'Mercado Pago',    color: '#0EA5E9' },
+  cheque:              { label: 'Cheque',          color: '#F59E0B' },
+  mixto:               { label: 'Mixto',           color: '#A855F7' },
+  sin_especificar:     { label: 'Sin especificar', color: '#9CA3AF' },
+}
 
 function KpiMes({
   label, value, sub, color = '#D4621A',
@@ -127,40 +136,44 @@ export default function ReportesPage() {
       .slice(0, 6)
   }, [tramitesMes])
 
-  // Calcular total SUATS abonado en el mes desde multaWorkflow
-  const calcularSUATSMes = async (): Promise<number> => {
-    try {
-      const inicio = new Date(anio, mes, 1)
-      const fin    = new Date(anio, mes + 1, 0, 23, 59, 59)
-      const snap   = await getDocs(
-        query(collection(db, 'multaWorkflow'), where('gestoriaId', '==', gestoriaId))
-      )
-      let total = 0
-      snap.docs.forEach(d => {
-        const data = d.data() as any
-        if (data.paso7?.suatsAbonado && data.paso7?.montoSUATS > 0) {
-          const fecha = data.paso7?.completadoEn?.toDate?.()
-          if (fecha && fecha >= inicio && fecha <= fin) {
-            total += Number(data.paso7.montoSUATS)
-          }
-        }
-      })
-      return total
-    } catch {
-      return 0
-    }
-  }
+  // ─── Desglose real por forma de pago (reemplaza los valores hardcodeados) ────
+  // Agrupa cobradosMes por t.formaPago y suma honorarios — coincide 1:1 con
+  // kpis.ingresos (misma fuente: cobradosMes.honorarios).
+  const porFormaPago = useMemo(() => {
+    const conteo: Record<string, number> = {}
+    cobradosMes.forEach(t => {
+      const clave = (t as any).formaPago || 'sin_especificar'
+      conteo[clave] = (conteo[clave] ?? 0) + (t.honorarios ?? 0)
+    })
+    return Object.entries(conteo)
+      .map(([forma, monto]) => ({
+        forma,
+        monto,
+        meta: FORMA_PAGO_META[forma] ?? { label: forma, color: '#9CA3AF' },
+      }))
+      .filter(f => f.monto > 0)
+      .sort((a, b) => b.monto - a.monto)
+  }, [cobradosMes])
+
+  // Total SUATS del mes — se lee directo de tramites.costosSUATS (fuente única,
+  // corregida por los scripts de sync fix-suats-facturacion / apply-suats-confirmados),
+  // NO de multaWorkflow.paso7. Esto asegura que cuente también los casos ya
+  // desglosados cuyo workflow de multa todavía no cerró el paso 7 — antes esos
+  // quedaban afuera de esta tarjeta aunque el honorario ya estuviera corregido.
+  const suatsMes = useMemo(() =>
+    tramitesMes.reduce((a, t) => a + (((t as any).costosSUATS as number) ?? 0), 0),
+  [tramitesMes])
 
   const handleGenerar = async () => {
     setGenerando(true)
     setPdfBlob(null)
     try {
-      const [ingresosMes, tiposTramite, topClientes, totalSUATSMes] = await Promise.all([
+      const [ingresosMes, tiposTramite, topClientes] = await Promise.all([
         getIngresosPorMes(gestoriaId, 6),
         getTiposTramiteFrecuentes(gestoriaId),
         getTopClientes(gestoriaId, 8),
-        calcularSUATSMes(),
       ])
+      const totalSUATSMes = suatsMes
       const { blob, nombre } = await generarReporteMensual({
         mes, anio, tramites, clientes, ingresosMes, tiposTramite, topClientes,
         totalSUATSMes,
@@ -477,6 +490,102 @@ export default function ReportesPage() {
           </div>
         ) : (
           <>
+            {/* KPIs Principales */}
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-5">
+              <Card className="p-4">
+                <p className="text-xs font-bold text-gray-400 mb-2">TOTAL COBRADO</p>
+                <p className="text-2xl font-extrabold text-emerald-700">{formatPesos(kpis.ingresos)}</p>
+                <p className="text-[10px] text-gray-400 mt-1">{cobradosMes.length} pagos</p>
+              </Card>
+              <Card className="p-4">
+                <p className="text-xs font-bold text-gray-400 mb-2">HONORARIOS GESTORÍA</p>
+                <p className="text-2xl font-extrabold" style={{color: '#D4621A'}}>{formatPesos(kpis.ingresos - (suatsMes || 0))}</p>
+                <p className="text-[10px] text-gray-400 mt-1">(Sin SUATS)</p>
+              </Card>
+              <Card className="p-4">
+                <p className="text-xs font-bold text-gray-400 mb-2">SUATS ABONADO</p>
+                <p className="text-2xl font-extrabold text-orange-600">{formatPesos(suatsMes || 0)}</p>
+                <p className="text-[10px] text-gray-400 mt-1">${16000} × {Math.floor((suatsMes || 0)/16000)}</p>
+              </Card>
+              <Card className="p-4">
+                <p className="text-xs font-bold text-gray-400 mb-2">ENTREGADOS</p>
+                <p className="text-2xl font-extrabold text-blue-600">{kpis.entregados}</p>
+                <p className="text-[10px] text-gray-400 mt-1">de {kpis.total}</p>
+              </Card>
+              <Card className="p-4">
+                <p className="text-xs font-bold text-gray-400 mb-2">CLIENTES</p>
+                <p className="text-2xl font-extrabold text-purple-600">{kpis.clientes_u}</p>
+                <p className="text-[10px] text-gray-400 mt-1">únicos</p>
+              </Card>
+            </div>
+
+            {suatsMes > 0 && (
+              <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 mb-5 flex gap-3">
+                <AlertWarn size={18} className="text-amber-600 shrink-0 mt-0.5" />
+                <div>
+                  <p className="font-bold text-sm text-amber-900">Cuidado con la diferencia de caja</p>
+                  <p className="text-xs text-amber-700 mt-1">
+                    Se abonaron {formatPesos(suatsMes)} en SUATS. Este monto <strong>no impacta en premios de la Asesora Comercial</strong>.
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {/* Desglose de Ingresos y Formas de Pago */}
+            <Card className="p-5 mb-5 space-y-4">
+              <div className="flex items-center gap-2">
+                <DollarSign size={16} className="text-gray-400" />
+                <p className="font-bold text-gray-700">DESGLOSE DE INGRESOS</p>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-3">
+                  <div className="flex justify-between items-center py-2 border-b border-gray-100">
+                    <span className="text-sm text-gray-600">Total ingresado</span>
+                    <span className="font-bold text-emerald-600">{formatPesos(kpis.ingresos)}</span>
+                  </div>
+                  <div className="flex justify-between items-center py-2 border-b border-gray-100">
+                    <span className="text-sm text-gray-600">SUATS abonado</span>
+                    <span className="font-bold text-orange-600">−{formatPesos(suatsMes || 0)}</span>
+                  </div>
+                  <div className="flex justify-between items-center py-2 border-b border-gray-100">
+                    <span className="text-sm text-gray-600">Informe persona</span>
+                    <span className="font-bold text-red-600">−$20.000</span>
+                  </div>
+                  <div className="flex justify-between items-center py-3 bg-emerald-50 px-3 rounded-lg">
+                    <span className="font-bold text-gray-800">Honorarios gestoría</span>
+                    <span className="font-extrabold text-emerald-700 text-lg">{formatPesos((kpis.ingresos - (suatsMes || 0) - 20000) || 0)}</span>
+                  </div>
+                </div>
+                <div className="space-y-3">
+                  <p className="font-bold text-gray-700 text-sm">FORMAS DE PAGO</p>
+                  {porFormaPago.length === 0 ? (
+                    <p className="text-xs text-gray-400">Sin cobros registrados en {mesLabel}</p>
+                  ) : (
+                    porFormaPago.map(f => {
+                      const pct = kpis.ingresos > 0 ? (f.monto / kpis.ingresos) * 100 : 0
+                      return (
+                        <div key={f.forma} className="space-y-1">
+                          <div className="flex justify-between text-xs mb-1">
+                            <span className="text-gray-600">{f.meta.label}</span>
+                            <span className="font-semibold">
+                              {formatPesos(f.monto)}
+                              <span className="text-gray-400 font-normal ml-1">({Math.round(pct)}%)</span>
+                            </span>
+                          </div>
+                          <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+                            <div
+                              className="h-full transition-all"
+                              style={{ width: `${pct}%`, backgroundColor: f.meta.color }}
+                            />
+                          </div>
+                        </div>
+                      )
+                    })
+                  )}
+                </div>
+              </div>
+            </Card>
+
             {/* Cabecera */}
             <div className="grid grid-cols-5 gap-2 px-5 py-2 bg-gray-50 border-b border-gray-100
                             text-xs font-bold text-gray-400 uppercase tracking-wider">
@@ -486,7 +595,7 @@ export default function ReportesPage() {
               <span className="text-right">Cobrado</span>
             </div>
 
-            {tramitesMes.slice(0, 20).map(t => (
+            {pag.itemsPagina.map(t => (
               <div key={t.id}
                 className="grid grid-cols-5 gap-2 px-5 py-2.5 border-b border-gray-50
                            last:border-0 hover:bg-gray-50 transition-colors text-sm">
@@ -515,9 +624,22 @@ export default function ReportesPage() {
               </div>
             ))}
 
-            {tramitesMes.length > 20 && (
-              <div className="px-5 py-3 text-center text-xs text-gray-400">
-                Mostrando 20 de {tramitesMes.length} · El PDF incluye todos
+            {/* Paginación real — antes solo se veían los primeros 20 de N */}
+            <div className="px-5 py-3">
+              <ControlPaginacion
+                pagina={pag.pagina}
+                paginas={pag.paginas}
+                desde={pag.desde}
+                hasta={pag.hasta}
+                total={pag.total}
+                onChange={pag.setPagina}
+                labelItem="trámites"
+              />
+            </div>
+
+            {tramitesMes.length > pag.itemsPagina.length && (
+              <div className="px-5 pb-3 text-center text-[11px] text-gray-400">
+                El PDF exportado incluye los {tramitesMes.length} trámites del mes, no solo la página actual.
               </div>
             )}
 

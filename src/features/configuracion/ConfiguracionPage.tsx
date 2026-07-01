@@ -475,12 +475,16 @@ interface HitoMultaConfigLocal {
 interface PremiosConfigLocal {
   montoPremioA:       number
   tramitesPorPremioA: number
+  montoPremioM:       number
+  tramitesPorPremioM: number
   hitosMultas:        HitoMultaConfigLocal[]
 }
 
 const PREMIOS_DEFAULT: PremiosConfigLocal = {
   montoPremioA:       50_000,
   tramitesPorPremioA: 3,
+  montoPremioM:       30_000,
+  tramitesPorPremioM: 3,
   hitosMultas: [
     { id: 1, montoUmbral: 10_000_000, premioMonto: 0, descripcion: 'Primer hito — $10M en multas' },
     { id: 2, montoUmbral: 15_000_000, premioMonto: 0, descripcion: 'Segundo hito — $15M en multas' },
