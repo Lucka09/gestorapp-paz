@@ -259,7 +259,7 @@ export function useTransferenciaWorkflow(tramiteId: string) {
   }, [tramiteId, gestoriaId, user, nombreUsuario])
 
   // ── Paso 6 — Retiro con geo ──────────────────────────────────────────────────
-  const confirmarPaso6 = useCallback(async (
+   const confirmarPaso6 = useCallback(async (
     campos:  Omit<TrfPaso6Data, 'completadoEn' | 'geoRetiro' | 'fotoComprobanteRetiro'>,
     geo?:    GeoRegistro,
     archivo?: File,
@@ -278,11 +278,15 @@ export function useTransferenciaWorkflow(tramiteId: string) {
       }
       await confirmarTrfPaso6(tramiteId, {
         ...campos,
-        geoRetiro:            geo,
-        fotoComprobanteRetiro: fotoComprobanteRetiro!,
+        geoRetiro:             geo,
+        fotoComprobanteRetiro,   // ← ya no fuerza "!" — undefined es válido ahora
         completadoPor: user.uid, completadoPorNombre: nombreUsuario,
       })
-      toast.success('Retiro confirmado ✓')
+      toast.success(
+        fotoComprobanteRetiro
+          ? 'Retiro confirmado ✓'
+          : 'Retiro confirmado ✓ (sin foto — quedó como recordatorio pendiente)'
+      )
     } catch { toast.error('Error al confirmar retiro') }
     finally { setGuardando(false); setProgreso(0) }
   }, [tramiteId, gestoriaId, user, nombreUsuario])
@@ -315,11 +319,19 @@ export function useTransferenciaWorkflow(tramiteId: string) {
   }, [tramiteId, gestoriaId, user, nombreUsuario, workflow])
 
   // ── Asignar gestor ───────────────────────────────────────────────────────────
-  const asignarGestor = useCallback(async (gestorId: string, gestorNombre: string) => {
-    await asignarGestorTransferencia(tramiteId, gestorId, gestorNombre)
-      .then(() => toast.success('Gestor asignado'))
+ const asignarGestor = useCallback(async (gestorId: string, gestorNombre: string) => {
+    if (!user || !gestoriaId) return
+    await asignarGestorTransferencia(tramiteId, gestorId, gestorNombre, {
+      uid: user.uid,
+      nombre: nombreUsuario,
+      rol: user.rol,
+      gestoriaId,
+    })
+      .then(() => toast.success(
+        user.uid === gestorId ? 'Te asignaste la gestión' : 'Gestor asignado'
+      ))
       .catch(() => toast.error('Error al asignar gestor'))
-  }, [tramiteId])
+  }, [tramiteId, user, nombreUsuario, gestoriaId])
 
   return {
     workflow, loading, guardando, error, progreso,

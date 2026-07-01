@@ -42,7 +42,7 @@ const PREFETCH_MAP: Record<string, () => Promise<unknown>> = {
 }
 
 const NAV_ITEMS_ALL = [
-  { to: '/admin/dashboard',        icon: LayoutDashboard, label: 'Dashboard',        permiso: 'verDashboard'   },
+  { to: '/admin/dashboard',        icon: LayoutDashboard, label: 'Panel de Mando',        permiso: 'verDashboard'   },
   { to: '/admin/clientes',         icon: Users,           label: 'Clientes',         permiso: 'verClientes'    },
   { to: '/admin/vehiculos',        icon: Car,             label: 'Vehículos',        permiso: 'verVehiculos'   },
   { to: '/admin/tramites',         icon: FileText,        label: 'Trámites',         permiso: 'verTramites'    },

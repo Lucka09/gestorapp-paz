@@ -185,6 +185,11 @@ export function useCierreMensual() {
       await refetchPendiente()
       await refetchHist()
     } catch (err: any) {
+      // ─── DEBUG TEMPORAL ───────────────────────────────────────────────────
+      console.error('[useCierreMensual] Error completo:', err)
+      console.error('[useCierreMensual] Código:', err?.code)
+      console.error('[useCierreMensual] Mensaje:', err?.message)
+      // ────────────────────────────────────────────────────────────────────
       toast.error(err?.message ?? 'Error al registrar el cierre')
     } finally {
       setCerrando(false)

@@ -1098,28 +1098,37 @@ export default function GestorMultaWorkflow({ tramiteId, numeroLITExterno }: Pro
                 ))}
               </div>
 
+              
               {/* SUATS abonado */}
-              <div className="border border-gray-100 rounded-xl overflow-hidden">
-                <label className="flex items-center gap-2 p-3 cursor-pointer text-sm hover:bg-gray-50 transition-colors">
-                  <input type="checkbox" checked={p7.suatsAbonado}
-                    onChange={e => setP7(prev => ({ ...prev, suatsAbonado: e.target.checked, montoSUATS: e.target.checked ? prev.montoSUATS : 0 }))}
-                    className="accent-[#D4621A]" />
-                  <span className="font-medium text-gray-700">¿Se abonó SUATS?</span>
-                  <span className="text-xs text-gray-400 ml-auto">(opcional)</span>
-                </label>
-                {p7.suatsAbonado && (
-                  <div className="px-3 pb-3 border-t border-gray-100 bg-amber-50/40">
-                    <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider block mb-1.5 mt-2.5">Monto abonado SUATS *</label>
-                    <div className="relative">
-                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm font-bold text-gray-400">$</span>
-                      <input type="number" min={0} step={100} value={p7.montoSUATS || ''}
-                        onChange={e => setP7(prev => ({ ...prev, montoSUATS: Number(e.target.value) }))} placeholder="0"
-                        className="w-full pl-7 pr-3 py-2.5 border border-amber-200 rounded-xl text-sm font-bold text-amber-800 bg-white outline-none focus:border-[#D4621A]" />
-                    </div>
-                    {p7.montoSUATS > 0 && <p className="text-xs text-amber-600 mt-1.5">📊 Se registrará en el reporte mensual como SUATS abonado.</p>}
-                  </div>
-                )}
-              </div>
+<div className={`border rounded-xl overflow-hidden ${workflow.paso1?.requiereSUATS ? 'border-red-300 bg-red-50' : 'border-gray-100'}`}>
+  <label className={`flex items-center gap-2 p-3 cursor-pointer text-sm hover:bg-opacity-70 transition-colors ${workflow.paso1?.requiereSUATS ? 'bg-red-50' : 'hover:bg-gray-50'}`}>
+    <input type="checkbox" checked={p7.suatsAbonado}
+      onChange={e => setP7(prev => ({ ...prev, suatsAbonado: e.target.checked, montoSUATS: e.target.checked ? prev.montoSUATS : 0 }))}
+      className="accent-[#D4621A]" />
+    <span className="font-medium text-gray-700">¿Se abonó SUATS?</span>
+    <span className={`text-xs ml-auto font-bold ${workflow.paso1?.requiereSUATS ? 'text-red-600' : 'text-gray-400'}`}>
+      {workflow.paso1?.requiereSUATS ? '⚠️ REQUERIDO ($16.000)' : '(opcional)'}
+    </span>
+  </label>
+  {workflow.paso1?.requiereSUATS && !p7.suatsAbonado && (
+    <div className="px-3 py-2 bg-red-100 border-t border-red-300 text-xs text-red-700 font-bold">
+      ⚠️ Esta multa REQUIERE abonar SUATS - debe marcarse como "Sí, se abonó"
+    </div>
+  )}
+  {p7.suatsAbonado && (
+    <div className="px-3 pb-3 border-t border-gray-100 bg-amber-50/40">
+      <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider block mb-1.5 mt-2.5">Monto abonado SUATS *</label>
+      <div className="relative">
+        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm font-bold text-gray-400">$</span>
+        <input type="number" min={0} step={100} value={p7.montoSUATS || ''}
+          onChange={e => setP7(prev => ({ ...prev, montoSUATS: Number(e.target.value) }))} 
+          placeholder={workflow.paso1?.requiereSUATS ? '16000' : '0'}
+          className="w-full pl-7 pr-3 py-2.5 border border-amber-200 rounded-xl text-sm font-bold text-amber-800 bg-white outline-none focus:border-[#D4621A]" />
+      </div>
+      {p7.montoSUATS > 0 && <p className="text-xs text-amber-600 mt-1.5">📊 Se registrará en el reporte mensual como SUATS abonado.</p>}
+    </div>
+  )}
+</div>
 
               {/* Informe de Persona */}
               <div className="border border-gray-100 rounded-xl overflow-hidden">
@@ -1198,7 +1207,7 @@ export default function GestorMultaWorkflow({ tramiteId, numeroLITExterno }: Pro
               <button
                 disabled={
                   !puedeCerrarPaso7 || !p7.clienteAvisado || !p7.pagoTotalRecibo ||
-                  (!!workflow.paso1?.requiereSUATS && !p7.suatsEntregado) ||
+                  (!!workflow.paso1?.requiereSUATS && !p7.suatsAbonado) ||
                   (p7.suatsAbonado && !p7.montoSUATS) ||
                   (p7.informePersonaRealizado && !p7.montoInformePersona) || guardando
                 }

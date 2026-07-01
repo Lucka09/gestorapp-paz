@@ -14,6 +14,8 @@ import type {
   MultaPaso4Data, MultaPaso5Data, MultaPaso6Data, MultaPaso7Data,
   EstadoMultaWorkflow, RegistroPago,
 } from '@/multa_types'
+import { crearRecibo, generarNumeroRecibo } from '@/lib/firestore/recibos'
+import { notificarRecibo } from '@/lib/firestore/alertas'
  
 // ─── REFS ─────────────────────────────────────────────────────────────────────
  
@@ -272,7 +274,7 @@ export async function confirmarPaso6Multa(
   })
 }
  
-// ─── PASO 7: Cierre ───────────────────────────────────────────────────────────
+// ─── PASO 7: Cierre (REEMPLAZA la función completa) ───────────────────────────
  
 export async function confirmarPaso7Multa(
   tramiteId:  string,
@@ -284,14 +286,11 @@ export async function confirmarPaso7Multa(
   for (const [k, v] of Object.entries({ ...data, completadoEn: Timestamp.now() })) {
     if (v !== undefined) paso7Clean[k] = v
   }
-
-  // ── Calcular totales para el trámite principal ─────────────────────────────
-  // El campo honorarios del trámite = total cobrado al cliente (honorarios gestoría)
-  // Los costos adicionales (SUATS, informe persona) se guardan en paso7 para reportes
+ 
   const honorariosGestoria = data.pagoTotalRecibo
     - (data.suatsAbonado && data.montoSUATS ? data.montoSUATS : 0)
     - (data.informePersonaRealizado && data.montoInformePersona ? data.montoInformePersona : 0)
-
+ 
   // 1. Cerrar el workflow de multa
   await updateDoc(workflowDoc(tramiteId), {
     paso7:          paso7Clean,
@@ -299,13 +298,8 @@ export async function confirmarPaso7Multa(
     estadoWorkflow: 'completado',
     actualizadoEn:  serverTimestamp(),
   })
-
+ 
   // 2. Actualizar el trámite principal con el desglose financiero completo
-  //    - honorarios: lo que cobró la gestoría por sus servicios
-  //    - pagado: true (se confirmó el pago del recibo)
-  //    - campos extra de costos para reportes y cobranzas
-  // Canal → formaPago: mapear el canal de entrega a una forma de pago legible
-  // para que CobranzasPage y ReportesPage lo muestren correctamente.
   const formaPagoMap: Record<string, string> = {
     presencial: 'efectivo',
     whatsapp:   'transferencia',
@@ -313,30 +307,60 @@ export async function confirmarPaso7Multa(
     otro:       'mixto',
   }
   const formaPago = formaPagoMap[data.canalEntrega] ?? 'efectivo'
-
+ 
   await updateDoc(doc(tramitesCol, tramiteId), {
     honorarios:      honorariosGestoria > 0 ? honorariosGestoria : data.pagoTotalRecibo,
     pagado:          true,
     fechaPago:       serverTimestamp(),
-    // [FIX] formaPago — necesario para que Cobranzas muestre el método de cobro
     formaPago,
     notasPago:       data.observacionFinal ?? '',
-    // Desglose completo para reportes y usePremios
     costosSUATS:          data.suatsAbonado ? (data.montoSUATS ?? 0) : 0,
     costosInformePersona: data.informePersonaRealizado ? (data.montoInformePersona ?? 0) : 0,
     totalCobradoCliente:  data.pagoTotalRecibo,
     actualizadoEn:        serverTimestamp(),
   })
-
-  // 3. Marcar como entregado — desaparece de Torre de Control
+ 
+  // 3. NUEVO — Recibo TOTAL de cierre + alerta al propietario (best-effort:
+  //    si falla, no revierte nada de lo anterior, solo no hay comprobante).
+  try {
+    const tramiteSnap = await getDoc(doc(tramitesCol, tramiteId))
+    if (tramiteSnap.exists()) {
+      const tramite = tramiteSnap.data() as any
+      const numeroRecibo = await generarNumeroRecibo(gestoriaId)
+      const reciboId = await crearRecibo({
+        numeroRecibo,
+        tramiteId,
+        clienteId:    tramite.clienteId,
+        gestoriaId,
+        tipo:         'total',
+        monto:        data.pagoTotalRecibo,
+        montoCobradoAcumulado: data.pagoTotalRecibo,
+        honorariosTotales:     data.pagoTotalRecibo,
+        formaPago,
+        notas:        data.observacionFinal ?? '',
+        patente:      tramite.patente,
+        numeroTramite: tramite.numero,
+        tipoTramite:  tramite.tipo,
+        emitidoPor:       data.completadoPor,
+        emitidoPorNombre: data.completadoPorNombre,
+      })
+      await notificarRecibo({
+        gestoriaId, tramiteId, reciboId, numeroRecibo,
+        monto: data.pagoTotalRecibo, tipo: 'total', patente: tramite.patente,
+      })
+    }
+  } catch (e) {
+    console.error('[confirmarPaso7Multa] No se pudo generar el recibo/alerta de cierre:', e)
+  }
+ 
+  // 4. Marcar como entregado — desaparece de Torre de Control
   await cambiarEstadoTramite(tramiteId, 'entregado', {
     completadoPor:       data.completadoPor,
     completadoPorNombre: data.completadoPorNombre,
   })
 }
  
-// ─── AGREGAR PAGO POST-PASO2 ─────────────────────────────────────────────────
-// Permite registrar pagos en cualquier momento del workflow sin rehacer el paso 2.
+// ─── AGREGAR PAGO POST-PASO2 (REEMPLAZA la función completa) ─────────────────
  
 export async function agregarPagoMulta(
   tramiteId:   string,
@@ -344,7 +368,7 @@ export async function agregarPagoMulta(
   pagosPrevios: RegistroPago[],
 ): Promise<void> {
   const nuevoTotal = [...pagosPrevios, pago].reduce((s, p) => s + p.monto, 0)
-
+ 
   // 1. Escribir el pago en el workflow
   await updateDoc(workflowDoc(tramiteId), {
     'paso2.historialPagos': arrayUnion(pago),
@@ -352,17 +376,15 @@ export async function agregarPagoMulta(
     'paso2.pagoConfirmado': true,
     actualizadoEn:          serverTimestamp(),
   })
-
-  // 2. Propagar el monto al trámite principal para que aparezca en
-  //    Cobranzas y Reportes sin esperar al cierre (paso 7).
-  //    formaPago se mapea desde el metodoPago del último pago registrado.
+ 
+  // 2. Propagar el monto al trámite principal
   const formaPagoMap: Record<string, string> = {
-    efectivo:     'efectivo',
+    efectivo:      'efectivo',
     transferencia: 'transferencia',
-    mixto:        'mixto',
+    mixto:         'mixto',
   }
   const formaPago = formaPagoMap[pago.metodoPago] ?? 'mixto'
-
+ 
   await updateDoc(doc(tramitesCol, tramiteId), {
     honorarios:          nuevoTotal,
     totalCobradoCliente: nuevoTotal,
@@ -370,13 +392,44 @@ export async function agregarPagoMulta(
     // pagado=false mientras no se complete el workflow — solo se marca true en paso7
     actualizadoEn: serverTimestamp(),
   })
+ 
+  // 3. NUEVO — Recibo PARCIAL + alerta al propietario (best-effort).
+  //    En multas, el cierre real es siempre en paso 7 (puede sumarse SUATS o
+  //    informe de persona más adelante) — por eso ningún pago intermedio es
+  //    "total" todavía, sin importar el monto.
+  try {
+    const tramiteSnap = await getDoc(doc(tramitesCol, tramiteId))
+    if (tramiteSnap.exists()) {
+      const tramite = tramiteSnap.data() as any
+      const gestoriaId = tramite.gestoriaId as string
+      const numeroRecibo = await generarNumeroRecibo(gestoriaId)
+      const reciboId = await crearRecibo({
+        numeroRecibo,
+        tramiteId,
+        clienteId:    tramite.clienteId,
+        gestoriaId,
+        tipo:         'parcial',
+        monto:        pago.monto,
+        montoCobradoAcumulado: nuevoTotal,
+        honorariosTotales:     nuevoTotal,
+        formaPago,
+        notas:        pago.nota ?? '',
+        patente:      tramite.patente,
+        numeroTramite: tramite.numero,
+        tipoTramite:  tramite.tipo,
+        emitidoPor:       pago.registradoPor,
+        emitidoPorNombre: pago.registradoPorNombre,
+      })
+      await notificarRecibo({
+        gestoriaId, tramiteId, reciboId, numeroRecibo,
+        monto: pago.monto, tipo: 'parcial', patente: tramite.patente,
+      })
+    }
+  } catch (e) {
+    console.error('[agregarPagoMulta] No se pudo generar el recibo/alerta:', e)
+  }
 }
-
-// ─── SINCRONIZAR PAGO AL TRÁMITE ─────────────────────────────────────────────
-// Usado cuando el workflow completó pero confirmarPaso7Multa falló antes de
-// escribir pagado/honorarios/fechaPago en el documento del trámite.
-// Lee los datos del workflow y los aplica al trámite manualmente.
-
+ 
 export async function sincronizarPagoMultaAlTramite(
   tramiteId:  string,
   gestoriaId: string,
@@ -388,17 +441,17 @@ export async function sincronizarPagoMultaAlTramite(
 }> {
   const snap = await getDoc(workflowDoc(tramiteId))
   if (!snap.exists()) throw new Error('Workflow no encontrado')
-
+ 
   const wf = snap.data() as any
-
+ 
   // Leer totales: si existe paso7 usarlo, si no usar historialPagos del paso2
   const paso7 = wf.paso7
   const paso2 = wf.paso2
-
+ 
   let pagoTotalRecibo   = 0
   let costosSUATS       = 0
   let costosInforme     = 0
-
+ 
   if (paso7?.pagoTotalRecibo) {
     // Workflow completado normalmente — usar datos del paso7
     pagoTotalRecibo = Number(paso7.pagoTotalRecibo ?? 0)
@@ -408,9 +461,9 @@ export async function sincronizarPagoMultaAlTramite(
     // Workflow sin paso7 — usar el total del historial de pagos
     pagoTotalRecibo = Number(paso2.montoTotal ?? 0)
   }
-
+ 
   const honorariosGestoria = pagoTotalRecibo - costosSUATS - costosInforme
-
+ 
   // Mapear canal de entrega → formaPago
   const formaPagoMap: Record<string, string> = {
     presencial: 'efectivo',
@@ -420,19 +473,19 @@ export async function sincronizarPagoMultaAlTramite(
   }
   const canalEntrega = paso7?.canalEntrega ?? 'otro'
   const formaPago    = formaPagoMap[canalEntrega] ?? 'efectivo'
-
+ 
   await updateDoc(doc(tramitesCol, tramiteId), {
-    honorarios:           honorariosGestoria > 0 ? honorariosGestoria : pagoTotalRecibo,
-    pagado:               pagoTotalRecibo > 0,
-    fechaPago:            serverTimestamp(),
-    formaPago,
-    notasPago:            paso7?.observacionFinal ?? '',
-    costosSUATS,
-    costosInformePersona: costosInforme,
-    totalCobradoCliente:  pagoTotalRecibo,
-    actualizadoEn:        serverTimestamp(),
-  })
-
+  honorarios:            honorariosGestoria > 0 ? honorariosGestoria : pagoTotalRecibo,
+  pagado:                true,
+  fechaPago:             serverTimestamp(),
+  formaPago,
+  notasPago:             paso7?.observacionFinal ?? '',
+  costosSUATS:           paso7?.suatsAbonado ? (paso7?.montoSUATS ?? 0) : 0,
+  costosInformePersona:  paso7?.informePersonaRealizado ? (paso7?.montoInformePersona ?? 0) : 0,
+  totalCobradoCliente:   pagoTotalRecibo,
+  actualizadoEn:         serverTimestamp(),
+})
+ 
   return {
     honorarios:           honorariosGestoria > 0 ? honorariosGestoria : pagoTotalRecibo,
     totalCobradoCliente:  pagoTotalRecibo,
@@ -440,7 +493,7 @@ export async function sincronizarPagoMultaAlTramite(
     costosInformePersona: costosInforme,
   }
 }
- 
+
 // ─── ASIGNAR ADMIN ────────────────────────────────────────────────────────────
  
 export async function asignarAdminMulta(

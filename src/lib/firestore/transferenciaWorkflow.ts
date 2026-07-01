@@ -14,7 +14,8 @@ import type {
   EstadoTransferenciaWorkflow, SeguimientoEntrada,
 } from '@/transferencia_types'
 import { getConfigPlazos } from '@/transferencia_types'
-
+import { registrarActividad } from '@/lib/firestore/audit'
+import type { Rol } from '@/types'
 // ─── REFS ─────────────────────────────────────────────────────────────────────
 
 const workflowsCol = collection(db, 'transferenciaWorkflow') as CollectionReference<TransferenciaWorkflow>
@@ -66,8 +67,13 @@ export async function confirmarTrfPaso1(
   tramiteId: string,
   data: Omit<TrfPaso1Data, 'creadoEn'>,
 ): Promise<void> {
+  const paso1Clean: Record<string, unknown> = {}
+  for (const [k, v] of Object.entries({ ...data, creadoEn: Timestamp.now() })) {
+    if (v !== undefined) paso1Clean[k] = v
+  }
+ 
   await updateDoc(workflowDoc(tramiteId), {
-    paso1:          { ...data, creadoEn: Timestamp.now() },
+    paso1:          paso1Clean,
     pasoActual:     2,
     estadoWorkflow: 'carga_documentos',
     actualizadoEn:  serverTimestamp(),
@@ -257,10 +263,28 @@ export async function asignarGestorTransferencia(
   tramiteId:    string,
   gestorId:     string,
   gestorNombre: string,
+  ctx?:         { uid: string; nombre: string; rol: Rol; gestoriaId: string },
 ): Promise<void> {
+  const esAutoAsignacion = ctx?.uid === gestorId
+ 
   await updateDoc(workflowDoc(tramiteId), {
     gestorId,
     gestorNombre,
     actualizadoEn: serverTimestamp(),
   })
+ 
+  // Trazabilidad: quién asignó (o se auto-asignó) la gestión del registro
+  if (ctx) {
+    await registrarActividad({
+      accion:        esAutoAsignacion ? 'autoasignar_gestion_transferencia' : 'asignar_gestor_transferencia',
+      entidad:       'tramite',
+      entidadId:     tramiteId,
+      entidadLabel:  gestorNombre,
+      usuarioId:     ctx.uid,
+      usuarioNombre: ctx.nombre,
+      usuarioRol:    ctx.rol,
+      gestoriaId:    ctx.gestoriaId,
+      despues:       { gestorId, gestorNombre, esAutoAsignacion },
+    }).catch(() => {})  // best-effort — no bloquea la asignación si falla el log
+  }
 }

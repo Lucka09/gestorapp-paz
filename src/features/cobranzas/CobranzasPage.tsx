@@ -1,30 +1,38 @@
 import { useState, useMemo } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { usePaginacion }     from '@/hooks/usePaginacion'
 import ControlPaginacion     from '@/components/shared/ControlPaginacion'
 import {
   DollarSign, CheckCircle, Clock, AlertTriangle,
   MessageCircle, Search, Filter, ChevronDown,
   X, ArrowUpDown, Banknote, CreditCard, FileCheck,
-  RotateCcw, TrendingUp,
+  RotateCcw, TrendingUp, Download
 } from 'lucide-react'
+import { getDoc } from 'firebase/firestore'
+import { useConfiguracion } from '@/hooks/useConfiguracion'
+import { clienteDoc }       from '@/lib/firestore/collections'
 import { useTramites }   from '@/hooks/useTramites'
 import { useClientes }   from '@/hooks/useClientes'
+import { useAuth }          from '@/hooks/useAuth'
 import { registrarPago, desmarcarPago } from '@/lib/firestore/tramites'
 import { PageHeader, Card, Button, Input, Select, Spinner } from '@/components/ui'
 import Modal from '@/components/shared/Modal'
 import ConfirmDialog from '@/components/shared/ConfirmDialog'
+import { useGestoriaId }    from '@/context/GestoriaContext'
 import { EstadoBadge } from '@/features/tramites/EstadoBadge'
 import { TIPO_TRAMITE_LABELS } from '@/types'
 import type { Tramite } from '@/types'
 import { formatFecha, formatPesos } from '@/utils'
 import toast from 'react-hot-toast'
 import { usePageTitle } from '@/hooks/usePageTitle'
+import { generarComprobantePago, descargarRecibo } from '@/utils/comprobantePago'
 
 // ─── TIPOS ────────────────────────────────────────────────────────────────────
 
 type FiltroEstadoPago = 'todos' | 'pendiente' | 'pagado' | 'vencido'
 type OrdenCobranza   = 'monto-desc' | 'monto-asc' | 'antiguedad' | 'estado'
-type FormaPago       = 'efectivo' | 'transferencia' | 'cheque' | 'mixto'
+type FormaPago = 'efectivo' | 'transferencia' | 'mercadopago' | 'cheque' | 'mixto'
+type PeriodoCobranza = 'semana' | 'mes' | 'todos'
 
 interface TramiteConCliente extends Tramite {
   clienteNombreCompleto: string
@@ -35,11 +43,18 @@ interface TramiteConCliente extends Tramite {
 const FORMA_PAGO_OPTS = [
   { value: 'efectivo',      label: '💵 Efectivo',          icon: Banknote   },
   { value: 'transferencia', label: '📱 Transferencia',      icon: CreditCard },
+  { value: 'mercadopago',   label: '🔵 Mercado Pago',       icon: CreditCard },
   { value: 'cheque',        label: '📄 Cheque',             icon: FileCheck  },
   { value: 'mixto',         label: '🔀 Mixto',              icon: Banknote   },
 ]
 
-// ─── DÍAS DESDE ÚLTIMA ACTUALIZACIÓN ─────────────────────────────────────────
+const PERIODO_LABELS: Record<PeriodoCobranza, string> = {
+  semana: 'Esta semana',
+  mes:    'Este mes',
+  todos:  'Todo',
+}
+
+// ─── HELPERS DE FECHA ─────────────────────────────────────────────────────────
 
 function diasDesde(t: Tramite): number {
   const d = t.actualizadoEn?.toDate?.()
@@ -54,6 +69,25 @@ function badgeAntiguedad(dias: number) {
   return              { label: `+${dias}d ⚠️`,    cls: 'bg-red-100 text-red-600 font-bold' }
 }
 
+/** Rango de fechas según el período elegido. inicio=null significa "todos". */
+function rangoPeriodo(p: PeriodoCobranza): { inicio: Date | null; fin: Date } {
+  const fin = new Date()
+  if (p === 'todos') return { inicio: null, fin }
+
+  if (p === 'mes') {
+    const inicio = new Date(); inicio.setDate(1); inicio.setHours(0, 0, 0, 0)
+    return { inicio, fin }
+  }
+
+  // 'semana' — lunes de esta semana a hoy (mismo criterio que el Panel de Mando)
+  const inicio = new Date()
+  const dia = inicio.getDay()
+  const diffLunes = dia === 0 ? 6 : dia - 1
+  inicio.setDate(inicio.getDate() - diffLunes)
+  inicio.setHours(0, 0, 0, 0)
+  return { inicio, fin }
+}
+
 // ─── MODAL REGISTRAR PAGO ─────────────────────────────────────────────────────
 
 function ModalPago({
@@ -65,58 +99,112 @@ function ModalPago({
   onClose:       () => void
 }) {
   const hoy = new Date().toISOString().split('T')[0]
-  const [monto,     setMonto]     = useState(String(tramite.honorarios || ''))
+  const { user }     = useAuth()
+  const gestoriaId    = useGestoriaId()
+  const { config }    = useConfiguracion()
+
+  const cobradoPrevio   = ((tramite as any).historialPagos ?? []).reduce(
+    (a: number, p: any) => a + p.monto, 0,
+  )
+  const saldoPendiente  = Math.max(0, tramite.honorarios - cobradoPrevio)
+
+  const [monto,     setMonto]     = useState(String(saldoPendiente || tramite.honorarios || ''))
   const [formaPago, setFormaPago] = useState<string>('efectivo')
   const [fecha,     setFecha]     = useState(hoy)
   const [notas,     setNotas]     = useState('')
   const [saving,    setSaving]    = useState(false)
 
   const handleGuardar = async () => {
+    if (tramite.tipo === 'descargo_multa') {
+      toast.error('Las multas se cobran desde Trámites → Workflow, no desde aquí')
+      return
+    }
     if (!monto || parseFloat(monto) <= 0) { toast.error('Ingresá el monto cobrado'); return }
     if (!fecha)  { toast.error('Seleccioná la fecha del cobro'); return }
+    if (!user)   { toast.error('Sesión no encontrada — recargá la página'); return }
     setSaving(true)
     try {
-      await registrarPago(tramite.id, {
-        monto:     parseFloat(monto),
-        formaPago: formaPago as FormaPago,
-        fecha,
-        notas,
-      })
-      toast.success('Pago registrado correctamente ✅')
+      const montoNum = parseFloat(monto)
+      const resultado = await registrarPago(
+        tramite.id,
+        { monto: montoNum, formaPago: formaPago as FormaPago, fecha, notas },
+        {
+          uid:        user.uid,
+          nombre:     `${user.nombre ?? ''} ${user.apellido ?? ''}`.trim() || user.email || 'Usuario',
+          rol:        user.rol,
+          gestoriaId,
+        },
+      )
+
+      toast.success(
+        resultado.tipo === 'total'
+          ? 'Pago total registrado ✅ — trámite saldado'
+          : 'Pago parcial registrado ✅',
+      )
+
+      try {
+        const clienteSnap = await getDoc(clienteDoc(tramite.clienteId)).catch(() => null)
+        const cliente = clienteSnap?.exists() ? ({ ...clienteSnap.data(), id: clienteSnap.id } as any) : null
+        const blob = await generarComprobantePago({
+          tramite, cliente,
+          gestoriaNombre:      config.nombreComercial ?? 'Gestoría',
+          gestoriaTelefono:    config.telefono1 ?? '',
+          gestoriaWeb:         (config as any).sitioWeb ?? '',
+          gestoriaEmail:       config.email,
+          gestoriaDireccion:   config.direccion,
+          gestoriaResponsable: config.responsable,
+          colorPrimario:       '#D4621A',
+          logoUrl:             '/logo-gp.jpg',
+          reciboNumero:        resultado.numeroRecibo,
+          metodoPago:          formaPago,
+          montoOverride:       montoNum,
+          periodoServicio:     resultado.tipo === 'parcial'
+            ? `Pago parcial — saldo pendiente ${formatPesos(Math.max(0, saldoPendiente - montoNum))}`
+            : undefined,
+        })
+        descargarRecibo(blob, `${resultado.numeroRecibo}.pdf`)
+      } catch (e) {
+        console.error('[ModalPago] No se pudo descargar el PDF al instante:', e)
+        toast('El recibo se guardó — podés descargarlo desde Notificaciones', { icon: '📄' })
+      }
+
       onClose()
-    } catch { toast.error('Error al registrar el pago') }
-    finally { setSaving(false) }
+    } catch {
+      toast.error('Error al registrar el pago')
+    } finally {
+      setSaving(false)
+    }
   }
 
   return (
     <Modal open={open} onClose={onClose} title="Registrar cobro" size="sm"
            subtitle={`${TIPO_TRAMITE_LABELS[tramite.tipo]} — ${clienteNombre}`}>
       <div className="space-y-4">
-        {/* Resumen del trámite */}
         <div className="bg-gray-50 rounded-xl p-3.5 flex items-center justify-between">
           <div>
             <p className="text-sm font-semibold text-gray-800">{TIPO_TRAMITE_LABELS[tramite.tipo]}</p>
             <p className="text-xs text-gray-400 font-mono mt-0.5">{tramite.patente}</p>
+            {cobradoPrevio > 0 && (
+              <p className="text-xs text-emerald-600 mt-1">
+                Ya cobrado: {formatPesos(cobradoPrevio)}
+              </p>
+            )}
           </div>
           <div className="text-right">
-            <p className="text-xs text-gray-400">Honorarios originales</p>
+            <p className="text-xs text-gray-400">Saldo pendiente</p>
             <p className="text-base font-bold" style={{ color: 'var(--gp-orange)' }}>
-              {formatPesos(tramite.honorarios)}
+              {formatPesos(saldoPendiente)}
             </p>
           </div>
         </div>
 
-        {/* Monto cobrado */}
         <Input
           label="Monto cobrado ($) *"
-          type="number"
-          min={0}
-          value={monto}
+          type="number" min={0} value={monto}
           onChange={e => setMonto(e.target.value)}
-          hint="Puede diferir del original si hubo descuento o pago parcial"
+          hint="Si es menor al saldo pendiente, queda registrado como pago parcial"
         />
 
-        {/* Forma de pago */}
         <div>
           <label className="text-xs font-bold text-gray-400 uppercase tracking-wider block mb-2">
             Forma de pago *
@@ -124,8 +212,7 @@ function ModalPago({
           <div className="grid grid-cols-2 gap-2">
             {FORMA_PAGO_OPTS.map(opt => (
               <button
-                key={opt.value}
-                type="button"
+                key={opt.value} type="button"
                 onClick={() => setFormaPago(opt.value)}
                 className={`flex items-center gap-2 px-3 py-2.5 rounded-xl border text-sm
                             font-medium transition-all
@@ -141,26 +228,15 @@ function ModalPago({
           </div>
         </div>
 
-        {/* Fecha */}
-        <Input
-          label="Fecha del cobro *"
-          type="date"
-          value={fecha}
-          max={hoy}
-          onChange={e => setFecha(e.target.value)}
-        />
+        <Input label="Fecha del cobro *" type="date" value={fecha} max={hoy}
+               onChange={e => setFecha(e.target.value)} />
 
-        {/* Notas */}
-        <Input
-          label="Notas (opcional)"
-          value={notas}
-          onChange={e => setNotas(e.target.value)}
-          placeholder="Número de transferencia, cheque, etc."
-        />
+        <Input label="Notas (opcional)" value={notas} onChange={e => setNotas(e.target.value)}
+               placeholder="Número de transferencia, cheque, etc." />
 
         <div className="flex gap-3 pt-2 border-t border-gray-100">
           <Button onClick={handleGuardar} loading={saving} className="flex-1">
-            <CheckCircle size={15} /> Confirmar cobro
+            <Download size={15} /> Confirmar y descargar recibo
           </Button>
           <Button variant="secondary" onClick={onClose}>Cancelar</Button>
         </div>
@@ -187,7 +263,6 @@ function FilaCobranza({
                      last:border-0 hover:bg-gray-50/70 transition-colors
                      ${vencido ? 'bg-red-50/30' : ''}`}>
 
-      {/* Estado pago */}
       <div className="shrink-0">
         {item.pagado
           ? <div className="w-8 h-8 bg-emerald-100 rounded-full flex items-center justify-center">
@@ -200,7 +275,6 @@ function FilaCobranza({
         }
       </div>
 
-      {/* Info principal */}
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 flex-wrap mb-0.5">
           <span className="text-sm font-bold text-gray-900 truncate">
@@ -228,7 +302,6 @@ function FilaCobranza({
         </div>
       </div>
 
-      {/* Monto */}
       <div className="text-right shrink-0">
         <p className={`text-base font-bold
                        ${item.pagado ? 'text-emerald-600' : vencido ? 'text-red-600' : 'text-gray-900'}`}>
@@ -241,7 +314,6 @@ function FilaCobranza({
         )}
       </div>
 
-      {/* Acciones */}
       <div className="flex items-center gap-1.5 shrink-0">
         {!item.pagado ? (
           <>
@@ -280,23 +352,33 @@ export default function CobranzasPage() {
   usePageTitle('Cobranzas')
   const { clientes }                 = useClientes()
 
+  // ── Período (lee ?periodo=semana de la URL — click desde el Panel de Mando) ──
+  const [searchParams, setSearchParams] = useSearchParams()
+  const periodoInicial = (searchParams.get('periodo') as PeriodoCobranza) ?? 'mes'
+  const [periodo, setPeriodo] = useState<PeriodoCobranza>(
+    ['semana', 'mes', 'todos'].includes(periodoInicial) ? periodoInicial : 'mes'
+  )
+  const cambiarPeriodo = (p: PeriodoCobranza) => {
+    setPeriodo(p)
+    setSearchParams(p === 'mes' ? {} : { periodo: p })
+  }
+  const { inicio: periodoInicio, fin: periodoFin } = useMemo(() => rangoPeriodo(periodo), [periodo])
+
   const [search,       setSearch]       = useState('')
   const [filtroEstado, setFiltroEstado] = useState<FiltroEstadoPago>('pendiente')
   const [orden,        setOrden]        = useState<OrdenCobranza>('antiguedad')
   const [modalPago,    setModalPago]    = useState<Tramite | null>(null)
   const [confirmDesm,  setConfirmDesm]  = useState<string | null>(null)
 
-  
-
-  // Mapa clienteId → datos
   const clienteMap = useMemo(() =>
     Object.fromEntries(clientes.map(c => [c.id, c])),
   [clientes])
 
-  // Solo trámites con honorarios > 0
   const tramitesConHonorarios = useMemo<TramiteConCliente[]>(() => {
     return tramites
-      .filter(t => t.honorarios > 0 && t.estado !== 'cancelado')
+      .filter(t => t.honorarios > 0 &&
+         t.estado !== 'cancelado' &&
+         t.tipo !== 'descargo_multa')
       .map(t => {
         const c = clienteMap[t.clienteId]
         return {
@@ -310,16 +392,32 @@ export default function CobranzasPage() {
       })
   }, [tramites, clienteMap])
 
-  // Filtros
+  // Filtros — el período SOLO se aplica a lo que ya está pagado.
+  // Lo pendiente/vencido siempre se ve completo (es "pendiente ahora", no
+  // de un período pasado — no tendría sentido ocultarlo por fecha).
   const filtrados = useMemo(() => {
     let r = tramitesConHonorarios
 
-    // Filtro estado pago
     if (filtroEstado === 'pendiente') r = r.filter(t => !t.pagado)
-    if (filtroEstado === 'pagado')    r = r.filter(t => t.pagado)
     if (filtroEstado === 'vencido')   r = r.filter(t => !t.pagado && t.diasDesdeEntrega > 30)
 
-    // Búsqueda
+    if (filtroEstado === 'pagado') {
+      r = r.filter(t => {
+        if (!t.pagado) return false
+        if (!periodoInicio) return true
+        const fp = t.fechaPago?.toDate?.()
+        return fp && fp >= periodoInicio && fp <= periodoFin
+      })
+    }
+
+    if (filtroEstado === 'todos' && periodoInicio) {
+      r = r.filter(t => {
+        if (!t.pagado) return true
+        const fp = t.fechaPago?.toDate?.()
+        return fp && fp >= periodoInicio && fp <= periodoFin
+      })
+    }
+
     if (search.trim()) {
       const q = search.toLowerCase()
       r = r.filter(t =>
@@ -329,29 +427,36 @@ export default function CobranzasPage() {
       )
     }
 
-    // Orden
     if (orden === 'monto-desc')  r = [...r].sort((a, b) => b.honorarios - a.honorarios)
     if (orden === 'monto-asc')   r = [...r].sort((a, b) => a.honorarios - b.honorarios)
     if (orden === 'antiguedad')  r = [...r].sort((a, b) => b.diasDesdeEntrega - a.diasDesdeEntrega)
     if (orden === 'estado')      r = [...r].sort((a, b) => Number(a.pagado) - Number(b.pagado))
 
     return r
-  }, [tramitesConHonorarios, filtroEstado, search, orden])
+  }, [tramitesConHonorarios, filtroEstado, search, orden, periodoInicio, periodoFin])
 
-  // Paginación
   const pag = usePaginacion(filtrados, { porPagina: 30 })
 
-  // KPIs
+  // KPIs — "Cobrado total" respeta el período elegido
   const kpis = useMemo(() => {
     const todos      = tramitesConHonorarios
     const pendientes = todos.filter(t => !t.pagado)
-    const cobrados   = todos.filter(t => t.pagado)
+    const cobradosTodos = todos.filter(t => t.pagado)
+    const cobradosPeriodo = cobradosTodos.filter(t => {
+      if (!periodoInicio) return true
+      const fp = t.fechaPago?.toDate?.()
+      return fp && fp >= periodoInicio && fp <= periodoFin
+    })
     const vencidos   = pendientes.filter(t => t.diasDesdeEntrega > 30)
     const totalPend  = pendientes.reduce((a, t) => a + t.honorarios, 0)
-    const totalCob   = cobrados.reduce((a, t) => a + t.honorarios, 0)
-    return { pendientes: pendientes.length, cobrados: cobrados.length,
-             vencidos: vencidos.length, totalPend, totalCob }
-  }, [tramitesConHonorarios])
+    const totalCob   = cobradosPeriodo.reduce((a, t) => a + t.honorarios, 0)
+    return {
+      pendientes: pendientes.length,
+      cobrados:   cobradosPeriodo.length,
+      vencidos:   vencidos.length,
+      totalPend, totalCob,
+    }
+  }, [tramitesConHonorarios, periodoInicio, periodoFin])
 
   const handleDesmarcar = async (id: string) => {
     try {
@@ -386,6 +491,29 @@ export default function CobranzasPage() {
         subtitle="Control de honorarios cobrados y pendientes"
       />
 
+      {/* Selector de período */}
+      <div className="flex items-center gap-2 flex-wrap">
+        <span className="text-xs font-bold text-gray-400 uppercase tracking-wider">Período:</span>
+        <div className="flex gap-1.5">
+          {(['semana', 'mes', 'todos'] as PeriodoCobranza[]).map(p => (
+            <button
+              key={p}
+              onClick={() => cambiarPeriodo(p)}
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all
+                          ${periodo === p
+                            ? 'text-white shadow-sm'
+                            : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}
+              style={periodo === p ? { background: 'var(--gp-orange)' } : undefined}
+            >
+              {PERIODO_LABELS[p]}
+            </button>
+          ))}
+        </div>
+        <span className="text-xs text-gray-400 ml-1">
+          (aplica a "Cobrado total" — lo pendiente siempre se ve completo)
+        </span>
+      </div>
+
       {/* KPIs */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         {[
@@ -410,7 +538,7 @@ export default function CobranzasPage() {
           {
             label: 'Cobrado total',
             value: formatPesos(kpis.totalCob),
-            sub:   `${kpis.cobrados} pagado${kpis.cobrados !== 1 ? 's' : ''}`,
+            sub:   `${kpis.cobrados} pagado${kpis.cobrados !== 1 ? 's' : ''} · ${PERIODO_LABELS[periodo]}`,
             color: '#059669', bg: '#F0FDF4',
             icon:  CheckCircle,
             active: filtroEstado === 'pagado',
@@ -455,7 +583,6 @@ export default function CobranzasPage() {
       {/* Filtros */}
       <Card className="p-4">
         <div className="flex gap-3 flex-wrap">
-          {/* Búsqueda */}
           <div className="relative flex-1 min-w-48">
             <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
             <input
@@ -469,7 +596,6 @@ export default function CobranzasPage() {
             />
           </div>
 
-          {/* Orden */}
           <div className="relative">
             <ArrowUpDown size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
             <select
@@ -486,7 +612,6 @@ export default function CobranzasPage() {
             </select>
           </div>
 
-          {/* Resultado */}
           <div className="flex items-center text-sm text-gray-400 px-1">
             {filtrados.length} resultado{filtrados.length !== 1 ? 's' : ''}
           </div>
@@ -513,7 +638,6 @@ export default function CobranzasPage() {
           </div>
         ) : (
           <div>
-            {/* Header tabla */}
             <div className="grid grid-cols-4 gap-4 px-4 py-2.5 bg-gray-50
                             border-b border-gray-100 text-xs font-bold text-gray-400
                             uppercase tracking-wider">
@@ -532,7 +656,6 @@ export default function CobranzasPage() {
               />
             ))}
 
-            {/* Totales + paginación */}
             <div className="px-4 pb-4 pt-2 border-t border-gray-100 space-y-2">
               <div className="flex items-center justify-between">
                 <span className="text-sm font-bold text-gray-600">
@@ -553,7 +676,6 @@ export default function CobranzasPage() {
         )}
       </Card>
 
-      {/* Modal de pago */}
       {modalPago && (
         <ModalPago
           tramite={modalPago}
@@ -567,7 +689,6 @@ export default function CobranzasPage() {
         />
       )}
 
-      {/* Confirm desmarcar */}
       <ConfirmDialog
         open={!!confirmDesm}
         onClose={() => setConfirmDesm(null)}
@@ -586,7 +707,6 @@ export default function CobranzasPage() {
 function SkeletonCobranzas() {
   return (
     <div className="space-y-5 animate-fadein">
-      {/* Header placeholder */}
       <div className="flex items-start justify-between">
         <div className="space-y-2">
           <div className="h-6 w-32 bg-gray-200 rounded-full animate-pulse" />
@@ -594,7 +714,6 @@ function SkeletonCobranzas() {
         </div>
       </div>
 
-      {/* KPI cards skeleton */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         {Array.from({ length: 4 }).map((_, i) => (
           <div key={i} className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 space-y-3">
@@ -606,7 +725,6 @@ function SkeletonCobranzas() {
         ))}
       </div>
 
-      {/* Filter bar skeleton */}
       <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
         <div className="flex gap-3">
           <div className="h-10 flex-1 bg-gray-100 rounded-xl animate-pulse" />
@@ -614,7 +732,6 @@ function SkeletonCobranzas() {
         </div>
       </div>
 
-      {/* Table skeleton */}
       <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden shadow-sm">
         <div className="grid grid-cols-4 gap-4 px-4 py-2.5 bg-gray-50 border-b border-gray-100">
           {[2,1,1,1].map((s,i) => (

@@ -7,7 +7,9 @@ import { tramitesCol, turnosCol, clientesCol, vehiculosCol } from './collections
 import type { Tramite, Turno } from '@/types'
 
 // ─── MÉTRICAS GENERALES ───────────────────────────────────────────────────────
-// ⚡ OPTIMIZADO: lectura única en vez de onSnapshot de colección completa.
+// ⚡ OPTIMIZADO: lectura única (no onSnapshot) + Promise.allSettled (una query
+// rota no tira abajo el resto de las métricas) + refetch por polling desde
+// useDashboard.ts (ver useMetricas), sin listeners permanentes.
 
 export interface MetricasDashboard {
   tramitesHoy:        number
@@ -18,9 +20,13 @@ export interface MetricasDashboard {
   sinPagar:           number
   totalClientes:      number
   totalVehiculos:     number
-  ingresosMes:        number
   ingresosHoy:        number
+  ingresosSemana:     number
+  ingresosMes:        number
+  erroresMetricas:    string[]  // qué sub-métricas fallaron (para debug en consola/UI)
 }
+
+const ESTADOS_ACTIVOS = ['pendiente', 'en_proceso', 'documentacion_requerida', 'en_organismo']
 
 export async function getMetricas(gestoriaId: string): Promise<MetricasDashboard> {
   const hoyInicio = new Date(); hoyInicio.setHours(0, 0, 0, 0)
@@ -28,46 +34,81 @@ export async function getMetricas(gestoriaId: string): Promise<MetricasDashboard
   const mesInicio = new Date(); mesInicio.setDate(1); mesInicio.setHours(0, 0, 0, 0)
   const en7dias   = new Date(); en7dias.setDate(en7dias.getDate() + 7)
 
+  // Semana actual: lunes a hoy (estándar AR/LATAM).
+  // Si el negocio cuenta domingo→sábado, cambiar el cálculo de diffLunes.
+  const semanaInicio = new Date()
+  const diaSemana     = semanaInicio.getDay() // 0 = domingo, 1 = lunes, ...
+  const diffLunes      = diaSemana === 0 ? 6 : diaSemana - 1
+  semanaInicio.setDate(semanaInicio.getDate() - diffLunes)
+  semanaInicio.setHours(0, 0, 0, 0)
+
   const hoyTs    = Timestamp.fromDate(hoyInicio)
   const hoyFinTs = Timestamp.fromDate(hoyFin)
   const mesTs    = Timestamp.fromDate(mesInicio)
   const en7Ts    = Timestamp.fromDate(en7dias)
 
-  const estadosActivos = ['pendiente', 'en_proceso', 'documentacion_requerida', 'en_organismo']
+  const errores: string[] = []
 
-  // getCountFromServer: solo lee metadatos del índice (1 read), no trae documentos.
-  // Ahorra hasta 4000 reads/mes vs getDocs con limit(2000).
+  // Cada query es su propia promesa nombrada. Usamos allSettled: si "turnosProximos"
+  // falla por falta de índice, igual queremos tramitesHoy, ingresosMes, etc.
   const [
-    snapActivos, snapHoy, snapPagados,
-    snapTurnosHoy, snapTurnosProx,
-    cntClientes, cntVehiculos,
-  ] = await Promise.all([
-    getDocs(query(tramitesCol, where('gestoriaId','==',gestoriaId), where('estado','in',estadosActivos), limit(500))),
-    getDocs(query(tramitesCol, where('gestoriaId','==',gestoriaId), where('creadoEn','>=',hoyTs), where('creadoEn','<=',hoyFinTs), limit(200))),
-    getDocs(query(tramitesCol, where('gestoriaId','==',gestoriaId), where('pagado','==',true), where('fechaPago','>=',mesTs), limit(500))),
-    getDocs(query(turnosCol,   where('gestoriaId','==',gestoriaId), where('fecha','>=',hoyTs), where('fecha','<=',hoyFinTs), limit(100))),
-    getDocs(query(turnosCol,   where('gestoriaId','==',gestoriaId), where('fecha','>',hoyFinTs), where('fecha','<=',en7Ts), limit(100))),
+    rActivos, rHoy, rPagados,
+    rTurnosHoy, rTurnosProx,
+    rClientes, rVehiculos,
+  ] = await Promise.allSettled([
+    getDocs(query(tramitesCol, where('gestoriaId','==',gestoriaId), where('estado','in',ESTADOS_ACTIVOS), limit(1000))),
+    getDocs(query(tramitesCol, where('gestoriaId','==',gestoriaId), where('creadoEn','>=',hoyTs), where('creadoEn','<=',hoyFinTs), limit(500))),
+    // ⚠️ Esta misma query alimenta ingresosHoy, ingresosSemana e ingresosMes
+    // (filtramos el mismo snapshot 3 veces, sin lecturas extra).
+    getDocs(query(tramitesCol, where('gestoriaId','==',gestoriaId), where('pagado','==',true), where('fechaPago','>=',mesTs), limit(1000))),
+    getDocs(query(turnosCol,   where('gestoriaId','==',gestoriaId), where('fecha','>=',hoyTs), where('fecha','<=',hoyFinTs), limit(200))),
+    getDocs(query(turnosCol,   where('gestoriaId','==',gestoriaId), where('fecha','>',hoyFinTs), where('fecha','<=',en7Ts), limit(200))),
     getCountFromServer(query(clientesCol,  where('gestoriaId','==',gestoriaId))),
     getCountFromServer(query(vehiculosCol, where('gestoriaId','==',gestoriaId))),
   ])
 
-  const tramitesActivos    = snapActivos.size
-  const tramitesPendientes = snapActivos.docs.filter(d => d.data().estado === 'pendiente').length
-  const sinPagar           = snapActivos.docs.filter(d => !d.data().pagado && (d.data().honorarios ?? 0) > 0).length
-  const tramitesHoy        = snapHoy.size
-  const turnosHoy          = snapTurnosHoy.docs.filter(d => d.data().estado !== 'cancelado').length
-  const turnosProximos     = snapTurnosProx.size
-  const ingresosMes        = snapPagados.docs.reduce((a, d) => a + (d.data().honorarios ?? 0), 0)
-  const ingresosHoy        = snapPagados.docs
+  const log = (label: string, r: PromiseSettledResult<unknown>) => {
+    if (r.status === 'rejected') {
+      console.error(`[getMetricas] falló "${label}":`, r.reason)
+      errores.push(label)
+    }
+  }
+  log('tramitesActivos', rActivos)
+  log('tramitesHoy', rHoy)
+  log('pagadosMes', rPagados)
+  log('turnosHoy', rTurnosHoy)
+  log('turnosProximos', rTurnosProx)
+  log('totalClientes', rClientes)
+  log('totalVehiculos', rVehiculos)
+
+  const snapActivos    = rActivos.status === 'fulfilled' ? rActivos.value : null
+  const snapHoy        = rHoy.status === 'fulfilled' ? rHoy.value : null
+  const snapPagados    = rPagados.status === 'fulfilled' ? rPagados.value : null
+  const snapTurnosHoy  = rTurnosHoy.status === 'fulfilled' ? rTurnosHoy.value : null
+  const snapTurnosProx = rTurnosProx.status === 'fulfilled' ? rTurnosProx.value : null
+
+  const tramitesActivos    = snapActivos?.size ?? 0
+  const tramitesPendientes = snapActivos?.docs.filter(d => d.data().estado === 'pendiente').length ?? 0
+  const sinPagar           = snapActivos?.docs.filter(d => !d.data().pagado && (d.data().honorarios ?? 0) > 0).length ?? 0
+  const tramitesHoy        = snapHoy?.size ?? 0
+  const turnosHoy          = snapTurnosHoy?.docs.filter(d => d.data().estado !== 'cancelado').length ?? 0
+  const turnosProximos     = snapTurnosProx?.size ?? 0
+
+  const ingresosMes    = snapPagados?.docs.reduce((a, d) => a + (d.data().honorarios ?? 0), 0) ?? 0
+  const ingresosHoy    = snapPagados?.docs
     .filter(d => { const fp = d.data().fechaPago?.toDate?.(); return fp && fp >= hoyInicio && fp <= hoyFin })
-    .reduce((a, d) => a + (d.data().honorarios ?? 0), 0)
+    .reduce((a, d) => a + (d.data().honorarios ?? 0), 0) ?? 0
+  const ingresosSemana = snapPagados?.docs
+    .filter(d => { const fp = d.data().fechaPago?.toDate?.(); return fp && fp >= semanaInicio })
+    .reduce((a, d) => a + (d.data().honorarios ?? 0), 0) ?? 0
 
   return {
     tramitesHoy, tramitesPendientes, tramitesActivos,
     turnosHoy, turnosProximos, sinPagar,
-    totalClientes: cntClientes.data().count,
-    totalVehiculos: cntVehiculos.data().count,
-    ingresosMes, ingresosHoy,
+    totalClientes: rClientes.status === 'fulfilled' ? rClientes.value.data().count : 0,
+    totalVehiculos: rVehiculos.status === 'fulfilled' ? rVehiculos.value.data().count : 0,
+    ingresosHoy, ingresosSemana, ingresosMes,
+    erroresMetricas: errores,
   }
 }
 
@@ -227,4 +268,49 @@ export async function getTopClientes(
       ingresos: ingresosPorCliente[clienteId] ?? 0,
     }
   })
+}
+
+// ─── ORIGEN DE CLIENTES — comercial (referidos) y canal digital ──────────────
+// Reemplaza el bloque comentado "PENDIENTE" al final de dashboard.ts.
+// Se basa en el campo `origenCanal` que ya graba ClienteForm.tsx.
+
+import { ORIGEN_CANAL_LABELS, type OrigenCanal } from '@/types'
+
+export interface OrigenCount { canal: OrigenCanal; label: string; cantidad: number }
+
+const CANALES_COMERCIALES: OrigenCanal[] = [
+  'referido_persona', 'concesionaria', 'agencia', 'reventa', 'encargado_multas',
+]
+const CANALES_DIGITALES: OrigenCanal[] = [
+  'instagram', 'facebook', 'google', 'cartel_local', 'whatsapp', 'otro',
+]
+
+export interface ClientesPorOrigen {
+  comercial: OrigenCount[]
+  digital:   OrigenCount[]
+  sinDato:   number  // clientes sin origenCanal asignado (altas viejas, manuales, etc.)
+}
+
+export async function getClientesPorOrigen(gestoriaId: string): Promise<ClientesPorOrigen> {
+  const snap = await getDocs(query(clientesCol, where('gestoriaId', '==', gestoriaId), limit(1000)))
+
+  const conteo: Record<string, number> = {}
+  let sinDato = 0
+  snap.docs.forEach(d => {
+    const canal = d.data().origenCanal as OrigenCanal | undefined
+    if (!canal) { sinDato++; return }
+    conteo[canal] = (conteo[canal] ?? 0) + 1
+  })
+
+  const armar = (lista: OrigenCanal[]): OrigenCount[] =>
+    lista
+      .map(canal => ({ canal, label: ORIGEN_CANAL_LABELS[canal] ?? canal, cantidad: conteo[canal] ?? 0 }))
+      .filter(c => c.cantidad > 0)
+      .sort((a, b) => b.cantidad - a.cantidad)
+
+  return {
+    comercial: armar(CANALES_COMERCIALES),
+    digital:   armar(CANALES_DIGITALES),
+    sinDato,
+  }
 }

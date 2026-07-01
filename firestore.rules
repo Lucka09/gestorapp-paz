@@ -169,8 +169,8 @@ service cloud.firestore {
 
     // ─── WORKFLOW: TRANSFERENCIA ──────────────────────────────────────────────
 
-    match /transferenciaWorkflow/{wfId} {
-      allow read:   if isStaff() && docDeMiGestoria();
+     match /transferenciaWorkflow/{wfId} {
+      allow read:   if isStaff() && (resource == null || docDeMiGestoria());
       allow create: if isStaff() && nuevaDocDeMiGestoria();
       allow update: if isStaff() && docDeMiGestoria();
     }
@@ -266,6 +266,33 @@ service cloud.firestore {
       }
     }
 
+// ─── RECIBOS ──────────────────────────────────────────────────────────────
+ 
+    match /recibos/{reciboId} {
+      allow read:   if isStaff() && docDeMiGestoria();
+      allow create: if isStaff() && nuevaDocDeMiGestoria();
+      // Sin update ni delete — comprobante inmutable
+    }
+ 
+    // ─── CONTADORES DE RECIBOS ────────────────────────────────────────────────
+    // Doc con ID compuesto `{gestoriaId}_{año}` — no tiene gestoriaId como
+    // campo (va en el ID del doc), así que no puede usar docDeMiGestoria().
+    // Se valida que el doc pertenezca a la gestoría del usuario chequeando
+    // que el resource.data.gestoriaId (sí lo guardamos como campo también,
+    // ver generarNumeroRecibo) coincida con miPerfil().gestoriaId.
+ 
+    match /contadoresRecibos/{contadorId} {
+      allow read:  if isStaff() &&
+                      (resource == null || resource.data.gestoriaId == miPerfil().gestoriaId);
+      allow write: if isStaff() &&
+                      request.resource.data.gestoriaId == miPerfil().gestoriaId;
+    }
+ 
+ match /cierresMensuales/{cierreId} {
+      allow read:   if isStaff() &&  (resource == null ||  docDeMiGestoria());
+      allow create: if isAdmin() && nuevaDocDeMiGestoria();
+      // Sin update ni delete — cierre inmutable una vez registrado
+    }
     // ─── PORTAL (acceso cliente) ──────────────────────────────────────────────
 
     match /portalAccesos/{uid} {

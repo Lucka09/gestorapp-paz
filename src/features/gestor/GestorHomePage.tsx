@@ -76,6 +76,7 @@ function calcularAlerta(diasSinMov: number): 0 | 1 | 2 | 3 {
 // ─── COMPONENTE PRINCIPAL ─────────────────────────────────────────────────────
 
 type Tab = 'asignados' | 'mis_tramites'
+type TramiteType = 'todos' | 'descargo_multa' | 'otros'
 
 export default function GestorHomePage() {
   usePageTitle('Portal Gestor')
@@ -85,6 +86,7 @@ export default function GestorHomePage() {
   const { tramites, loading } = useTramites()
 
   const [tab,        setTab]        = useState<Tab>('asignados')
+  const [tramiteType, setTramiteType] = useState<TramiteType>('todos')
   const [modalNuevo, setModalNuevo] = useState(false)
 
   // Trámites asignados al gestor (activos)
@@ -101,6 +103,16 @@ export default function GestorHomePage() {
     [tramites, user?.uid]
   )
 
+  // Filtrar trámites asignados por tipo
+  const tramitesAsignadosFiltrados = useMemo(() => {
+    if (tramiteType === 'descargo_multa') {
+      return tramitesAsignados.filter(t => t.tipo === 'descargo_multa')
+    } else if (tramiteType === 'otros') {
+      return tramitesAsignados.filter(t => t.tipo !== 'descargo_multa')
+    }
+    return tramitesAsignados
+  }, [tramitesAsignados, tramiteType])
+
   // Trámites creados por el gestor
   const misTramites = useMemo(() =>
     tramites
@@ -112,14 +124,38 @@ export default function GestorHomePage() {
     [tramites, user?.uid]
   )
 
-  const stats = useMemo(() => ({
-    asignados:   tramitesAsignados.length,
-    propios:     misTramites.length,
-    completados: tramites.filter(t =>
-      (t.asignadoA === user?.uid || t.creadoPor === user?.uid) &&
-      t.estado === 'entregado'
-    ).length,
-  }), [tramitesAsignados, misTramites, tramites, user?.uid])
+  // Filtrar mis trámites por tipo
+  const misTramitesFiltrados = useMemo(() => {
+    if (tramiteType === 'descargo_multa') {
+      return misTramites.filter(t => t.tipo === 'descargo_multa')
+    } else if (tramiteType === 'otros') {
+      return misTramites.filter(t => t.tipo !== 'descargo_multa')
+    }
+    return misTramites
+  }, [misTramites, tramiteType])
+
+  const stats = useMemo(() => {
+    const asignados = tramiteType === 'descargo_multa' 
+      ? tramitesAsignados.filter(t => t.tipo === 'descargo_multa').length
+      : tramiteType === 'otros'
+      ? tramitesAsignados.filter(t => t.tipo !== 'descargo_multa').length
+      : tramitesAsignados.length
+
+    const propios = tramiteType === 'descargo_multa'
+      ? misTramites.filter(t => t.tipo === 'descargo_multa').length
+      : tramiteType === 'otros'
+      ? misTramites.filter(t => t.tipo !== 'descargo_multa').length
+      : misTramites.length
+
+    return {
+      asignados,
+      propios,
+      completados: tramites.filter(t =>
+        (t.asignadoA === user?.uid || t.creadoPor === user?.uid) &&
+        t.estado === 'entregado'
+      ).length,
+    }
+  }, [tramitesAsignados, misTramites, tramites, user?.uid, tramiteType])
 
   const handleCrear = async (data: any) => {
     try {
@@ -263,6 +299,28 @@ export default function GestorHomePage() {
         ))}
       </div>
 
+      {/* Filtros de tipo de trámite */}
+      <div className="flex gap-2 px-4 mb-4">
+        {([
+          { key: 'todos', label: '📋 Todos' },
+          { key: 'descargo_multa', label: '⚖️ Descargo de Multas' },
+          { key: 'otros', label: '🚗 Otros' },
+        ] as const).map(f => (
+          <button
+            key={f.key}
+            onClick={() => setTramiteType(f.key as TramiteType)}
+            className={`flex-1 py-2 rounded-lg text-xs font-semibold transition-all border ${
+              tramiteType === f.key
+                ? 'text-white border-transparent shadow-sm'
+                : 'text-gray-600 bg-white border-gray-200 hover:bg-gray-50'
+            }`}
+            style={tramiteType === f.key ? { background: '#D4621A', borderColor: '#D4621A' } : {}}
+          >
+            {f.label}
+          </button>
+        ))}
+      </div>
+
       {/* Contenido */}
       <div className="px-4 pb-8">
         {loading ? (
@@ -272,9 +330,9 @@ export default function GestorHomePage() {
         ) : tab === 'asignados' ? (
           <>
             <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-3">
-              Trámites asignados — {tramitesAsignados.length} activos
+              Trámites asignados — {tramitesAsignadosFiltrados.length} activos
             </p>
-            {tramitesAsignados.length === 0 ? (
+            {tramitesAsignadosFiltrados.length === 0 ? (
               <div className="text-center py-16">
                 <CheckCircle2 size={36} className="text-emerald-400 mx-auto mb-3 opacity-50" />
                 <p className="text-sm text-gray-500 mb-1">Sin trámites asignados</p>
@@ -283,15 +341,15 @@ export default function GestorHomePage() {
                 </p>
               </div>
             ) : (
-              tramitesAsignados.map(t => <TramiteCard key={t.id} t={t} />)
+              tramitesAsignadosFiltrados.map(t => <TramiteCard key={t.id} t={t} />)
             )}
           </>
         ) : (
           <>
             <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-3">
-              Trámites iniciados por vos — {misTramites.length} total
+              Trámites iniciados por vos — {misTramitesFiltrados.length} total
             </p>
-            {misTramites.length === 0 ? (
+            {misTramitesFiltrados.length === 0 ? (
               <div className="text-center py-16">
                 <Car size={36} className="text-gray-300 mx-auto mb-3" />
                 <p className="text-sm text-gray-500 mb-1">Todavía no iniciaste ningún trámite</p>
@@ -305,7 +363,7 @@ export default function GestorHomePage() {
                 </button>
               </div>
             ) : (
-              misTramites.map(t => <TramiteCard key={t.id} t={t} />)
+              misTramitesFiltrados.map(t => <TramiteCard key={t.id} t={t} />)
             )}
           </>
         )}

@@ -11,7 +11,8 @@ import { generarNumeroTramite, CODIGO_TRAMITE } from './collections'
 import { registrarActividad } from './audit'
 import { notificarCambioEstado } from './notificaciones'
 import type { Tramite, EstadoTramite, TipoTramite, Rol } from '@/types'
-
+import { crearRecibo, generarNumeroRecibo } from './recibos'
+import { notificarRecibo } from './alertas'
 // ─── READ ─────────────────────────────────────────────────────────────────────
 
 export function subscribeTramites(
@@ -292,58 +293,143 @@ export async function marcarPagado(
   })
 }
 
-// ─── REGISTRAR PAGO EXTENDIDO ─────────────────────────────────────────────────
-
+export interface PagoTramite {
+  monto:               number
+  formaPago:           'efectivo' | 'transferencia' | 'cheque' | 'mixto' | 'mercadopago'
+  fecha:               Timestamp
+  notas:               string
+  tipo:                'parcial' | 'total'   // calculado automáticamente
+  numeroRecibo:        string
+  reciboId:            string
+  registradoPor:       string
+  registradoPorNombre: string
+}
+ 
 export interface RegistroPago {
   monto:     number
-  formaPago: 'efectivo' | 'transferencia' | 'cheque' | 'mixto'
-  fecha:     string   // ISO date
+  formaPago: 'efectivo' | 'transferencia' | 'cheque' | 'mixto' | 'mercadopago'
+  fecha:     string   // ISO date (yyyy-mm-dd)
   notas?:    string
 }
-
+ 
+export interface ResultadoPago {
+  tipo:         'parcial' | 'total'
+  numeroRecibo: string
+  reciboId:     string
+}
+ 
+// ─── REGISTRAR PAGO — acumula, calcula parcial/total, guarda recibo, alerta ──
+//
+// ⚠️ IMPORTANTE — TRÁMITES DE MULTA: por diseño (ver TramiteForm.tsx, comentario
+// "Los honorarios y cobros se gestionan dentro del workflow de multa paso a
+// paso"), los trámites tipo `descargo_multa` se crean con honorarios = 0 y
+// su cobro se maneja aparte en GestorMultaWorkflow.tsx (paso2.historialPagos).
+// Esta función NO debe usarse para esos trámites todavía — si se usa, el
+// primer pago de cualquier monto va a marcar "total" porque honorarios=0.
+// Mientras no migremos el workflow de multas a este sistema unificado,
+// CobranzasPage debería excluir tipo === 'descargo_multa' de este flujo
+// (ver nota al final de este archivo).
+ 
 export async function registrarPago(
   id:   string,
   pago: RegistroPago,
-  ctx?: { uid: string; nombre: string; rol: string; gestoriaId?: string }
-): Promise<void> {
-  const snap  = await getDoc(tramiteDoc(id))
-  const patente = snap.exists() ? snap.data().patente ?? '' : ''
-
-  await updateDoc(tramiteDoc(id), {
-    pagado:        true,
-    honorarios:    pago.monto,
-    formaPago:     pago.formaPago,
-    fechaPago:     Timestamp.fromDate(new Date(pago.fecha + 'T12:00:00')),
-    notasPago:     pago.notas ?? '',
-    actualizadoEn: serverTimestamp(),
-  })
-
-  if (ctx) {
-    await registrarActividad({
-      accion:        'registrar_pago',
-      entidad:       'tramite',
-      entidadId:     id,
-      entidadLabel:  patente,
-      usuarioId:     ctx.uid,
-      usuarioNombre: ctx.nombre,
-      usuarioRol:    ctx.rol as Rol,
-      gestoriaId:    ctx.gestoriaId,
-      despues:       { monto: pago.monto, formaPago: pago.formaPago },
-      nota:          pago.notas || undefined,
-    })
+  ctx:  { uid: string; nombre: string; rol: string; gestoriaId: string },
+): Promise<ResultadoPago> {
+  const snap = await getDoc(tramiteDoc(id))
+  if (!snap.exists()) throw new Error('Trámite no encontrado')
+  const tramite = { ...snap.data(), id: snap.id } as Tramite & { historialPagos?: PagoTramite[] }
+ 
+  if (tramite.tipo === 'descargo_multa') {
+    throw new Error(
+      'Los trámites de multas se cobran desde el workflow (paso 2), no desde Cobranzas.'
+    )
   }
-}
-
-export async function desmarcarPago(id: string): Promise<void> {
+ 
+  // 1. Cuánto se cobró hasta ahora (incluyendo este pago)
+  const historialActual = tramite.historialPagos ?? []
+  const cobradoPrevio    = historialActual.reduce((a, p) => a + p.monto, 0)
+  const cobradoTotal     = cobradoPrevio + pago.monto
+ 
+  // 2. Parcial o total — automático, no lo elige el usuario
+  const tipo: 'parcial' | 'total' = cobradoTotal >= tramite.honorarios ? 'total' : 'parcial'
+ 
+  // 3. Número de recibo correlativo
+  const numeroRecibo = await generarNumeroRecibo(ctx.gestoriaId)
+ 
+  // 4. Guardar metadata del recibo (el PDF se genera en el cliente, no acá)
+  const reciboId = await crearRecibo({
+    numeroRecibo,
+    tramiteId:    id,
+    clienteId:    tramite.clienteId,
+    gestoriaId:   ctx.gestoriaId,
+    tipo,
+    monto:        pago.monto,
+    montoCobradoAcumulado: cobradoTotal,
+    honorariosTotales:     tramite.honorarios,
+    formaPago:    pago.formaPago,
+    notas:        pago.notas ?? '',
+    patente:      tramite.patente,
+    numeroTramite: tramite.numero,
+    tipoTramite:  tramite.tipo,
+    emitidoPor:        ctx.uid,
+    emitidoPorNombre:  ctx.nombre,
+  })
+ 
+  const nuevoPago: PagoTramite = {
+    monto:     pago.monto,
+    formaPago: pago.formaPago,
+    fecha:     Timestamp.fromDate(new Date(pago.fecha + 'T12:00:00')),
+    notas:     pago.notas ?? '',
+    tipo,
+    numeroRecibo,
+    reciboId,
+    registradoPor:       ctx.uid,
+    registradoPorNombre: ctx.nombre,
+  }
+ 
+  // 5. Persistir en el trámite: push al historial + flags para queries rápidas.
+  //    Mantenemos `formaPago`/`notasPago` a nivel raíz por compatibilidad con
+  //    código viejo que pudiera leerlos, aunque la fuente de verdad ahora es
+  //    el array `historialPagos`.
   await updateDoc(tramiteDoc(id), {
-    pagado:        false,
-    fechaPago:     null,
-    formaPago:     '',
-    notasPago:     '',
-    actualizadoEn: serverTimestamp(),
+    historialPagos: arrayUnion(nuevoPago),
+    montoCobrado:   cobradoTotal,
+    pagado:         tipo === 'total',
+    formaPago:      pago.formaPago,
+    notasPago:      pago.notas ?? '',
+    fechaPago:      tipo === 'total' ? serverTimestamp() : (tramite as any).fechaPago ?? null,
+    actualizadoEn:  serverTimestamp(),
+  })
+ 
+  // 6. Notificar (best-effort — el pago ya quedó guardado aunque esto falle)
+  try {
+    await notificarRecibo({
+      gestoriaId: ctx.gestoriaId, tramiteId: id, reciboId, numeroRecibo,
+      monto: pago.monto, tipo, patente: tramite.patente,
+    })
+  } catch (e) { console.error('[registrarPago] No se pudo crear la alerta:', e) }
+ 
+  // 7. Auditoría
+  await registrarActividad({
+    accion: 'registrar_pago', entidad: 'tramite', entidadId: id,
+    entidadLabel: tramite.patente, usuarioId: ctx.uid, usuarioNombre: ctx.nombre,
+    usuarioRol: ctx.rol as Rol, gestoriaId: ctx.gestoriaId,
+    despues: { monto: pago.monto, formaPago: pago.formaPago, tipo, numeroRecibo },
+    nota: pago.notas || undefined,
+  })
+ 
+  return { tipo, numeroRecibo, reciboId }
+}
+ 
+export async function desmarcarPago(id: string): Promise<void> {
+  // Vacía el historial — uso excepcional (error de carga). Si solo se quiere
+  // corregir UN pago puntual sin perder el resto, avisame y agrego un
+  // `eliminarPago(id, index)` en vez de este reset total.
+  await updateDoc(tramiteDoc(id), {
+    pagado: false, fechaPago: null, formaPago: '', notasPago: '',
+    montoCobrado: 0, historialPagos: [], actualizadoEn: serverTimestamp(),
   })
 }
-
 // ─── TOKEN PÚBLICO PARA QR ────────────────────────────────────────────────────
 
 function generarToken(): string {

@@ -88,7 +88,6 @@ function PasoHeader({
   const config    = PASOS_TRANSFERENCIA.find(p => p.id === paso)!
   const completado = pasoActual > paso
   const activo     = pasoActual === paso
-  const pendiente  = pasoActual < paso
 
   return (
     <button onClick={onToggle} className={`w-full flex items-center gap-3 p-4 rounded-2xl border text-left transition-all
@@ -139,11 +138,10 @@ interface Props { tramiteId: string }
 export default function TransferenciaWorkflow({ tramiteId }: Props) {
   const { user }   = useAuthStore()
   const { puede }  = usePermisos()
-  const esGestor   = user?.rol === 'gestor'
-  const esAsesor   = ['propietario', 'admin', 'vendedor', 'operador'].includes(user?.rol ?? '')
   const { gestores: gestoresEquipo } = useGestoresEquipo()
   const geo = useGeolocalizacion()
 
+  // [IMPORTANTE] El hook SE DECLARA ANTES de usar `workflow` en cualquier lado.
   const {
     workflow, loading, guardando, error, progreso, pasoActual,
     confirmarPaso1, confirmarPaso2, confirmarPaso3,
@@ -151,6 +149,17 @@ export default function TransferenciaWorkflow({ tramiteId }: Props) {
     confirmarPaso5, confirmarPaso6, confirmarPaso7,
     asignarGestor,
   } = useTransferenciaWorkflow(tramiteId)
+
+  // ── Roles que pueden auto-gestionar los pasos de registro (3 y 6) ────────
+  // Si hay un gestor asignado, solo ESE gestor (o quien tenga rol de gestión)
+  // puede completar pasos 3/6 — si nadie fue asignado, cualquiera de estos
+  // roles puede auto-gestionarlo sin necesidad de asignar a otro.
+  const ROLES_PUEDEN_REGISTRO = ['gestor', 'admin', 'admin_gral', 'asesor_comercial', 'propietario']
+  const puedeGestionarRegistro = ROLES_PUEDEN_REGISTRO.includes(user?.rol ?? '')
+  const esGestor = workflow?.gestorId
+    ? (user?.uid === workflow.gestorId || puedeGestionarRegistro)
+    : puedeGestionarRegistro
+  const esAsesor = ['propietario', 'admin', 'admin_gral', 'asesor_comercial', 'vendedor', 'operador'].includes(user?.rol ?? '')
 
   const [col, setCol] = useState<Record<number, boolean>>({})
   const toggle = (n: number) => setCol(p => ({ ...p, [n]: !p[n] }))
@@ -171,14 +180,13 @@ export default function TransferenciaWorkflow({ tramiteId }: Props) {
   const [obs2, setObs2] = useState('')
   const [gestorSel, setGestorSel] = useState<{ uid: string; nombre: string } | null>(null)
 
-  // Validar que todos los docs obligatorios de paso 2 tengan frente Y dorso
+  // [INFORMATIVO] Ya NO se usa para bloquear el botón — solo para mostrar
+  // en el resumen visual qué falta, sin impedir avanzar.
   const docs2Completos = () => {
     const reqs = ['formulario08Frente','formulario08Dorso','tituloFrente','tituloDorso',
       'cedulaFrente','cedulaDorso','verificacionPolicialFrente','verificacionPolicialDorso',
       'dniCompradorFrente','dniCompradorDorso']
-    const conFutRad = ['formulario04Frente','formulario04Dorso']
-    const todos = p1.futuraRadicacion ? [...reqs, ...conFutRad] : reqs
-    return todos.every(k => !!files2[k])
+    return reqs.every(k => !!files2[k])
   }
 
   // ── Paso 3 archivos ───────────────────────────────────────────────────────
@@ -246,9 +254,9 @@ export default function TransferenciaWorkflow({ tramiteId }: Props) {
         )}
       </div>
 
-      {/* Asignar gestor */}
+      {/* Asignar gestor (o auto-gestionar) */}
       {pasoActual >= 2 && !workflow?.gestorId && esAsesor && (
-        <div className="bg-blue-50 border border-blue-200 rounded-2xl p-4">
+        <div className="bg-blue-50 border border-blue-200 rounded-2xl p-4 space-y-2">
           <p className="text-xs font-semibold text-blue-700 mb-2 flex items-center gap-1">
             <User size={12} /> Asignar Gestor/Mandatario
           </p>
@@ -263,6 +271,16 @@ export default function TransferenciaWorkflow({ tramiteId }: Props) {
               <option key={g.uid} value={g.uid}>{g.nombre} {g.apellido}</option>
             ))}
           </select>
+          {/* Auto-gestión — para admin/admin_gral/asesor_comercial/propietario que
+              prefieren hacer ellos mismos la presentación en el registro */}
+          {user && puedeGestionarRegistro && (
+            <button
+              onClick={() => asignarGestor(user.uid, `${user.nombre} ${user.apellido}`.trim())}
+              className="text-xs font-semibold text-blue-600 hover:underline"
+            >
+              o gestionarlo yo mismo →
+            </button>
+          )}
         </div>
       )}
       {workflow?.gestorNombre && (
@@ -277,7 +295,7 @@ export default function TransferenciaWorkflow({ tramiteId }: Props) {
         <div className="bg-white border border-gray-100 rounded-2xl p-5 space-y-4">
           {pasoActual === 1 ? (
             <>
-              {/* Futura radicación */}
+              {/* Futura radicación — checkbox opcional, nunca bloquea */}
               <label className="flex items-center gap-3 p-4 border-2 border-gray-200 rounded-xl cursor-pointer hover:border-[#D4621A]/40 transition-all">
                 <input type="checkbox" checked={p1.futuraRadicacion}
                   onChange={e => setP1(p => ({ ...p, futuraRadicacion: e.target.checked }))}
@@ -287,8 +305,8 @@ export default function TransferenciaWorkflow({ tramiteId }: Props) {
                   <p className="text-sm font-semibold text-gray-800">¿Hay futura radicación?</p>
                   <p className="text-xs text-gray-400">
                     {p1.futuraRadicacion
-                      ? '⚠️ Requiere Formulario 04 · Plazo hasta 45 días hábiles'
-                      : 'Sin cambio de jurisdicción · Plazo 3-21 días hábiles'}
+                      ? 'Podés indicar el partido/provincia destino abajo · Plazo estimado hasta 45 días hábiles'
+                      : 'Sin cambio de jurisdicción · Plazo estimado 3-21 días hábiles'}
                   </p>
                 </div>
               </label>
@@ -296,7 +314,7 @@ export default function TransferenciaWorkflow({ tramiteId }: Props) {
               {p1.futuraRadicacion && (
                 <div>
                   <label className="text-xs font-semibold text-gray-500 mb-1 block">
-                    Jurisdicción destino (provincia / municipio)
+                    Jurisdicción destino (partido / provincia) — opcional
                   </label>
                   <input value={p1.jurisdiccionDestino}
                     onChange={e => setP1(p => ({ ...p, jurisdiccionDestino: e.target.value }))}
@@ -306,13 +324,15 @@ export default function TransferenciaWorkflow({ tramiteId }: Props) {
                 </div>
               )}
 
-              {/* Alerta plazos */}
+              {/* Plazos — informativo, generan alertas internas, no bloquean nada */}
               <div className={`p-3 rounded-xl border text-xs ${p1.futuraRadicacion ? 'bg-amber-50 border-amber-200 text-amber-700' : 'bg-blue-50 border-blue-200 text-blue-700'}`}>
-                <strong>Plazos:</strong> {configPlazos.label} · Alertas de seguimiento cada {configPlazos.frecuenciaAlertaDias} días.
+                <strong>Plazo estimado:</strong> {configPlazos.label} · El sistema va a generar
+                recordatorios internos automáticos cada {configPlazos.frecuenciaAlertaDias} días
+                para hacer seguimiento — esto es solo informativo, no traba el trámite.
               </div>
 
               <div>
-                <label className="text-xs font-semibold text-gray-500 mb-1 block">Observaciones</label>
+                <label className="text-xs font-semibold text-gray-500 mb-1 block">Observaciones (opcional)</label>
                 <textarea value={p1.observacion} onChange={e => setP1(p => ({ ...p, observacion: e.target.value }))}
                   rows={2} placeholder="Notas del caso..."
                   className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm outline-none resize-none"
@@ -335,8 +355,8 @@ export default function TransferenciaWorkflow({ tramiteId }: Props) {
             </>
           ) : (
             <Resumen filas={[
-              { l: 'Futura radicación', v: workflow?.paso1?.futuraRadicacion ? `Sí — ${workflow.paso1.jurisdiccionDestino ?? ''}` : 'No' },
-              { l: 'Plazo', v: configPlazos.label },
+              { l: 'Futura radicación', v: workflow?.paso1?.futuraRadicacion ? `Sí — ${workflow.paso1.jurisdiccionDestino ?? 'sin especificar'}` : 'No' },
+              { l: 'Plazo estimado', v: configPlazos.label },
               { l: 'Obs.', v: workflow?.paso1?.observacion ?? '—' },
             ]} />
           )}
@@ -349,44 +369,45 @@ export default function TransferenciaWorkflow({ tramiteId }: Props) {
         <div className="bg-white border border-gray-100 rounded-2xl p-5 space-y-5">
           {pasoActual === 2 ? (
             <>
-              <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 flex items-start gap-2">
-                <AlertTriangle size={13} className="text-amber-600 mt-0.5 shrink-0" />
-                <p className="text-xs text-amber-700">
-                  Todos los documentos marcados como <strong>obligatorios</strong> requieren frente y dorso.
-                  {futuraRad && ' Como hay futura radicación, el Formulario 04 también es obligatorio.'}
+              {/* Informativo, ya no es una traba */}
+              <div className="bg-blue-50 border border-blue-200 rounded-xl p-3 flex items-start gap-2">
+                <FileText size={13} className="text-blue-500 mt-0.5 shrink-0" />
+                <p className="text-xs text-blue-700">
+                  Subí lo que tengas disponible — <strong>nada de esto bloquea el avance</strong>.
+                  Si falta algún documento, dejá la observación abajo explicando por qué,
+                  para tener registro y poder completarlo después.
                 </p>
               </div>
 
-              <DocParUploader label="Formulario 08 / 08 Digital" required
+              <DocParUploader label="Formulario 08 / 08 Digital"
                 onFrente={setF2('formulario08Frente')} onDorso={setF2('formulario08Dorso')}
                 prevFrente={prev2['formulario08Frente']} prevDorso={prev2['formulario08Dorso']} />
 
-              <DocParUploader label="Título del vehículo" required
+              <DocParUploader label="Título del vehículo"
                 onFrente={setF2('tituloFrente')} onDorso={setF2('tituloDorso')}
                 prevFrente={prev2['tituloFrente']} prevDorso={prev2['tituloDorso']} />
 
-              <DocParUploader label="Cédula verde" required
+              <DocParUploader label="Cédula verde"
                 onFrente={setF2('cedulaFrente')} onDorso={setF2('cedulaDorso')}
                 prevFrente={prev2['cedulaFrente']} prevDorso={prev2['cedulaDorso']} />
 
-              <DocParUploader label="Verificación policial" required
+              <DocParUploader label="Verificación policial"
                 onFrente={setF2('verificacionPolicialFrente')} onDorso={setF2('verificacionPolicialDorso')}
                 prevFrente={prev2['verificacionPolicialFrente']} prevDorso={prev2['verificacionPolicialDorso']} />
 
-              <DocParUploader label="DNI del comprador" required
+              <DocParUploader label="DNI del comprador"
                 onFrente={setF2('dniCompradorFrente')} onDorso={setF2('dniCompradorDorso')}
                 prevFrente={prev2['dniCompradorFrente']} prevDorso={prev2['dniCompradorDorso']} />
 
-              {futuraRad && (
-                <DocParUploader label="Formulario 04 (futura radicación)" required
-                  onFrente={setF2('formulario04Frente')} onDorso={setF2('formulario04Dorso')}
-                  prevFrente={prev2['formulario04Frente']} prevDorso={prev2['formulario04Dorso']} />
-              )}
+              {/* Formulario 04 — SIEMPRE visible, ya no depende de futuraRad */}
+              <DocParUploader label="Formulario 04 (radicación)"
+                onFrente={setF2('formulario04Frente')} onDorso={setF2('formulario04Dorso')}
+                prevFrente={prev2['formulario04Frente']} prevDorso={prev2['formulario04Dorso']} />
 
               {/* Asignar gestor al confirmar docs */}
               {!workflow?.gestorId && (
                 <div>
-                  <label className="text-xs font-semibold text-gray-500 mb-1 block">Asignar gestor para la gestión en registro</label>
+                  <label className="text-xs font-semibold text-gray-500 mb-1 block">Asignar gestor para la gestión en registro (opcional)</label>
                   <select onChange={e => {
                     const g = gestoresEquipo.find((g: any) => g.uid === e.target.value)
                     setGestorSel(g ? { uid: g.uid, nombre: `${g.nombre} ${g.apellido}`.trim() } : null)
@@ -402,9 +423,15 @@ export default function TransferenciaWorkflow({ tramiteId }: Props) {
               )}
 
               <textarea value={obs2} onChange={e => setObs2(e.target.value)}
-                rows={2} placeholder="Observaciones sobre la documentación..."
+                rows={2} placeholder="Observaciones — ej: 'falta DNI comprador, cliente lo trae la semana próxima'..."
                 className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm outline-none resize-none"
               />
+
+              {!docs2Completos() && (
+                <p className="text-xs text-gray-400">
+                  ℹ️ Todavía faltan algunos documentos — podés avanzar igual y completarlos después.
+                </p>
+              )}
 
               {progreso > 0 && progreso < 100 && (
                 <div>
@@ -418,7 +445,7 @@ export default function TransferenciaWorkflow({ tramiteId }: Props) {
               )}
 
               <button
-                disabled={!docs2Completos() || guardando}
+                disabled={guardando}
                 onClick={() => confirmarPaso2(obs2, files2 as any, gestorSel?.uid, gestorSel?.nombre)}
                 className="w-full py-3 bg-[#D4621A] hover:bg-[#b8541a] text-white font-semibold rounded-xl text-sm disabled:opacity-50"
               >
@@ -432,7 +459,8 @@ export default function TransferenciaWorkflow({ tramiteId }: Props) {
               { l: 'Cédula',       v: workflow?.paso2?.cedula?.frente       ? '✅' : '—' },
               { l: 'Ver. Policial',v: workflow?.paso2?.verificacionPolicial?.frente ? '✅' : '—' },
               { l: 'DNI comprador',v: workflow?.paso2?.dniComprador?.frente ? '✅' : '—' },
-              ...(futuraRad ? [{ l: 'F04', v: workflow?.paso2?.formulario04?.frente ? '✅' : '—' }] : []),
+              { l: 'F04',          v: workflow?.paso2?.formulario04?.frente ? '✅' : '—' },
+              { l: 'Obs.',         v: workflow?.paso2?.observacion ?? '—' },
             ]} />
           )}
         </div>
@@ -445,45 +473,42 @@ export default function TransferenciaWorkflow({ tramiteId }: Props) {
           {pasoActual === 3 && esGestor ? (
             <>
               <p className="text-xs text-gray-500">
-                El registro emite 3 recibos que <strong>deben cargarse obligatoriamente</strong>.
-                El frente de cada recibo es requerido — el dorso es opcional si tiene información adicional.
+                El registro suele emitir 3 recibos. Recomendado cargarlos, pero si no los
+                tenés a mano todavía, podés avanzar igual y dejarlo aclarado abajo.
               </p>
 
-              {/* Recibo Transferencia — obligatorio, dorso opcional */}
               <div className="space-y-1">
                 <p className="text-xs font-bold text-gray-700 flex items-center gap-1">
                   <FileText size={11} className="text-[#D4621A]" />
                   Recibo de Transferencia
-                  <span className="text-[10px] text-red-500 font-semibold ml-1">⚠️ obligatorio</span>
+                  <span className="text-[10px] text-gray-400 ml-1">recomendado</span>
                 </p>
                 <div className="grid grid-cols-2 gap-2">
-                  <FotoUploader label="Frente *" required onChange={setF3('reciboTrfFrente')} preview={prev3['reciboTrfFrente']} />
+                  <FotoUploader label="Frente" onChange={setF3('reciboTrfFrente')} preview={prev3['reciboTrfFrente']} />
                   <FotoUploader label="Dorso (opcional)" onChange={setF3('reciboTrfDorso')} preview={prev3['reciboTrfDorso']} />
                 </div>
               </div>
 
-              {/* Recibo ARBA — obligatorio, dorso opcional */}
               <div className="space-y-1">
                 <p className="text-xs font-semibold text-gray-600 flex items-center gap-1">
                   <FileText size={11} />
                   Recibo de ARBA
-                  <span className="text-[10px] text-red-500 ml-1">obligatorio</span>
+                  <span className="text-[10px] text-gray-400 ml-1">recomendado</span>
                 </p>
                 <div className="grid grid-cols-2 gap-2">
-                  <FotoUploader label="Frente *" required onChange={setF3('reciboArbaFrente')} preview={prev3['reciboArbaFrente']} />
+                  <FotoUploader label="Frente" onChange={setF3('reciboArbaFrente')} preview={prev3['reciboArbaFrente']} />
                   <FotoUploader label="Dorso (opcional)" onChange={setF3('reciboArbaDorso')} preview={prev3['reciboArbaDorso']} />
                 </div>
               </div>
 
-              {/* Recibo SUATS — obligatorio, dorso opcional */}
               <div className="space-y-1">
                 <p className="text-xs font-semibold text-gray-600 flex items-center gap-1">
                   <FileText size={11} />
                   Recibo de SUATS
-                  <span className="text-[10px] text-red-500 ml-1">obligatorio</span>
+                  <span className="text-[10px] text-gray-400 ml-1">recomendado</span>
                 </p>
                 <div className="grid grid-cols-2 gap-2">
-                  <FotoUploader label="Frente *" required onChange={setF3('reciboSuatsFrente')} preview={prev3['reciboSuatsFrente']} />
+                  <FotoUploader label="Frente" onChange={setF3('reciboSuatsFrente')} preview={prev3['reciboSuatsFrente']} />
                   <FotoUploader label="Dorso (opcional)" onChange={setF3('reciboSuatsDorso')} preview={prev3['reciboSuatsDorso']} />
                 </div>
               </div>
@@ -513,20 +538,19 @@ export default function TransferenciaWorkflow({ tramiteId }: Props) {
               )}
 
               <textarea value={obs3} onChange={e => setObs3(e.target.value)} rows={2}
-                placeholder="Observaciones de la presentación..."
+                placeholder="Observaciones — ej: 'recibo SUATS no disponible, el registro lo entrega después'..."
                 className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm outline-none resize-none"
               />
 
-              {/* Validación: los 3 recibos frente son obligatorios */}
               {(!files3['reciboTrfFrente'] || !files3['reciboArbaFrente'] || !files3['reciboSuatsFrente']) && (
-                <div className="flex items-start gap-2 bg-red-50 border border-red-200 rounded-xl p-3 text-xs text-red-700">
+                <div className="flex items-start gap-2 bg-amber-50 border border-amber-200 rounded-xl p-3 text-xs text-amber-700">
                   <AlertTriangle size={12} className="mt-0.5 shrink-0" />
-                  <span>Los 3 recibos son obligatorios (mínimo foto del frente). El recibo de Transferencia es el más importante.</span>
+                  <span>Recomendado subir los 3 recibos. Si falta alguno, dejalo aclarado en observaciones — no impide avanzar.</span>
                 </div>
               )}
 
               <button
-                disabled={guardando || !files3['reciboTrfFrente'] || !files3['reciboArbaFrente'] || !files3['reciboSuatsFrente']}
+                disabled={guardando}
                 onClick={async () => {
                   let geoData = geo.ubicacion ?? undefined
                   if (geo.estadoPermiso === 'granted' && !geoData) geoData = await geo.capturar() ?? undefined
@@ -544,7 +568,9 @@ export default function TransferenciaWorkflow({ tramiteId }: Props) {
               { l: 'Geo', v: workflow?.paso3?.geoPresencia ? `${workflow.paso3.geoPresencia.lat.toFixed(4)}, ${workflow.paso3.geoPresencia.lng.toFixed(4)}` : '—' },
             ]} />
           ) : (
-            <p className="text-xs text-gray-400 py-4 text-center">Solo el gestor asignado puede completar este paso.</p>
+            <p className="text-xs text-gray-400 py-4 text-center">
+              Solo el gestor asignado (o un Admin/Asesor sin gestor asignado todavía) puede completar este paso.
+            </p>
           )}
         </div>
       )}
@@ -555,12 +581,11 @@ export default function TransferenciaWorkflow({ tramiteId }: Props) {
         <div className="bg-white border border-gray-100 rounded-2xl p-5 space-y-4">
           {pasoActual === 4 && (
             <>
-              {/* Info de plazos */}
               <div className={`p-3 rounded-xl border text-xs ${futuraRad ? 'bg-amber-50 border-amber-200 text-amber-700' : 'bg-blue-50 border-blue-200 text-blue-700'}`}>
                 <div className="flex items-center gap-1 font-semibold mb-1">
                   <Clock size={11} /> Seguimiento activo
                 </div>
-                {configPlazos.label} · Alerta cada {configPlazos.frecuenciaAlertaDias} días.
+                {configPlazos.label} · El sistema genera un recordatorio interno cada {configPlazos.frecuenciaAlertaDias} días — es solo informativo.
                 {workflow?.recordatorioSeguimiento && (
                   <div className="mt-1">
                     Próximo recordatorio: <strong>{workflow.recordatorioSeguimiento.toDate().toLocaleDateString('es-AR')}</strong>
@@ -568,7 +593,6 @@ export default function TransferenciaWorkflow({ tramiteId }: Props) {
                 )}
               </div>
 
-              {/* Historial de seguimientos */}
               {(workflow?.paso4?.seguimientos ?? []).length > 0 && (
                 <div className="space-y-2 max-h-48 overflow-y-auto">
                   {(workflow?.paso4?.seguimientos ?? []).map((s, i) => (
@@ -583,7 +607,6 @@ export default function TransferenciaWorkflow({ tramiteId }: Props) {
                 </div>
               )}
 
-              {/* Nueva entrada de seguimiento */}
               {!reciboListo && (
                 <div className="space-y-2">
                   <textarea value={obs4} onChange={e => setObs4(e.target.value)} rows={2}
@@ -599,7 +622,6 @@ export default function TransferenciaWorkflow({ tramiteId }: Props) {
                 </div>
               )}
 
-              {/* Marcar recibo listo */}
               <label className="flex items-center gap-3 p-4 border-2 border-gray-200 rounded-xl cursor-pointer hover:border-emerald-400 transition-all">
                 <input type="checkbox" checked={reciboListo}
                   onChange={e => setRL(e.target.checked)}
@@ -639,7 +661,7 @@ export default function TransferenciaWorkflow({ tramiteId }: Props) {
               <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-3 flex items-start gap-2">
                 <Bell size={13} className="text-emerald-600 mt-0.5 shrink-0" />
                 <p className="text-xs text-emerald-700">
-                  El sistema enviará una alerta automática 24hs antes y el día del turno para que no se pierda la presentación.
+                  El sistema enviará una alerta interna 24hs antes y el día del turno para no perder la presentación.
                 </p>
               </div>
 
@@ -713,10 +735,10 @@ export default function TransferenciaWorkflow({ tramiteId }: Props) {
                 <MapPin size={13} className="text-purple-600 mt-0.5 shrink-0" />
                 <div>
                   <p className="text-xs text-purple-700 font-semibold mb-0.5">
-                    Presencia presencial en el registro
+                    Presencia en el registro
                   </p>
                   <p className="text-xs text-purple-600">
-                    Confirmá tu ubicación GPS y sacá foto del recibo físico que retirás. Ambos son requeridos.
+                    Recomendado confirmar tu ubicación GPS y sacar foto del recibo físico retirado.
                   </p>
                 </div>
               </div>
@@ -735,31 +757,31 @@ export default function TransferenciaWorkflow({ tramiteId }: Props) {
                 <p className="text-xs font-semibold text-gray-700 flex items-center gap-1">
                   <Camera size={11} className="text-[#D4621A]" />
                   Foto del recibo físico retirado
-                  <span className="text-[10px] text-red-500 font-semibold ml-1">⚠️ obligatorio</span>
+                  <span className="text-[10px] text-gray-400 ml-1">recomendado</span>
                 </p>
                 <p className="text-[10px] text-gray-400 mb-1">
                   Sacá una foto del recibo que acabás de retirar como constancia.
                 </p>
-                <FotoUploader label="Foto recibo" required
+                <FotoUploader label="Foto recibo"
                   onChange={f => { setFile6(f); setPrev6(f ? URL.createObjectURL(f) : null) }}
                   preview={prev6}
                 />
               </div>
 
               <textarea value={obs6} onChange={e => setObs6(e.target.value)} rows={2}
-                placeholder="Observaciones del retiro..."
+                placeholder="Observaciones — ej: 'no se pudo sacar foto, recibo en papel deteriorado'..."
                 className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm outline-none resize-none"
               />
 
               {!file6 && (
-                <div className="flex items-start gap-2 bg-red-50 border border-red-200 rounded-xl p-3 text-xs text-red-700">
+                <div className="flex items-start gap-2 bg-amber-50 border border-amber-200 rounded-xl p-3 text-xs text-amber-700">
                   <AlertTriangle size={12} className="mt-0.5 shrink-0" />
-                  <span>La foto del recibo físico es obligatoria para confirmar el retiro.</span>
+                  <span>Recomendado adjuntar la foto del recibo físico. Si no es posible, dejalo aclarado arriba — no impide confirmar el retiro.</span>
                 </div>
               )}
 
               <button
-                disabled={guardando || !file6}
+                disabled={guardando}
                 onClick={async () => {
                   let geoData = geo.ubicacion ?? undefined
                   if (geo.estadoPermiso === 'granted' && !geoData) geoData = await geo.capturar() ?? undefined
@@ -776,7 +798,9 @@ export default function TransferenciaWorkflow({ tramiteId }: Props) {
               { l: 'Geo', v: workflow?.paso6?.geoRetiro?.direccionAprox ?? `${workflow?.paso6?.geoRetiro?.lat?.toFixed(4) ?? '—'}` },
             ]} />
           ) : (
-            <p className="text-xs text-gray-400 py-4 text-center">Solo el gestor puede completar este paso.</p>
+            <p className="text-xs text-gray-400 py-4 text-center">
+              Solo el gestor asignado (o un Admin/Asesor sin gestor asignado) puede completar este paso.
+            </p>
           )}
         </div>
       )}

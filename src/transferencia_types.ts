@@ -137,7 +137,7 @@ export interface TrfPaso5Data {
 export interface TrfPaso6Data {
   presentadoEnRegistro:  boolean
   geoRetiro?:            GeoRegistro   // ubicación al momento del retiro
-  fotoComprobanteRetiro:  FotoWorkflow  // foto del recibo físico retirado — OBLIGATORIO
+  fotoComprobanteRetiro?:  FotoWorkflow  // foto del recibo físico retirado — OBLIGATORIO
   observacion?:          string
 
   completadoPor:         string

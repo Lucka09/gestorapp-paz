@@ -31,7 +31,7 @@ export const db = (() => {
       localCache: persistentLocalCache({
         tabManager: persistentMultipleTabManager(),
       }),
-      experimentalAutoDetectLongPolling: true,
+      experimentalForceLongPolling: true,
     })
   } catch {
     // Fallback si el browser no soporta IndexedDB (modo in-memory)
@@ -44,7 +44,7 @@ export const db = (() => {
 export const secondaryDb = (() => {
   try {
     return initializeFirestore(secondaryApp, {
-      experimentalAutoDetectLongPolling: true,
+      experimentalForceLongPolling: true,
     })
   } catch {
     return getFirestore(secondaryApp)

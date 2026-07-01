@@ -476,3 +476,42 @@ export const CATEGORIA_CONFIG: Record<CategoriaAlerta, { label: string; emoji: s
   clientes:  { label: 'Clientes',  emoji: '👥' },
   sistema:   { label: 'Sistema',   emoji: '⚙️' },
 }
+export async function notificarRecibo(input: {
+  gestoriaId:     string
+  tramiteId:      string
+  reciboId:       string
+  numeroRecibo:   string
+  monto:          number
+  tipo:           'parcial' | 'total'
+  clienteNombre?: string
+  patente:        string
+}): Promise<void> {
+  const { gestoriaId, tramiteId, reciboId, numeroRecibo, monto, tipo, patente } = input
+ 
+  const montoFmt = new Intl.NumberFormat('es-AR', {
+    style: 'currency', currency: 'ARS', minimumFractionDigits: 0,
+  }).format(monto)
+ 
+  // ID único por recibo (no por día, a diferencia del resto de alertas del
+  // motor) — cada pago es un evento puntual, no algo que deba "actualizarse".
+  const id = `recibo-${reciboId}`
+ 
+  await setDoc(alertaDoc(id), {
+    gestoriaId,
+    nivel:     tipo === 'total' ? 'info' : 'advertencia',
+    categoria: 'cobranzas',
+    titulo:    tipo === 'total'
+      ? `✅ Pago total recibido — ${patente}`
+      : `💰 Pago parcial recibido — ${patente}`,
+    detalle:   `Se registró un cobro de ${montoFmt} (${numeroRecibo}). ` +
+               (tipo === 'total'
+                 ? 'El trámite quedó totalmente pagado.'
+                 : 'El trámite sigue con saldo pendiente.'),
+    link:      `/admin/recibos/${reciboId}`,
+    leida:     false,
+    resuelta:  false,
+    datos:     { tramiteId, reciboId, numeroRecibo, monto, tipo },
+    creadaEn:      serverTimestamp(),
+    actualizadaEn: serverTimestamp(),
+  }, { merge: true })
+}

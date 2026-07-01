@@ -22,6 +22,7 @@ const TurnosPage               = lazy(() => import('@/features/turnos/TurnosPage
 const PipelinePage             = lazy(() => import('@/features/pipeline/PipelinePage'))
 const BandejaWAPage            = lazy(() => import('@/features/bandeja/BandejaWAPage'))
 const CobranzasPage            = lazy(() => import('@/features/cobranzas/CobranzasPage'))
+const RecibosPage               = lazy(() => import('@/features/cobranzas/RecibosPage'))
 const ReportesPage             = lazy(() => import('@/features/reportes/ReportesPage'))
 const TareasPage               = lazy(() => import('@/features/tareas/TareasPage'))
 const EquipoPage               = lazy(() => import('@/features/equipo/EquipoPage'))
@@ -114,6 +115,7 @@ export const router = createBrowserRouter([
 
       // Finanzas (solo propietario/superadmin)
       { path: 'cobranzas',         element: <L><CobranzasPage /></L> },
+      { path: 'recibos/:id',       element: <L><RecibosPage /></L> },
       { path: 'reportes',          element: <L><ReportesPage /></L> },
 
       // Operaciones

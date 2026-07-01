@@ -8,12 +8,13 @@ import {
   FileText, Users, CalendarDays,
   TrendingUp, DollarSign, Clock,
   ArrowRight, Target, Zap, Activity, Bell,
-  ChevronUp, ChevronDown,
+  ChevronUp, ChevronDown, Megaphone, Handshake,
 } from 'lucide-react'
 import {
   useMetricas, useUltimosTramites,
   useTurnosHoy, useDistribucionEstados,
   useIngresosPorMes, useTiposTramiteFrecuentes, useTopClientes,
+  useClientesPorOrigen,
 } from '@/hooks/useDashboard'
 import type { IngresoMes, TipoCount, TopCliente } from '@/lib/firestore/dashboard'
 import { useAuth }    from '@/hooks/useAuth'
@@ -50,6 +51,11 @@ const COLORES_ESTADO: Record<string, string> = {
   documentacion_requerida: '#EF4444', en_organismo: '#F97316',
   listo_para_retirar: '#10B981', entregado: '#22C55E', cancelado: '#9CA3AF',
 }
+
+// Paletas para las tortas de origen — un tono por posición (ya vienen ordenadas
+// de mayor a menor cantidad), distintas entre sí para no confundir con Estados.
+const COLORES_COMERCIAL = ['#7C3AED', '#A78BFA', '#C4B5FD', '#DDD6FE', '#EDE9FE']
+const COLORES_DIGITAL   = ['#0EA5E9', '#38BDF8', '#7DD3FC', '#BAE6FD', '#E0F2FE', '#F0F9FF']
 
 function KpiCard({ label, value, icon: Icon, color = '#D4621A', sub, onClick }: {
   label: string; value: string | number; icon: React.ElementType
@@ -113,11 +119,67 @@ function CustomTooltip({ active, payload, label }: CustomTooltipProps) {
   )
 }
 
+// Card reutilizable para las tortas de origen (comercial / digital)
+function OrigenPieCard({
+  titulo, subtitulo, icon: Icon, data, colores,
+}: {
+  titulo: string; subtitulo: string; icon: React.ElementType
+  data: { canal: string; label: string; cantidad: number }[]
+  colores: string[]
+}) {
+  const total = data.reduce((a, d) => a + d.cantidad, 0)
+  return (
+    <Card className="p-5">
+      <div className="flex items-center justify-between mb-5">
+        <div>
+          <p className="text-xs font-bold text-gray-400 uppercase tracking-wider">{titulo}</p>
+          <p className="text-sm font-semibold text-gray-700 mt-0.5">{subtitulo}</p>
+        </div>
+        <Icon size={16} className="text-gray-300" />
+      </div>
+      {total === 0 ? (
+        <div className="h-48 flex flex-col items-center justify-center text-gray-300">
+          <Icon size={28} className="mb-2 opacity-40" />
+          <p className="text-sm">Sin datos todavía</p>
+        </div>
+      ) : (
+        <>
+          <ResponsiveContainer width="100%" height={150}>
+            <PieChart>
+              <Pie data={data} dataKey="cantidad" nameKey="label"
+                cx="50%" cy="50%" innerRadius={40} outerRadius={65} paddingAngle={3}>
+                {data.map((_, i) => (
+                  <Cell key={i} fill={colores[i % colores.length]} />
+                ))}
+              </Pie>
+              <Tooltip formatter={(v) => {
+                const n = typeof v === 'number' ? v : 0
+                return [n, 'clientes']
+              }} contentStyle={{ borderRadius:12,border:'1px solid #E5E7EB',fontSize:12 }} />
+            </PieChart>
+          </ResponsiveContainer>
+          <div className="space-y-1.5 mt-2">
+            {data.slice(0, 5).map((d, i) => (
+              <div key={d.canal} className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: colores[i % colores.length] }} />
+                  <span className="text-xs text-gray-600">{d.label}</span>
+                </div>
+                <span className="text-xs font-bold text-gray-900">{d.cantidad}</span>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+    </Card>
+  )
+}
+
 export default function DashboardPage() {
   const navigate = useNavigate()
   const { user } = useAuth()
   const { verFinanzas } = usePermisos()
-  usePageTitle('Dashboard')
+  usePageTitle('Panel de Mando')
   const { metricas, loading: loadM } = useMetricas()
   const { tramites }                 = useUltimosTramites()
   const { turnos: turnosHoy }        = useTurnosHoy()
@@ -146,6 +208,7 @@ export default function DashboardPage() {
   const { data: ingresosMes,  loading: loadIngr  } = useIngresosPorMes(6)
   const { data: tiposTramite, loading: loadTipos } = useTiposTramiteFrecuentes()
   const { data: topClientes,  loading: loadTop   } = useTopClientes(5)
+  const { comercial: origenComercial, digital: origenDigital, loading: loadOrigen } = useClientesPorOrigen()
   const { clientes } = useClientes()
 
   // Mapa rápido clienteId → cliente (para trámites recientes)
@@ -158,7 +221,7 @@ export default function DashboardPage() {
   }, [])
 
   const hoy = format(new Date(), "EEEE d 'de' MMMM", { locale: es })
-  if (loadM) return <Spinner label="Cargando dashboard..." />
+  if (loadM) return <Spinner label="Cargando panel..." />
 
   return (
     <div className="space-y-6 animate-fadein">
@@ -210,11 +273,13 @@ export default function DashboardPage() {
       {verFinanzas && (
       <div>
         <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3">Financiero</p>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-          <KpiCard label="Ingresos hoy"    value={formatPesos(metricas?.ingresosHoy ?? 0)}    icon={TrendingUp} color="#D4621A" />
-          <KpiCard label="Ingresos del mes" value={formatPesos(metricas?.ingresosMes ?? 0)}   icon={Activity}   color="#059669" />
-          <KpiCard label="Clientes"         value={metricas?.totalClientes ?? 0}               icon={Users}      color="#7C3AED" onClick={() => navigate('/admin/clientes')} />
-          <KpiCard label="Pipeline"         value={`${metPipeline.conversion}%`}              icon={Target}     color="#F97316" sub={`${metPipeline.cerrados} cerrados`} onClick={() => navigate('/admin/pipeline')} />
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+          <KpiCard label="Ingresos hoy"     value={formatPesos(metricas?.ingresosHoy ?? 0)}    icon={TrendingUp} color="#D4621A" />
+          <KpiCard label="Ingresos semana" value={formatPesos(metricas?.ingresosSemana ?? 0)} icon={Activity} color="#0EA5E9" sub="lunes a hoy"
+  onClick={() => navigate('/admin/cobranzas?periodo=semana')} />
+          <KpiCard label="Ingresos del mes" value={formatPesos(metricas?.ingresosMes ?? 0)}    icon={Activity}   color="#059669" />
+          <KpiCard label="Clientes"         value={metricas?.totalClientes ?? 0}                icon={Users}      color="#7C3AED" onClick={() => navigate('/admin/clientes')} />
+          <KpiCard label="Pipeline"         value={`${metPipeline.conversion}%`}               icon={Target}     color="#F97316" sub={`${metPipeline.cerrados} cerrados`} onClick={() => navigate('/admin/pipeline')} />
         </div>
       </div>
       )}
@@ -296,6 +361,24 @@ export default function DashboardPage() {
             </>
           )}
         </Card>
+      </div>
+
+      {/* Gráficos comerciales — de dónde vienen los clientes */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+        <OrigenPieCard
+          titulo="Origen comercial"
+          subtitulo="Referidos, multas, reventa y compañías"
+          icon={Handshake}
+          data={origenComercial}
+          colores={COLORES_COMERCIAL}
+        />
+        <OrigenPieCard
+          titulo="Canal de captación"
+          subtitulo="Meta, Google, página, etc."
+          icon={Megaphone}
+          data={origenDigital}
+          colores={COLORES_DIGITAL}
+        />
       </div>
 
       {/* Gráficos fila 2 */}

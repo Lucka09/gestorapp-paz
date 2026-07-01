@@ -4,19 +4,22 @@ import { useGestoriaId }       from '@/context/GestoriaContext'
 import {
   getMetricas, getDistribucionEstados,
   getIngresosPorMes, getTiposTramiteFrecuentes, getTopClientes,
+  getClientesPorOrigen,
   subscribeTurnosHoy, subscribeUltimosTramites,
   type MetricasDashboard, type EstadoCount, type IngresoMes,
-  type TipoCount, type TopCliente,
+  type TipoCount, type TopCliente, type ClientesPorOrigen,
 } from '@/lib/firestore/dashboard'
 import type { Tramite, Turno } from '@/types'
 
-// ─── MÉTRICAS — caché 5 min, una sola lectura ────────────────────────────────
 export function useMetricas() {
   const gestoriaId = useGestoriaId()
   const { data: metricas, isLoading: loading, refetch } = useQuery<MetricasDashboard>({
     queryKey:  ['metricas', gestoriaId],
     queryFn:   () => getMetricas(gestoriaId),
-    staleTime: 1000 * 60 * 5,
+    staleTime: 1000 * 60 * 5,                 // dato considerado "fresco" 5 min
+    refetchInterval: 1000 * 60 * 5,            // auto-refetch cada 5 min
+    refetchIntervalInBackground: false,        // no refetch si la pestaña no está activa
+    refetchOnWindowFocus: true,                // al volver a la pestaña, refresca al toque
     enabled:   !!gestoriaId,
   })
   return { metricas: metricas ?? null, loading, refetch }
@@ -109,4 +112,22 @@ export function useTopClientes(cantidad = 5) {
     enabled:   !!gestoriaId,
   })
   return { data, loading }
+}
+
+// ─── CLIENTES POR ORIGEN — referidos comerciales + canal digital ─────────────
+// Misma política de caché que el resto de analytics (10 min, sin onSnapshot).
+export function useClientesPorOrigen() {
+  const gestoriaId = useGestoriaId()
+  const { data, isLoading: loading } = useQuery<ClientesPorOrigen>({
+    queryKey:  ['clientes-origen', gestoriaId],
+    queryFn:   () => getClientesPorOrigen(gestoriaId),
+    staleTime: 1000 * 60 * 10,
+    enabled:   !!gestoriaId,
+  })
+  return {
+    comercial: data?.comercial ?? [],
+    digital:   data?.digital ?? [],
+    sinDato:   data?.sinDato ?? 0,
+    loading,
+  }
 }

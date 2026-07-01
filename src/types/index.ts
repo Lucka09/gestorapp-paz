@@ -274,6 +274,8 @@ export type AccionAudit =
   | 'importar'
   | 'login'
   | 'acceso_denegado' // Requerido por router/index.tsx
+  | 'autoasignar_gestion_transferencia'  // ← AGREGA ESTA
+  | 'asignar_gestor_transferencia'
 
 export type EntidadAudit =
   | 'cliente'
