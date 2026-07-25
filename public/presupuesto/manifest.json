@@ -1,0 +1,16 @@
+{
+  "name": "Presupuesto de Multas — Gestoría Paz",
+  "short_name": "Presupuesto Paz",
+  "start_url": "/presupuesto/",
+  "scope": "/presupuesto/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#EAEAEA",
+  "theme_color": "#121212",
+  "icons": [
+    { "src": "/presupuesto/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/presupuesto/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/presupuesto/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "maskable" },
+    { "src": "/presupuesto/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

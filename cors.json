@@ -4,7 +4,8 @@
       "http://localhost:5173",
       "http://localhost:5174",
       "https://gestorapp-paz.web.app",
-      "https://gestorapp-paz.firebaseapp.com"
+      "https://gestorapp-paz.firebaseapp.com",
+      "https://gestorapp-tau.vercel.app"
     ],
     "method": ["GET", "POST", "PUT", "DELETE", "HEAD", "OPTIONS"],
     "responseHeader": [
