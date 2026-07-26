@@ -169,14 +169,14 @@ button.accion:active{transform:translateY(0)}
       <legend>Jurisdicciones</legend>
       <div id="jurisdicciones"></div>
       <button class="accion sec" id="agregar">+ Agregar jurisdicción</button>
-      <p class="hint"><strong>Deuda</strong> es lo que el cliente debe hoy. <strong>Resolución</strong> es lo que paga a la gestoría. El ahorro se calcula solo.</p>
+      <p class="hint"><strong>Deuda</strong> es lo que el cliente debe hoy. <strong>Queda En</strong> es lo que paga a la gestoría. El ahorro se calcula solo.</p>
     </fieldset>
 
     <fieldset>
       <legend>Condiciones</legend>
       <div class="fila f2">
         <div><label>Descuento en efectivo (%)</label><input id="efectivo" type="number" value="10" min="0" max="50" step="0.5"></div>
-        <div><label>Plazo del informe</label><input id="plazo" value="72 hs hábiles"></div>
+        <div><label>Plazo del informe</label><input id="plazo" value="72 hs hábiles promedio"></div>
       </div>
       <div class="fila f2">
         <div><label>Cuotas · opción corta</label><input id="cuotasChica" type="number" value="3" min="1" max="12"></div>
@@ -231,7 +231,10 @@ const DATOS_FIJOS = {
   instagram: '@gestoriapaz.ar',
   facebook:  '/gestoriapaz',
   tiktok:    '@gestoriapaz',
-  maps:      'https://maps.app.goo.gl/yyU7xhaqu7GAJLp'
+  maps:      'https://maps.app.goo.gl/yyU7xhaqu7GAJLp',
+  googleRating:  '4.9',
+  googleReviews: 91,
+  googleReviewsUrl: 'https://share.google/eqvCtlIIC4QRFEoWa'
 };
 
 /* ═══════════ ESTADO ═══════════ */
@@ -292,7 +295,7 @@ function pintarFilas(){
       <div class="fila f3">
         <div><label>Deuda</label><input type="number" data-c="deuda" data-i="${i}" value="${f.deuda}"></div>
         <div><label>Cant.</label><input type="number" data-c="cant" data-i="${i}" value="${f.cant}"></div>
-        <div><label>Resolución</label><input type="number" data-c="resol" data-i="${i}" value="${f.resol}"></div>
+        <div><label>Queda En</label><input type="number" data-c="resol" data-i="${i}" value="${f.resol}"></div>
       </div>`;
     cont.appendChild(div);
   });
@@ -403,8 +406,9 @@ function dibujar(){
   const H_PAGOS  = 196;
   const H_PLAZO  = 118;
   const H_ATENC  = 322;
+  const H_RESENA = 108;
   const H_FOOT   = 268;
-  const H = H_HEAD+H_PAT+H_LEGAL+H_TABLA+H_AHORRO+H_TOT+H_PAGOS+H_PLAZO+H_ATENC+H_FOOT;
+  const H = H_HEAD+H_PAT+H_LEGAL+H_TABLA+H_AHORRO+H_TOT+H_PAGOS+H_PLAZO+H_ATENC+H_RESENA+H_FOOT;
 
   cv.width = W; cv.height = H;
   // Fija la proporción real de dibujo. Sin esto, algunos navegadores de escritorio
@@ -517,7 +521,7 @@ function dibujar(){
   ctx.textAlign = 'center'; ctx.fillText('CANT.', 618, y+42);
   ctx.textAlign = 'right';
   ctx.fillText('DEUDA', 830, y+42);
-  ctx.fillStyle = NARANJA; ctx.fillText('RESOLUCIÓN', W-PX, y+42);
+  ctx.fillStyle = NARANJA; ctx.fillText('QUEDA EN', W-PX, y+42);
   ls(ctx,'0px'); ctx.textAlign = 'left';
   y += 66;
 
@@ -613,9 +617,7 @@ function dibujar(){
 
   ctx.font = "400 14px 'DM Sans','Helvetica Neue',Arial,sans-serif";
   ctx.fillStyle = '#3A2A0A';
-  ajustar(ctx, 'Cuotas con recargo de financiación', anchoCol-52, 400, 14, "'DM Sans','Helvetica Neue',Arial,sans-serif", 10);
-  ctx.fillText('Cuotas con recargo de financiación', PX+26, y+168);
-
+ 
   // efectivo (misma altura, para que las tarjetas queden parejas)
   const x2 = PX+anchoCol+16;
   ctx.fillStyle = NEGRO;
@@ -631,8 +633,8 @@ function dibujar(){
   ctx.fillStyle = GRIS_TX; ctx.font = "500 17px 'DM Sans','Helvetica Neue',Arial,sans-serif";
   ctx.fillText('En nuestras oficinas', x2+26, y+112);
   ctx.font = "400 15px 'DM Sans','Helvetica Neue',Arial,sans-serif";
-  ajustar(ctx, 'Pago único, sin cuotas ni recargo', anchoCol-52, 400, 15, "'DM Sans','Helvetica Neue',Arial,sans-serif", 10);
-  ctx.fillText('Pago único, sin cuotas ni recargo', x2+26, y+142);
+  ajustar(ctx, 'Pago único ', anchoCol-52, 400, 15, "'DM Sans','Helvetica Neue',Arial,sans-serif", 10);
+  ctx.fillText('Pago único ', x2+26, y+142);
   y += H_TOT - 90;
 
   /* ── FORMAS DE PAGO (2 columnas para ganar altura) ── */
@@ -725,6 +727,35 @@ function dibujar(){
   ctx.fillText('Ambas modalidades se atienden únicamente con cita previa', W/2, yCita+39);
   ctx.textAlign = 'left';
   y += H_ATENC;
+
+  /* ── RESEÑAS DE GOOGLE (dato real, verificado) ── */
+  ctx.fillStyle = GRIS;
+  ctx.beginPath(); ctx.roundRect(PX, y, W-PX*2, 84, 14); ctx.fill();
+
+  // 5 estrellas dibujadas como polígonos — nítidas a cualquier tamaño, no dependen de una fuente con emoji
+  function estrella(cx, cy, r){
+    ctx.beginPath();
+    for(let i=0; i<5; i++){
+      const ang = -Math.PI/2 + i*(2*Math.PI/5);
+      const angInt = ang + Math.PI/5;
+      ctx.lineTo(cx + r*Math.cos(ang), cy + r*Math.sin(ang));
+      ctx.lineTo(cx + r*0.42*Math.cos(angInt), cy + r*0.42*Math.sin(angInt));
+    }
+    ctx.closePath(); ctx.fill();
+  }
+  ctx.fillStyle = NARANJA;
+  for(let i=0; i<5; i++){ estrella(PX+30+i*30, y+30, 12); }
+
+  ctx.fillStyle = NEGRO; ctx.font = "800 26px 'Syne','Arial Black','Helvetica Neue',sans-serif";
+  ctx.fillText(DATOS_FIJOS.googleRating, PX+20, y+66);
+  ctx.fillStyle = GRIS_TX; ctx.font = "500 18px 'DM Sans','Helvetica Neue',Arial,sans-serif";
+  ctx.fillText(`${DATOS_FIJOS.googleReviews} opiniones en Google`, PX+90, y+66);
+
+  ctx.textAlign = 'right';
+  ctx.fillStyle = NARANJA; ctx.font = "700 16px 'DM Sans','Helvetica Neue',Arial,sans-serif";
+  ctx.fillText('Ver reseñas →', W-PX, y+48);
+  ctx.textAlign = 'left';
+  y += H_RESENA;
 
   /* ── PIE ── */
   ctx.fillStyle = NEGRO; ctx.fillRect(0,y,W,H_FOOT);
@@ -827,6 +858,8 @@ Si te queda lejos o preferís hacerlo desde tu casa, coordinamos día y horario.
 Presupuesto válido por ${validez} días. Los importes pueden variar según las actualizaciones de los organismos.
 
 Decime cómo querés avanzar y lo dejamos iniciado hoy.
+
+★ ${DATOS_FIJOS.googleRating} en Google (${DATOS_FIJOS.googleReviews} opiniones) — ${DATOS_FIJOS.googleReviewsUrl}
 
 —
 Gestoría Paz · Trámites sin vueltas
