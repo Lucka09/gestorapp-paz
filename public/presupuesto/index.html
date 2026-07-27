@@ -178,6 +178,13 @@ button.accion:active{transform:translateY(0)}
         <div><label>Descuento en efectivo (%)</label><input id="efectivo" type="number" value="10" min="0" max="50" step="0.5"></div>
         <div><label>Plazo del informe</label><input id="plazo" value="72 hs hábiles promedio"></div>
       </div>
+      <div class="fila">
+        <label style="display:flex; align-items:center; gap:9px; cursor:pointer; font-weight:500; margin-bottom:0;">
+          <input type="checkbox" id="mostrarCuotas" style="width:17px; height:17px; accent-color:var(--naranja); cursor:pointer;">
+          Ofrecer pago en cuotas
+        </label>
+        <p class="hint" style="margin-top:6px;">Desmarcá esto si la operación no se financia — el presupuesto queda solo con transferencia y efectivo, sin confundir al cliente.</p>
+      </div>
       <div class="fila f2">
         <div><label>Cuotas · opción corta</label><input id="cuotasChica" type="number" value="3" min="1" max="12"></div>
         <div><label>Recargo opción corta (%)</label><input id="recargoChica" type="number" value="15" min="0" max="150" step="0.5"></div>
@@ -380,6 +387,7 @@ function dibujar(){
   const recargoChica = parseFloat($('recargoChica').value)||0;
   const cuotas  = parseInt($('cuotas').value)||6;
   const recargoLarga = parseFloat($('recargoLarga').value)||0;
+  const mostrarCuotas = $('mostrarCuotas').checked;
   const plazo   = $('plazo').value.trim();
   const validez = parseInt($('validez').value)||5;
 
@@ -402,7 +410,8 @@ function dibujar(){
   const H_LEGAL  = 26 + lineasLegal.length*30 + 26;
   const H_TABLA  = 66 + filas.length*76 + 34;
   const H_AHORRO = 196;
-  const H_TOT    = 298;
+  const ALTURA_TARJETA = mostrarCuotas ? 190 : 150;
+  const H_TOT    = 90 + ALTURA_TARJETA + 18;
   const H_PAGOS  = 196;
   const H_PLAZO  = 118;
   const H_ATENC  = 322;
@@ -456,8 +465,8 @@ function dibujar(){
 
     ls(ctx,'3px');
     ctx.fillStyle = NARANJA;
-    ajustar(ctx, 'TRÁMITES SIN VUELTAS', ZONA_IZQ_MAX, 500, 16, "'DM Sans','Helvetica Neue',Arial,sans-serif", 10);
-    ctx.fillText('TRÁMITES SIN VUELTAS', ZONA_IZQ_X, 152);
+    ajustar(ctx, 'TU TRANQUILIDAD, NUESTRO COMPROMISO', ZONA_IZQ_MAX, 500, 16, "'DM Sans','Helvetica Neue',Arial,sans-serif", 14);
+    ctx.fillText('TU TRANQUILIDAD, NUESTRO COMPROMISO', ZONA_IZQ_X, 152);
     ls(ctx,'0px');
   }
 
@@ -555,28 +564,16 @@ function dibujar(){
   ctx.beginPath(); ctx.roundRect(PX, y, W-PX*2, 156, 16); ctx.fill();
   ls(ctx,'2.5px');
   ctx.fillStyle = GRIS_TX;
-  ajustar(ctx, 'TU AHORRO CON ESTA GESTIÓN', W-PX*2-200, 700, 16, "'DM Sans','Helvetica Neue',Arial,sans-serif", 11);
+  ajustar(ctx, 'TU AHORRO CON ESTA GESTIÓN', W-PX*2-68, 700, 16, "'DM Sans','Helvetica Neue',Arial,sans-serif", 11);
   ctx.fillText('TU AHORRO CON ESTA GESTIÓN', PX+34, y+46);
   ls(ctx,'0px');
 
-  // Badge del porcentaje: ancho según el texto real (nunca recorta)
-  const txtPct = pctAhorro + '%';
-  ctx.font = "700 36px 'JetBrains Mono','SF Mono',Consolas,monospace";
-  const anchoPct = Math.max(ctx.measureText(txtPct).width + 44, 106);
-  const xBadge = W-PX-34-anchoPct;
-
-  // Importe del ahorro: en mono, y sin invadir el badge
-  const maxAhorro = xBadge - (PX+34) - 28;
+  // Importe del ahorro: en mono, con todo el ancho del bloque disponible
+  const maxAhorro = W - PX*2 - 68;
   ctx.fillStyle = NARANJA;
   ajustar(ctx, money(ahorro), maxAhorro, 700, 58, "'JetBrains Mono','SF Mono',Consolas,monospace", 30);
   ctx.fillText(money(ahorro), PX+34, y+112);
 
-  ctx.fillStyle = NARANJA;
-  ctx.beginPath(); ctx.roundRect(xBadge, y+44, anchoPct, 68, 12); ctx.fill();
-  ctx.textAlign = 'center';
-  ctx.fillStyle = NEGRO; ctx.font = "700 36px 'JetBrains Mono','SF Mono',Consolas,monospace";
-  ctx.fillText(txtPct, xBadge + anchoPct/2, y+90);
-  ctx.textAlign = 'left';
   y += H_AHORRO;
 
   /* ── TOTALES ── */
@@ -598,7 +595,7 @@ function dibujar(){
 
   // total a abonar
   ctx.fillStyle = NARANJA;
-  ctx.beginPath(); ctx.roundRect(PX, y, anchoCol, 190, 14); ctx.fill();
+  ctx.beginPath(); ctx.roundRect(PX, y, anchoCol, ALTURA_TARJETA, 14); ctx.fill();
   ls(ctx,'1.6px');
   ctx.fillStyle = NEGRO;
   ajustar(ctx, 'TOTAL A ABONAR', anchoCol-52, 700, 15, "'DM Sans','Helvetica Neue',Arial,sans-serif", 10);
@@ -606,36 +603,49 @@ function dibujar(){
   ls(ctx,'0px');
   ajustar(ctx, money(totalPagar), anchoCol-52, 700, 40, "'JetBrains Mono','SF Mono',Consolas,monospace", 22);
   ctx.fillText(money(totalPagar), PX+26, y+88);
-  ctx.font = "500 17px 'DM Sans','Helvetica Neue',Arial,sans-serif";
-  ctx.fillText('Transferencia o tarjeta', PX+26, y+112);
+  ctx.font = "500 18px 'DM Sans','Helvetica Neue',Arial,sans-serif";
+  ctx.fillText('Transferencia', PX+26, mostrarCuotas ? y+112 : y+108);
 
-  // línea de cuotas — se ajusta sola al ancho disponible de la tarjeta
-  const txtCuotas = `${cuotasChica} x ${money(montoCuotaChica)}  ·  ${cuotas} x ${money(montoCuotaLarga)}`;
-  ctx.fillStyle = NEGRO;
-  ajustar(ctx, txtCuotas, anchoCol-52, 700, 18, "'JetBrains Mono','SF Mono',Consolas,monospace", 12);
-  ctx.fillText(txtCuotas, PX+26, y+142);
+  if(!mostrarCuotas){
+    ctx.font = "400 13px 'DM Sans','Helvetica Neue',Arial,sans-serif";
+    ctx.fillStyle = '#3A2A0A';
+    ajustar(ctx, 'Financiación en cuotas: consultanos', anchoCol-52, 400, 13, "'DM Sans','Helvetica Neue',Arial,sans-serif", 16);
+    ctx.fillText('Financiación en cuotas: consultanos', PX+26, y+128);
+  }
 
-  ctx.font = "400 14px 'DM Sans','Helvetica Neue',Arial,sans-serif";
-  ctx.fillStyle = '#3A2A0A';
- 
+  if(mostrarCuotas){
+    // línea de cuotas — se ajusta sola al ancho disponible de la tarjeta
+    const txtCuotas = `${cuotasChica} x ${money(montoCuotaChica)}  ·  ${cuotas} x ${money(montoCuotaLarga)}`;
+    ctx.fillStyle = NEGRO;
+    ajustar(ctx, txtCuotas, anchoCol-52, 700, 18, "'JetBrains Mono','SF Mono',Consolas,monospace", 12);
+    ctx.fillText(txtCuotas, PX+26, y+142);
+
+    ctx.font = "400 14px 'DM Sans','Helvetica Neue',Arial,sans-serif";
+    ctx.fillStyle = '#3A2A0A';
+    ajustar(ctx, 'Cuotas con recargo de financiación', anchoCol-52, 400, 14, "'DM Sans','Helvetica Neue',Arial,sans-serif", 10);
+    ctx.fillText('Cuotas con recargo de financiación', PX+26, y+168);
+  }
+
   // efectivo (misma altura, para que las tarjetas queden parejas)
   const x2 = PX+anchoCol+16;
   ctx.fillStyle = NEGRO;
-  ctx.beginPath(); ctx.roundRect(x2, y, anchoCol, 190, 14); ctx.fill();
+  ctx.beginPath(); ctx.roundRect(x2, y, anchoCol, ALTURA_TARJETA, 14); ctx.fill();
   ls(ctx,'1.6px');
   ctx.fillStyle = NARANJA;
-  ajustar(ctx, `EFECTIVO · ${pctEf}% OFF`, anchoCol-52, 700, 15, "'DM Sans','Helvetica Neue',Arial,sans-serif", 10);
-  ctx.fillText(`EFECTIVO · ${pctEf}% OFF`, x2+26, y+40);
+  ajustar(ctx, `DESCUENTO EN EFECTIVO ·`, anchoCol-52, 700, 15, "'DM Sans','Helvetica Neue',Arial,sans-serif", 10);
+  ctx.fillText(`DESCUENTO EN EFECTIVO ·`, x2+26, y+40);
   ls(ctx,'0px');
   ctx.fillStyle = BLANCO;
   ajustar(ctx, money(enEfectivo), anchoCol-52, 700, 40, "'JetBrains Mono','SF Mono',Consolas,monospace", 22);
   ctx.fillText(money(enEfectivo), x2+26, y+88);
   ctx.fillStyle = GRIS_TX; ctx.font = "500 17px 'DM Sans','Helvetica Neue',Arial,sans-serif";
   ctx.fillText('En nuestras oficinas', x2+26, y+112);
-  ctx.font = "400 15px 'DM Sans','Helvetica Neue',Arial,sans-serif";
-  ajustar(ctx, 'Pago único ', anchoCol-52, 400, 15, "'DM Sans','Helvetica Neue',Arial,sans-serif", 10);
-  ctx.fillText('Pago único ', x2+26, y+142);
-  y += H_TOT - 90;
+  if(mostrarCuotas){
+    ctx.font = "400 15px 'DM Sans','Helvetica Neue',Arial,sans-serif";
+    ajustar(ctx, 'Pago único, sin cuotas ni recargo', anchoCol-52, 400, 15, "'DM Sans','Helvetica Neue',Arial,sans-serif", 10);
+    ctx.fillText('Pago único, sin cuotas ni recargo', x2+26, y+142);
+  }
+  y += ALTURA_TARJETA + 18;
 
   /* ── FORMAS DE PAGO (2 columnas para ganar altura) ── */
   ls(ctx,'2.5px');
@@ -643,8 +653,8 @@ function dibujar(){
   ctx.fillText('FORMAS DE PAGO', PX, y+46);
   ls(ctx,'0px');
   const pagos = [
-    'Transferencia',
-    `Tarjeta de crédito · hasta ${cuotas} cuotas fijas`,
+    'Transferencia bancaria',
+    mostrarCuotas ? `Tarjeta de crédito · hasta ${cuotas} cuotas fijas` : 'Tarjeta de crédito · consultar financiación',
     'Efectivo en oficina',
     'Mercado Pago'
   ];
@@ -715,7 +725,7 @@ function dibujar(){
   ctx.font = "500 20px 'DM Sans','Helvetica Neue',Arial,sans-serif";
   ctx.fillText('Coordinamos día y hora', xAt2+26, yAt+100);
   ctx.fillStyle = GRIS_TX; ctx.font = "400 18px 'DM Sans','Helvetica Neue',Arial,sans-serif";
-  ctx.fillText('Si estás lejos o preferís', xAt2+26, yAt+126);
+  ctx.fillText('Si estás lejos o preferís esta modalidad', xAt2+26, yAt+126);
 
   // Franja de cita previa — imposible de pasar por alto
   const yCita = yAt + 156;
@@ -746,13 +756,13 @@ function dibujar(){
   ctx.fillStyle = NARANJA;
   for(let i=0; i<5; i++){ estrella(PX+30+i*30, y+30, 12); }
 
-  ctx.fillStyle = NEGRO; ctx.font = "900 32px 'JetBrains Mono','SF Mono',Consolas,monospace";
-  ctx.fillText(DATOS_FIJOS.googleRating, PX+20, y+66);
-  ctx.fillStyle = GRIS_TX; ctx.font = "600 18px 'DM Sans','Helvetica Neue',Arial,sans-serif";
-  ctx.fillText(`${DATOS_FIJOS.googleReviews} opiniones en Google`, PX+99, y+66);
+  ctx.fillStyle = NEGRO; ctx.font = "800 32px 'JetBrains Mono','SF Mono',Consolas,monospace";
+  ctx.fillText(DATOS_FIJOS.googleRating, PX+30, y+66);
+  ctx.fillStyle = GRIS_TX; ctx.font = "500 24px 'DM Sans','Helvetica Neue',Arial,sans-serif";
+  ctx.fillText(`${DATOS_FIJOS.googleReviews} opiniones en Google`, PX+120, y+66);
 
   ctx.textAlign = 'right';
-  ctx.fillStyle = NARANJA; ctx.font = "700 16px 'DM Sans','Helvetica Neue',Arial,sans-serif";
+  ctx.fillStyle = NARANJA; ctx.font = "700 26px 'DM Sans','Helvetica Neue',Arial,sans-serif";
   ctx.fillText('Ver reseñas →', W-PX, y+48);
   ctx.textAlign = 'left';
   y += H_RESENA;
@@ -795,8 +805,8 @@ function dibujar(){
   });
 
   ls(ctx,'2px');
-  ctx.fillStyle = NARANJA; ctx.font = "700 14px 'DM Sans','Helvetica Neue',Arial,sans-serif";
-  ctx.fillText('TRÁMITES SIN VUELTAS', W-PX, y+212);
+  ctx.fillStyle = NARANJA; ctx.font = "700 18px 'DM Sans','Helvetica Neue',Arial,sans-serif";
+  ctx.fillText('Tu Tranquilidad, Nuestro Compromiso', W-PX, y+212);
   ls(ctx,'0px');
   ctx.textAlign = 'left';
 
@@ -815,6 +825,7 @@ function textoWhatsapp(){
   const recargoChica = parseFloat($('recargoChica').value)||0;
   const cuotas  = parseInt($('cuotas').value)||6;
   const recargoLarga = parseFloat($('recargoLarga').value)||0;
+  const mostrarCuotas = $('mostrarCuotas').checked;
   const plazo   = $('plazo').value.trim();
   const validez = parseInt($('validez').value)||5;
   const cliente = $('cliente').value.trim();
@@ -826,21 +837,27 @@ function textoWhatsapp(){
   const montoCuotaChica = (totalPagar * (1 + recargoChica/100)) / cuotasChica;
   const montoCuotaLarga = (totalPagar * (1 + recargoLarga/100)) / cuotas;
 
+  const lineaCuotas = mostrarCuotas
+    ? `\n   En cuotas (con recargo): ${cuotasChica} x ${money(montoCuotaChica)}  ·  ${cuotas} x ${money(montoCuotaLarga)}`
+    : '';
+  const lineaTarjetaPago = mostrarCuotas
+    ? `Tarjeta de crédito, hasta ${cuotas} cuotas fijas`
+    : 'Tarjeta de crédito (consultar financiación)';
+
   return `*GESTORÍA PAZ* — Presupuesto
 Dominio: *${patente}*
 
 Deuda total actual: ${money(deudaTotal)}
 Ahorro con la gestión: *${money(ahorro)}*
-▸ *Total a abonar:* ${money(totalPagar)} (transferencia)
-   En cuotas : ${cuotasChica} x ${money(montoCuotaChica)}  ·  ${cuotas} x ${money(montoCuotaLarga)}
-▸ *Efectivo en oficina:* ${money(enEfectivo)} (${pctEf}% OFF)
+▸ *Total a abonar:* ${money(totalPagar)} (transferencia)${lineaCuotas}
+▸ *Efectivo en oficina:* ${money(enEfectivo)} 
 
 Incluye la gestión de las infracciones visibles en las plataformas oficiales al día de la fecha.
 El informe de multas sale limpio en ${plazo}. Ideal para renovar el registro, transferir el vehículo o presentar la baja al seguro.
 
 *Formas de pago*
 • Transferencia bancaria
-• Tarjeta de crédito, hasta ${cuotas} cuotas fijas
+• ${lineaTarjetaPago}
 • Efectivo en oficina
 • Mercado Pago
 
@@ -859,10 +876,10 @@ Presupuesto válido por ${validez} días. Los importes pueden variar según las 
 
 Decime cómo querés avanzar y lo dejamos iniciado hoy.
 
-★ ${DATOS_FIJOS.googleRating} en Google (${DATOS_FIJOS.googleReviews} opiniones) — ${DATOS_FIJOS.googleReviewsUrl}
+★ ${DATOS_FIJOS.googleRating} en Google (${DATOS_FIJOS.googleReviews} opiniones) ★ Nuestras reseñas en Google → ${DATOS_FIJOS.googleReviewsUrl}
 
 —
-Gestoría Paz · Trámites sin vueltas
+Gestoría Paz · Tu Tranquilidad, Nuestro Compromiso
 ${DATOS_FIJOS.email} · ${DATOS_FIJOS.web}
 Instagram ${DATOS_FIJOS.instagram} · Facebook ${DATOS_FIJOS.facebook} · TikTok ${DATOS_FIJOS.tiktok}`;
 }
@@ -877,8 +894,9 @@ function avisar(msg){
 }
 
 /* ═══════════ EVENTOS ═══════════ */
-['patente','cliente','fecha','efectivo','cuotas','plazo','validez']
+['patente','cliente','fecha','efectivo','cuotas','cuotasChica','recargoChica','recargoLarga','plazo','validez']
   .forEach(id => $(id).addEventListener('input', dibujar));
+$('mostrarCuotas').addEventListener('change', dibujar);
 
 $('agregar').addEventListener('click', ()=>{
   filas.push({jur:'', cant:1, deuda:0, resol:0});
