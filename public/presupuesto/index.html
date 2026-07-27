@@ -643,7 +643,7 @@ function dibujar(){
   ctx.fillText('FORMAS DE PAGO', PX, y+46);
   ls(ctx,'0px');
   const pagos = [
-    'Transferencia bancaria',
+    'Transferencia',
     `Tarjeta de crédito · hasta ${cuotas} cuotas fijas`,
     'Efectivo en oficina',
     'Mercado Pago'
@@ -746,10 +746,10 @@ function dibujar(){
   ctx.fillStyle = NARANJA;
   for(let i=0; i<5; i++){ estrella(PX+30+i*30, y+30, 12); }
 
-  ctx.fillStyle = NEGRO; ctx.font = "800 26px 'Syne','Arial Black','Helvetica Neue',sans-serif";
+  ctx.fillStyle = NEGRO; ctx.font = "900 32px 'JetBrains Mono','SF Mono',Consolas,monospace";
   ctx.fillText(DATOS_FIJOS.googleRating, PX+20, y+66);
-  ctx.fillStyle = GRIS_TX; ctx.font = "500 18px 'DM Sans','Helvetica Neue',Arial,sans-serif";
-  ctx.fillText(`${DATOS_FIJOS.googleReviews} opiniones en Google`, PX+90, y+66);
+  ctx.fillStyle = GRIS_TX; ctx.font = "600 18px 'DM Sans','Helvetica Neue',Arial,sans-serif";
+  ctx.fillText(`${DATOS_FIJOS.googleReviews} opiniones en Google`, PX+99, y+66);
 
   ctx.textAlign = 'right';
   ctx.fillStyle = NARANJA; ctx.font = "700 16px 'DM Sans','Helvetica Neue',Arial,sans-serif";
@@ -831,12 +831,12 @@ Dominio: *${patente}*
 
 Deuda total actual: ${money(deudaTotal)}
 Ahorro con la gestión: *${money(ahorro)}*
-▸ *Total a abonar:* ${money(totalPagar)} (transferencia o tarjeta)
-   En cuotas (con recargo): ${cuotasChica} x ${money(montoCuotaChica)}  ·  ${cuotas} x ${money(montoCuotaLarga)}
+▸ *Total a abonar:* ${money(totalPagar)} (transferencia)
+   En cuotas : ${cuotasChica} x ${money(montoCuotaChica)}  ·  ${cuotas} x ${money(montoCuotaLarga)}
 ▸ *Efectivo en oficina:* ${money(enEfectivo)} (${pctEf}% OFF)
 
 Incluye la gestión de las infracciones visibles en las plataformas oficiales al día de la fecha.
-El informe de multas sale limpio en ${plazo}. Ideal para renovar el registro, transferir el vehículo o presentar al seguro.
+El informe de multas sale limpio en ${plazo}. Ideal para renovar el registro, transferir el vehículo o presentar la baja al seguro.
 
 *Formas de pago*
 • Transferencia bancaria
