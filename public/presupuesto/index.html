@@ -853,16 +853,6 @@ function dibujar(){
   ctx.fillStyle = NARANJA;
   ajustar(ctx, money(c.ahorro), W-PX*2-260, 700, 48, "'JetBrains Mono','SF Mono',Consolas,monospace", 26);
   ctx.fillText(money(c.ahorro), PX+34, y+108);
-  // % de ahorro a la derecha
-  const pctAhorro = c.D > 0 ? Math.round(c.ahorro/c.D*100) : 0;
-  if(pctAhorro > 0){
-    ctx.textAlign = 'right';
-    ctx.fillStyle = NARANJA; ctx.font = "700 38px 'JetBrains Mono','SF Mono',Consolas,monospace";
-    ctx.fillText( W-PX-34, y+108);
-    ctx.fillStyle = GRIS_TX; ctx.font = "500 18px 'DM Sans','Helvetica Neue',Arial,sans-serif";
-    ctx.fillText( W-PX-34, y+136);
-    ctx.textAlign = 'left';
-  }
   y += H_AHORRO;
 
   /* ── FORMAS DE PAGO ── */
