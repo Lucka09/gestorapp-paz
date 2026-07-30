@@ -858,7 +858,9 @@ function dibujar(){
   if(pctAhorro > 0){
     ctx.textAlign = 'right';
     ctx.fillStyle = NARANJA; ctx.font = "700 38px 'JetBrains Mono','SF Mono',Consolas,monospace";
-   
+    ctx.fillText( W-PX-34, y+108);
+    ctx.fillStyle = GRIS_TX; ctx.font = "500 18px 'DM Sans','Helvetica Neue',Arial,sans-serif";
+    ctx.fillText( W-PX-34, y+136);
     ctx.textAlign = 'left';
   }
   y += H_AHORRO;
