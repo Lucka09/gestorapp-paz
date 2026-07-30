@@ -21,15 +21,15 @@
 *{box-sizing:border-box;margin:0;padding:0}
 html,body{height:100%}
 body{
-  font-family:'DM Sans','Helvetica Neue',Arial,sans-serif,system-ui,sans-serif;
+  font-family:'DM Sans','Helvetica Neue',Arial,sans-serif;
   background:var(--gris);
   color:var(--negro);
   -webkit-font-smoothing:antialiased;
 }
-.app{display:grid;grid-template-columns:minmax(390px,480px) 1fr;min-height:100vh}
-@media(max-width:920px){.app{grid-template-columns:1fr}}
+.app{display:grid;grid-template-columns:minmax(420px,520px) 1fr;min-height:100vh}
+@media(max-width:960px){.app{grid-template-columns:1fr}}
 
-/* ---------- PANEL DE CARGA ---------- */
+/* ---------- PANEL ---------- */
 .panel{
   background:var(--blanco);
   padding:28px 26px 60px;
@@ -37,17 +37,17 @@ body{
   max-height:100vh;
   border-right:1px solid #dcdcdc;
 }
-@media(max-width:920px){.panel{max-height:none;border-right:none;border-bottom:1px solid #dcdcdc}}
+@media(max-width:960px){.panel{max-height:none;border-right:none;border-bottom:1px solid #dcdcdc}}
 
 .marca{display:flex;align-items:center;gap:11px;margin-bottom:4px}
 .marca .mono{
   width:38px;height:38px;border-radius:10px;
   border:2.5px solid var(--naranja);
   display:grid;place-items:center;
-  font-family:'Syne','Arial Black','Helvetica Neue',sans-serif,sans-serif;font-weight:800;font-size:15px;
+  font-family:'Syne','Arial Black','Helvetica Neue',sans-serif;font-weight:800;font-size:15px;
   color:var(--naranja);letter-spacing:-.5px;
 }
-.marca h1{font-family:'Syne','Arial Black','Helvetica Neue',sans-serif,sans-serif;font-weight:800;font-size:17px;letter-spacing:-.3px;line-height:1.1}
+.marca h1{font-family:'Syne','Arial Black','Helvetica Neue',sans-serif;font-weight:800;font-size:17px;letter-spacing:-.3px;line-height:1.1}
 .marca span{display:block;font-family:'DM Sans','Helvetica Neue',Arial,sans-serif;font-weight:500;font-size:10.5px;color:var(--gris-medio);letter-spacing:1.4px;text-transform:uppercase;margin-top:2px}
 .intro{font-size:12.5px;color:var(--gris-medio);margin:14px 0 26px;line-height:1.5}
 
@@ -61,7 +61,7 @@ legend::after{content:"";flex:1;height:2px;background:var(--naranja);opacity:.85
 label{display:block;font-size:11px;font-weight:700;color:#555;margin:0 0 5px;letter-spacing:.2px}
 input,select{
   width:100%;padding:10px 12px;border:1.5px solid #d8d8d8;border-radius:9px;
-  font-family:'DM Sans','Helvetica Neue',Arial,sans-serif,sans-serif;font-size:14px;background:var(--blanco);color:var(--negro);
+  font-family:'DM Sans','Helvetica Neue',Arial,sans-serif;font-size:14px;background:var(--blanco);color:var(--negro);
   transition:border-color .18s ease, box-shadow .18s ease;
 }
 input:hover,select:hover{border-color:#b6b6b6}
@@ -78,10 +78,9 @@ input[type=file]{padding:8px;font-size:12px;cursor:pointer}
 .check{display:flex;align-items:center;gap:9px;cursor:pointer;font-weight:600;font-size:13px;color:var(--negro);margin-bottom:0}
 .check input{width:17px;height:17px;accent-color:var(--naranja);cursor:pointer;padding:0}
 .grupo{background:#fafafa;border:1.5px solid #e6e6e6;border-radius:var(--radio);padding:14px;margin-bottom:12px}
-.grupo > .titulo{font-size:11px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;color:var(--naranja);margin-bottom:11px;display:flex;align-items:center;gap:7px}
 .oculto{display:none!important}
 
-/* jurisdicciones */
+/* ---------- JURISDICCIONES ---------- */
 .jur{
   background:#fafafa;border:1.5px solid #e4e4e4;border-radius:var(--radio);
   padding:13px;margin-bottom:10px;position:relative;
@@ -95,13 +94,26 @@ input[type=file]{padding:8px;font-size:12px;cursor:pointer}
 }
 .jur .quitar:hover{background:var(--negro);color:var(--blanco)}
 .jur .idx{
-  font-family:'JetBrains Mono','SF Mono',Consolas,monospace,monospace;font-size:10px;font-weight:700;
-  color:var(--naranja);letter-spacing:1px;margin-bottom:9px;display:block;
+  font-family:'JetBrains Mono','SF Mono',Consolas,monospace;font-size:10px;font-weight:700;
+  color:var(--naranja);letter-spacing:1px;margin-bottom:9px;display:flex;align-items:center;gap:10px;
 }
+.jur .idx span{color:var(--gris-medio);font-weight:400;font-size:10px;letter-spacing:.3px}
+
+/* Sub-sección condiciones por jurisdicción */
+.jur-cond{
+  margin-top:10px;
+  border-top:1.5px solid #e6e6e6;
+  padding-top:10px;
+}
+.jur-cond-titulo{
+  font-size:10px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;
+  color:var(--naranja);margin-bottom:9px;
+}
+.jur-cond .f3{grid-template-columns:1fr 1fr 1fr}
 
 button.accion{
   width:100%;padding:12px;border:none;border-radius:10px;cursor:pointer;
-  font-family:'DM Sans','Helvetica Neue',Arial,sans-serif,sans-serif;font-weight:700;font-size:13.5px;letter-spacing:.2px;
+  font-family:'DM Sans','Helvetica Neue',Arial,sans-serif;font-weight:700;font-size:13.5px;letter-spacing:.2px;
   transition:transform .15s ease, box-shadow .2s ease, background .18s ease;
 }
 .sec{background:var(--gris);color:var(--negro);border:1.5px solid #d5d5d5}
@@ -115,6 +127,12 @@ button.accion:active{transform:translateY(0)}
 
 .hint{font-size:11px;color:var(--gris-medio);margin-top:7px;line-height:1.45}
 
+/* Badge "defaults globales" */
+.badge-default{
+  display:inline-block;font-size:10px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;
+  background:var(--naranja);color:var(--negro);border-radius:5px;padding:2px 7px;margin-left:8px;vertical-align:middle;
+}
+
 /* ---------- VISTA PREVIA ---------- */
 .vista{
   padding:36px 28px 56px;display:flex;flex-direction:column;align-items:center;gap:16px;
@@ -123,7 +141,7 @@ button.accion:active{transform:translateY(0)}
     var(--gris);
 }
 .rotulo{
-  font-family:'JetBrains Mono','SF Mono',Consolas,monospace,monospace;font-size:10.5px;font-weight:700;letter-spacing:2px;
+  font-family:'JetBrains Mono','SF Mono',Consolas,monospace;font-size:10.5px;font-weight:700;letter-spacing:2px;
   text-transform:uppercase;color:var(--gris-medio);
 }
 #vistaPrevia{
@@ -173,10 +191,44 @@ button.accion:active{transform:translateY(0)}
     </fieldset>
 
     <fieldset>
+      <legend>Defaults por jurisdicción</legend>
+      <p class="hint" style="margin-bottom:12px">Estos valores se aplican <strong>al crear cada jurisdicción nueva</strong>. Podés editarlos individualmente en cada fila después.</p>
+      <div class="grupo">
+        <div class="jur-cond-titulo">Transferencia · "Queda en"</div>
+        <div class="fila f2" style="margin-bottom:8px">
+          <div>
+            <label>Modo</label>
+            <select id="defTransfModo">
+              <option value="manual">Manual (cargo a mano)</option>
+              <option value="pct">Automático por % de la deuda</option>
+            </select>
+          </div>
+          <div id="defWrapPct"><label>% que abona el cliente</label><input id="defTransfPct" type="number" value="41" min="0" max="100" step="0.5"></div>
+        </div>
+        <div class="jur-cond-titulo" style="margin-top:10px">Efectivo</div>
+        <div class="fila f2" style="margin-bottom:8px">
+          <div>
+            <label>Modo</label>
+            <select id="defEfvoModo">
+              <option value="pct">Descuento % sobre honorario</option>
+              <option value="manual">Manual</option>
+            </select>
+          </div>
+          <div id="defWrapEfvoPct"><label>Descuento (%)</label><input id="defEfvoPct" type="number" value="10" min="0" max="60" step="0.5"></div>
+        </div>
+        <div class="jur-cond-titulo" style="margin-top:10px">Cuotas</div>
+        <div class="fila f2" style="margin-bottom:0">
+          <div><label>Recargo corta (%)</label><input id="defRecargoChica" type="number" value="15" min="0" max="150" step="0.5"></div>
+          <div><label>Recargo larga (%)</label><input id="defRecargoLarga" type="number" value="35" min="0" max="150" step="0.5"></div>
+        </div>
+      </div>
+    </fieldset>
+
+    <fieldset>
       <legend>Jurisdicciones</legend>
       <div id="jurisdicciones"></div>
       <button class="accion sec" id="agregar">+ Agregar jurisdicción</button>
-      <p class="hint"><strong>Deuda</strong> es el total de infracciones. <strong>Cant.</strong> cuántas son. <strong>Queda En</strong> es el honorario que abona el cliente por esa jurisdicción (podés cargarlo a mano o dejar que se calcule por %).</p>
+      <p class="hint"><strong>Deuda</strong>: total de infracciones. <strong>Cant.</strong>: cantidad. <strong>Queda En</strong>: lo que abona el cliente. Cada jurisdicción tiene sus propias condiciones de pago editables.</p>
     </fieldset>
 
     <fieldset>
@@ -191,52 +243,15 @@ button.accion:active{transform:translateY(0)}
     </fieldset>
 
     <fieldset>
-      <legend>Transferencia · "Queda en"</legend>
-      <div class="grupo">
-        <label class="check"><input type="checkbox" id="transfAuto"> Calcular "Queda en" automático por % de la deuda</label>
-        <div class="fila" id="wrapTransfPct" style="margin-top:11px;margin-bottom:0">
-          <div><label>El cliente abona el ___ % de la deuda</label><input id="transfPct" type="number" value="41" min="0" max="100" step="0.5"></div>
-        </div>
-        <p class="hint">Con el check <strong>activado</strong>, cada "Queda en" se calcula solo (deuda × %). <strong>Desactivado</strong> (por defecto), lo cargás a mano fila por fila.</p>
-      </div>
-    </fieldset>
-
-    <fieldset>
-      <legend>Efectivo</legend>
-      <div class="grupo">
-        <label class="check"><input type="checkbox" id="efvoManual"> Cargar el monto en efectivo a mano</label>
-        <div class="fila" id="wrapEfvoPct" style="margin-top:11px;margin-bottom:0">
-          <div><label>Descuento adicional en efectivo (%)</label><input id="efvoPct" type="number" value="10" min="0" max="60" step="0.5"></div>
-        </div>
-        <div class="fila oculto" id="wrapEfvoMonto" style="margin-top:11px;margin-bottom:0">
-          <div><label>Honorario en efectivo (sin SUATS)</label><input id="efvoMonto" type="number" value="0" min="0" step="1000"></div>
-        </div>
-        <p class="hint">El descuento aplica sobre el honorario (no sobre el SUATS). El SUATS se suma después.</p>
-      </div>
-    </fieldset>
-
-    <fieldset>
       <legend>Financiación en cuotas</legend>
       <label class="check"><input type="checkbox" id="mostrarCuotas"> Ofrecer pago en cuotas</label>
-      <p class="hint" style="margin-top:6px;margin-bottom:12px;">Desmarcá esto si la operación no se financia — el presupuesto queda solo con transferencia y efectivo.</p>
-
-      <div class="grupo" id="grupoCuotas">
-        <label class="check"><input type="checkbox" id="cuotasManual"> Cargar el importe financiado a mano</label>
-
-        <div class="titulo" style="margin-top:14px">Opción corta</div>
+      <p class="hint" style="margin-top:6px;margin-bottom:12px;">Desmarcá si no se financia — el presupuesto queda solo con transferencia y efectivo.</p>
+      <div class="grupo oculto" id="grupoCuotas">
         <div class="fila f2" style="margin-bottom:0">
-          <div><label>Cantidad de cuotas</label><input id="nChica" type="number" value="3" min="1" max="12"></div>
-          <div class="wrapRecargo"><label>Recargo (%)</label><input id="recargoChica" type="number" value="15" min="0" max="150" step="0.5"></div>
-          <div class="wrapMonto oculto"><label>Importe financiado total</label><input id="cuotasChicaMonto" type="number" value="0" min="0" step="1000"></div>
+          <div><label>Cuotas cortas</label><input id="nChica" type="number" value="3" min="1" max="12"></div>
+          <div><label>Cuotas largas</label><input id="nLarga" type="number" value="6" min="1" max="12"></div>
         </div>
-
-        <div class="titulo" style="margin-top:16px">Opción larga</div>
-        <div class="fila f2" style="margin-bottom:0">
-          <div><label>Cantidad de cuotas</label><input id="nLarga" type="number" value="6" min="1" max="12"></div>
-          <div class="wrapRecargo"><label>Recargo (%)</label><input id="recargoLarga" type="number" value="35" min="0" max="150" step="0.5"></div>
-          <div class="wrapMonto oculto"><label>Importe financiado total</label><input id="cuotasLargaMonto" type="number" value="0" min="0" step="1000"></div>
-        </div>
-        <p class="hint">Con recargo: se calcula sobre el total a abonar. A mano: cargás el importe total financiado y se divide por la cantidad de cuotas.</p>
+        <p class="hint">El recargo por jurisdicción se configura en cada fila.</p>
       </div>
     </fieldset>
 
@@ -292,9 +307,22 @@ const DATOS_FIJOS = {
   googleReviewsUrl: 'https://share.google/eqvCtlIIC4QRFEoWa'
 };
 
-/* ═══════════ ESTADO ═══════════ */
+/* ═══════════ ESTADO ═══════════
+ * Cada fila tiene sus propias condiciones de pago:
+ *   transfModo: 'manual' | 'pct'
+ *   transfPct:  número (% de la deuda)
+ *   efvoModo:   'pct' | 'manual'
+ *   efvoPct:    número (descuento % sobre honorario)
+ *   efvoMonto:  número (monto manual en efectivo, sin SUATS)
+ *   recargoChica / recargoLarga: % de recargo cuotas
+ */
 let filas = [
-  { jur:'Pag. Provincia de Buenos Aires', cant:16, deuda:1703250, resol:697300 }
+  {
+    jur:'Pag. Provincia de Buenos Aires', cant:16, deuda:1703250, resol:697300,
+    transfModo:'manual', transfPct:41,
+    efvoModo:'pct', efvoPct:10, efvoMonto:0,
+    recargoChica:15, recargoLarga:35
+  }
 ];
 let logoImg = null;
 
@@ -303,6 +331,8 @@ const $ = id => document.getElementById(id);
 const money = n => '$ ' + Math.round(n||0).toLocaleString('es-AR');
 const num = id => parseFloat(($(id)||{}).value)||0;
 const int = id => parseInt(($(id)||{}).value)||0;
+const numEl = el => parseFloat(el.value)||0;
+const intEl = el => parseInt(el.value)||0;
 
 function fechaLarga(iso){
   if(!iso) return '';
@@ -337,91 +367,207 @@ function ajustar(ctx, texto, maxAncho, peso, tamBase, familia, tamMin){
 }
 
 /* ═══════════ MOTOR DE CÁLCULO ═══════════ */
-/* Fuente única de la verdad: todo lo que dibuja el canvas y lo que arma el
-   texto de WhatsApp sale de acá, para que imagen y mensaje nunca discrepen. */
+function calcularFila(f, S_incluido){
+  const d = f.deuda || 0;
+  // Queda En (honorario transferencia)
+  const quedan = f.transfModo === 'pct'
+    ? Math.round(d * f.transfPct / 100)
+    : (f.resol || 0);
+  // Honorario efectivo (sin SUATS)
+  const hefvo = f.efvoModo === 'manual'
+    ? (f.efvoMonto || 0)
+    : Math.round(quedan * (1 - f.efvoPct / 100));
+  return { quedan, hefvo };
+}
+
 function calcular(){
-  const D = filas.reduce((s,f)=>s+(f.deuda||0),0);          // deuda total infracciones
-  const S = $('suatsOn').checked ? num('suatsMonto') : 0;   // SUATS
+  const S = $('suatsOn').checked ? num('suatsMonto') : 0;
+  const D = filas.reduce((s,f) => s + (f.deuda||0), 0);
 
-  const transfAuto = $('transfAuto').checked;
-  const transfPct  = num('transfPct');
+  const quedaFila = filas.map(f => {
+    const { quedan } = calcularFila(f, S);
+    return f.transfModo === 'pct' ? quedan : (f.resol || 0);
+  });
+  const Htransf = quedaFila.reduce((s,v) => s+v, 0);
+  const T = Htransf + S;
 
-  // "Queda en" por fila: auto (deuda × %) o manual (lo cargado)
-  const quedaFila = filas.map(f => transfAuto ? Math.round((f.deuda||0)*transfPct/100) : (f.resol||0));
-  const Htransf = quedaFila.reduce((s,v)=>s+v,0);           // honorarios transferencia
-  const T = Htransf + S;                                    // TOTAL A ABONAR (transferencia)
+  // Efectivo: suma de honorarios por fila + SUATS global
+  const HefvoTotal = filas.reduce((s,f) => {
+    const { hefvo } = calcularFila(f, S);
+    return s + hefvo;
+  }, 0);
+  const E = HefvoTotal + S;
 
-  // Efectivo
-  const efvoManual = $('efvoManual').checked;
-  const Hefvo = efvoManual ? num('efvoMonto') : Math.round(Htransf * (1 - num('efvoPct')/100));
-  const E = Hefvo + S;
+  const ahorro = D - T;
 
-  // Ahorro (real: contra el total que paga el cliente)
-  const ahorro    = D - T;
-  
-  // Cuotas
+  // Cuotas: usamos el promedio ponderado de recarjos por deuda
   const mostrarCuotas = $('mostrarCuotas').checked;
-  const cuotasManual  = $('cuotasManual').checked;
   const nChica = int('nChica') || 3;
   const nLarga = int('nLarga') || 6;
-  const finChica = cuotasManual ? num('cuotasChicaMonto') : Math.round(T*(1+num('recargoChica')/100));
-  const finLarga = cuotasManual ? num('cuotasLargaMonto') : Math.round(T*(1+num('recargoLarga')/100));
-  const cuotaChica = nChica>0 ? finChica/nChica : 0;
-  const cuotaLarga = nLarga>0 ? finLarga/nLarga : 0;
+
+  // Para cuotas tomamos el total a abonar (T) con recargo promedio ponderado
+  let finChica = 0, finLarga = 0;
+  if(filas.length === 0){
+    finChica = T;
+    finLarga = T;
+  } else {
+    filas.forEach(f => {
+      const { quedan } = calcularFila(f, 0);
+      finChica += Math.round(quedan * (1 + f.recargoChica/100));
+      finLarga  += Math.round(quedan * (1 + f.recargoLarga/100));
+    });
+    finChica += S;
+    finLarga += S;
+  }
+  const cuotaChica = nChica > 0 ? finChica / nChica : 0;
+  const cuotaLarga = nLarga > 0 ? finLarga / nLarga : 0;
 
   return {
-    D, S, quedaFila, Htransf, T, Hefvo, E, efvoPct:num('efvoPct'),
-    ahorro, mostrarCuotas, cuotasManual,
-    nChica, nLarga, cuotaChica, cuotaLarga,
-    plazo: $('plazo').value.trim(),
+    D, S, quedaFila, Htransf, T,
+    HefvoTotal, E,
+    ahorro,
+    mostrarCuotas,
+    nChica, nLarga, cuotaChica, cuotaLarga, finChica, finLarga,
+    plazo:   $('plazo').value.trim(),
     validez: int('validez') || 5,
     patente: ($('patente').value||'').toUpperCase().trim(),
     cliente: $('cliente').value.trim(),
-    fecha: fechaLarga($('fecha').value)
+    fecha:   fechaLarga($('fecha').value)
   };
 }
 
 /* ═══════════ FORMULARIO DE JURISDICCIONES ═══════════ */
 function pintarFilas(){
   const cont = $('jurisdicciones');
-  const auto = $('transfAuto') && $('transfAuto').checked;
-  const pct  = num('transfPct');
   cont.innerHTML = '';
-  filas.forEach((f,i)=>{
-    const resolMostrar = auto ? Math.round((f.deuda||0)*pct/100) : f.resol;
+
+  filas.forEach((f, i) => {
     const div = document.createElement('div');
     div.className = 'jur';
+
+    const autoQuedan = f.transfModo === 'pct'
+      ? Math.round((f.deuda||0) * f.transfPct / 100)
+      : (f.resol || 0);
+
     div.innerHTML = `
-      <span class="idx">JURISDICCIÓN ${String(i+1).padStart(2,'0')}</span>
-      ${filas.length>1?`<button class="quitar" data-q="${i}" aria-label="Quitar jurisdicción">×</button>`:''}
-      <div class="fila"><input data-c="jur" data-i="${i}" value="${f.jur}" placeholder="Organismo"></div>
+      <div class="idx">
+        JURISDICCIÓN ${String(i+1).padStart(2,'0')}
+        <span>condiciones propias</span>
+      </div>
+      ${filas.length > 1 ? `<button class="quitar" data-q="${i}" aria-label="Quitar">×</button>` : ''}
+
+      <div class="fila"><input data-c="jur" data-i="${i}" value="${f.jur}" placeholder="Organismo / Jurisdicción"></div>
       <div class="fila f3">
         <div><label>Deuda</label><input type="number" data-c="deuda" data-i="${i}" value="${f.deuda}"></div>
         <div><label>Cant.</label><input type="number" data-c="cant" data-i="${i}" value="${f.cant}"></div>
-        <div><label>Queda En${auto?' (auto)':''}</label><input type="number" data-c="resol" data-i="${i}" value="${resolMostrar}" ${auto?'readonly':''}></div>
+        <div><label>Queda En</label><input type="number" data-c="resol" data-i="${i}" value="${autoQuedan}" ${f.transfModo==='pct'?'readonly':''}></div>
+      </div>
+
+      <div class="jur-cond">
+        <div class="jur-cond-titulo">Condiciones de pago · Jurisdicción ${i+1}</div>
+
+        <div class="fila f2" style="margin-bottom:8px">
+          <div>
+            <label>Transferencia</label>
+            <select data-c="transfModo" data-i="${i}">
+              <option value="manual" ${f.transfModo==='manual'?'selected':''}>Manual</option>
+              <option value="pct" ${f.transfModo==='pct'?'selected':''}>Automático por %</option>
+            </select>
+          </div>
+          <div class="${f.transfModo==='manual'?'oculto':''}" data-wrap="pct" data-i="${i}">
+            <label>% que abona</label>
+            <input type="number" data-c="transfPct" data-i="${i}" value="${f.transfPct}" min="0" max="100" step="0.5">
+          </div>
+        </div>
+
+        <div class="fila f2" style="margin-bottom:8px">
+          <div>
+            <label>Efectivo</label>
+            <select data-c="efvoModo" data-i="${i}">
+              <option value="pct" ${f.efvoModo==='pct'?'selected':''}>Descuento %</option>
+              <option value="manual" ${f.efvoModo==='manual'?'selected':''}>Manual</option>
+            </select>
+          </div>
+          <div class="${f.efvoModo==='manual'?'oculto':''}" data-wrap="efvoPct" data-i="${i}">
+            <label>Descuento (%)</label>
+            <input type="number" data-c="efvoPct" data-i="${i}" value="${f.efvoPct}" min="0" max="60" step="0.5">
+          </div>
+          <div class="${f.efvoModo==='pct'?'oculto':''}" data-wrap="efvoMonto" data-i="${i}">
+            <label>Monto efectivo (sin SUATS)</label>
+            <input type="number" data-c="efvoMonto" data-i="${i}" value="${f.efvoMonto}" min="0" step="1000">
+          </div>
+        </div>
+
+        <div id="grupoCuotasJur${i}" class="${$('mostrarCuotas') && $('mostrarCuotas').checked ? '' : 'oculto'}">
+          <div class="fila f2" style="margin-bottom:0">
+            <div><label>Recargo cuotas cortas (%)</label><input type="number" data-c="recargoChica" data-i="${i}" value="${f.recargoChica}" min="0" max="150" step="0.5"></div>
+            <div><label>Recargo cuotas largas (%)</label><input type="number" data-c="recargoLarga" data-i="${i}" value="${f.recargoLarga}" min="0" max="150" step="0.5"></div>
+          </div>
+        </div>
       </div>`;
+
     cont.appendChild(div);
   });
 
-  cont.querySelectorAll('input').forEach(inp=>{
-    inp.addEventListener('input', e=>{
-      const i = +e.target.dataset.i, c = e.target.dataset.c;
+  // Eventos
+  cont.querySelectorAll('input[data-c],select[data-c]').forEach(el => {
+    const ev = el.tagName === 'SELECT' ? 'change' : 'input';
+    el.addEventListener(ev, e => {
+      const i = +e.target.dataset.i;
+      const c = e.target.dataset.c;
       if(e.target.hasAttribute('readonly')) return;
-      filas[i][c] = c==='jur' ? e.target.value : (parseFloat(e.target.value)||0);
-      // en modo auto, al tocar la deuda actualizo el "queda en" de esa fila sin rearmar todo
-      if(c==='deuda' && $('transfAuto').checked){
-        const p = num('transfPct');
+
+      const esNum = ['deuda','cant','resol','transfPct','efvoPct','efvoMonto','recargoChica','recargoLarga'].includes(c);
+      filas[i][c] = esNum ? (parseFloat(e.target.value)||0) : e.target.value;
+
+      // Reacciones especiales
+      if(c === 'transfModo'){
+        // mostrar/ocultar campo %
+        const wrapPct = cont.querySelector(`[data-wrap="pct"][data-i="${i}"]`);
+        if(wrapPct) wrapPct.classList.toggle('oculto', filas[i].transfModo !== 'pct');
+        // readonly en Queda En
         const ri = cont.querySelector(`input[data-c="resol"][data-i="${i}"]`);
-        if(ri) ri.value = Math.round((filas[i].deuda||0)*p/100);
+        if(ri) ri.readOnly = filas[i].transfModo === 'pct';
+        actualizarQuen(i);
+      }
+      if(c === 'efvoModo'){
+        const wPct   = cont.querySelector(`[data-wrap="efvoPct"][data-i="${i}"]`);
+        const wMonto = cont.querySelector(`[data-wrap="efvoMonto"][data-i="${i}"]`);
+        if(wPct)   wPct.classList.toggle('oculto', filas[i].efvoModo !== 'pct');
+        if(wMonto) wMonto.classList.toggle('oculto', filas[i].efvoModo !== 'manual');
+      }
+      if(c === 'deuda' || c === 'transfPct'){
+        actualizarQuen(i);
       }
       dibujar();
     });
   });
-  cont.querySelectorAll('.quitar').forEach(b=>{
-    b.addEventListener('click', e=>{
-      filas.splice(+e.target.dataset.q,1); pintarFilas(); dibujar();
+
+  cont.querySelectorAll('.quitar').forEach(b => {
+    b.addEventListener('click', e => {
+      filas.splice(+e.target.dataset.q, 1);
+      pintarFilas(); dibujar();
     });
   });
+}
+
+function actualizarQuen(i){
+  const f = filas[i];
+  if(f.transfModo !== 'pct') return;
+  const ri = document.querySelector(`input[data-c="resol"][data-i="${i}"]`);
+  if(ri) ri.value = Math.round((f.deuda||0) * f.transfPct / 100);
+}
+
+function getDefaults(){
+  return {
+    transfModo:   $('defTransfModo').value,
+    transfPct:    num('defTransfPct'),
+    efvoModo:     $('defEfvoModo').value,
+    efvoPct:      num('defEfvoPct'),
+    efvoMonto:    0,
+    recargoChica: num('defRecargoChica'),
+    recargoLarga: num('defRecargoLarga'),
+  };
 }
 
 /* ═══════════ LOGO / MARCA DE AGUA (vector oficial) ═══════════ */
@@ -639,10 +785,9 @@ function dibujar(){
   ctx.textAlign = 'left';
   y += H_DEUDA;
 
-  /* ── TOTALES GRANDES (lo que el cliente paga — protagonista) ── */
+  /* ── TOTALES GRANDES ── */
   const anchoCol = (W-PX*2-16)/2;
   const ALT_CARD = 200;
-  const notaSuats = c.S>0 ? `SUATS incluido` : '';
 
   // Card 1 — TOTAL A ABONAR (transferencia)
   ctx.fillStyle = NARANJA;
@@ -657,9 +802,9 @@ function dibujar(){
   ctx.fillText(money(c.T), PX+30, y+120);
   ctx.font = "700 20px 'DM Sans','Helvetica Neue',Arial,sans-serif";
   ctx.fillText('Transferencia bancaria', PX+30, y+154);
-  if(notaSuats){
+  if(c.S > 0){
     ctx.fillStyle = '#5A3A05'; ctx.font = "500 16px 'DM Sans','Helvetica Neue',Arial,sans-serif";
-    ctx.fillText(notaSuats, PX+30, y+182);
+    ctx.fillText('✓ Informe de Multas Gratis', PX+30, y+182);
   }
 
   // Card 2 — EN EFECTIVO
@@ -677,8 +822,7 @@ function dibujar(){
   ctx.fillStyle = GRIS; ctx.font = "700 20px 'DM Sans','Helvetica Neue',Arial,sans-serif";
   ctx.fillText('En nuestras oficinas', x2+30, y+154);
   ctx.fillStyle = GRIS_TX; ctx.font = "500 16px 'DM Sans','Helvetica Neue',Arial,sans-serif";
-  const notaEfvo = $('efvoManual').checked ? (notaSuats || 'Pago único, sin cuotas') : `Descuento  · pago único`;
-  ctx.fillText(notaEfvo, x2+30, y+182);
+  ctx.fillText('Descuento · pago único', x2+30, y+182);
   y += H_CARDS;
 
   /* ── CUOTAS (franja opcional) ── */
@@ -698,7 +842,7 @@ function dibujar(){
     y += H_CUOTAS;
   }
 
-  /* ── AHORRO (secundario, movido abajo) ── */
+  /* ── AHORRO (secundario) ── */
   ctx.fillStyle = NEGRO;
   ctx.beginPath(); ctx.roundRect(PX, y, W-PX*2, 150, 16); ctx.fill();
   ls(ctx,'2.5px');
@@ -709,9 +853,7 @@ function dibujar(){
   ctx.fillStyle = NARANJA;
   ajustar(ctx, money(c.ahorro), W-PX*2-260, 700, 48, "'JetBrains Mono','SF Mono',Consolas,monospace", 26);
   ctx.fillText(money(c.ahorro), PX+34, y+108);
-  ctx.textAlign = 'right';
-  ctx.textAlign = 'left';
-  y += H_AHORRO;
+ 
 
   /* ── FORMAS DE PAGO ── */
   ls(ctx,'2.5px');
@@ -868,7 +1010,11 @@ function dibujar(){
 /* ═══════════ TEXTO PARA WHATSAPP ═══════════ */
 function textoWhatsapp(){
   const c = calcular();
-  const efvoManual = $('efvoManual').checked;
+
+  // Desglose por jurisdicción
+  const desglose = filas.map((f,i) =>
+    `  • ${f.jur||'Jurisdicción '+(i+1)}: ${money(c.quedaFila[i])}`
+  ).join('\n');
 
   const lineaCuotas = c.mostrarCuotas
     ? `\n▸ *En cuotas:* ${c.nChica} x ${money(c.cuotaChica)}  ·  ${c.nLarga} x ${money(c.cuotaLarga)}`
@@ -876,13 +1022,16 @@ function textoWhatsapp(){
   const lineaTarjetaPago = c.mostrarCuotas
     ? `Tarjeta de crédito, hasta ${c.nLarga} cuotas fijas`
     : 'Tarjeta de crédito (consultar financiación)';
-  const lineaSuats = c.S>0 ? `\n_Los importes incluyen SUATS ._` : '';
+  const lineaSuats = c.S>0 ? `\n_Incluye Informe de Multas Gratis._` : '';
 
   return `*GESTORÍA PAZ* — Presupuesto
 Dominio: *${c.patente}*
 
 Deuda total actual: ${money(c.D)}
-Ahorro con la gestión: *${money(c.ahorro)}* 
+Ahorro con la gestión: *${money(c.ahorro)}*
+
+*Honorarios por jurisdicción:*
+${desglose}
 
 ▸ *Total a abonar:* ${money(c.T)} (transferencia)
 ▸ *En efectivo:* ${money(c.E)}${lineaCuotas}${lineaSuats}
@@ -928,37 +1077,35 @@ function avisar(msg){
   temporizador = setTimeout(()=>a.classList.remove('ver'), 2600);
 }
 
-/* ═══════════ VISIBILIDAD CONDICIONAL DEL FORM ═══════════ */
+/* ═══════════ SINCRONIZAR UI GLOBAL ═══════════ */
 function sincronizarUI(){
-  // transferencia: mostrar % solo en modo auto
-  $('wrapTransfPct').classList.toggle('oculto', !$('transfAuto').checked);
-  // efectivo: % vs monto manual
-  const efM = $('efvoManual').checked;
-  $('wrapEfvoPct').classList.toggle('oculto', efM);
-  $('wrapEfvoMonto').classList.toggle('oculto', !efM);
-  // cuotas: grupo visible + recargo vs monto manual
+  // defaults: mostrar % transfModo
+  $('defWrapPct').classList.toggle('oculto', $('defTransfModo').value !== 'pct');
+  $('defWrapEfvoPct').classList.toggle('oculto', $('defEfvoModo').value !== 'pct');
+  // cuotas globales
   $('grupoCuotas').classList.toggle('oculto', !$('mostrarCuotas').checked);
-  const cuM = $('cuotasManual').checked;
-  document.querySelectorAll('.wrapRecargo').forEach(el=>el.classList.toggle('oculto', cuM));
-  document.querySelectorAll('.wrapMonto').forEach(el=>el.classList.toggle('oculto', !cuM));
+  // cuotas en cada fila
+  filas.forEach((_,i)=>{
+    const el = $('grupoCuotasJur'+i);
+    if(el) el.classList.toggle('oculto', !$('mostrarCuotas').checked);
+  });
 }
 
 /* ═══════════ EVENTOS ═══════════ */
-['patente','cliente','fecha','suatsMonto','efvoPct','efvoMonto',
- 'nChica','nLarga','recargoChica','recargoLarga','cuotasChicaMonto','cuotasLargaMonto',
- 'plazo','validez']
+['patente','cliente','fecha','suatsMonto','nChica','nLarga','plazo','validez',
+ 'defTransfPct','defEfvoPct','defRecargoChica','defRecargoLarga']
   .forEach(id => $(id).addEventListener('input', dibujar));
 
-['suatsOn','efvoManual','mostrarCuotas','cuotasManual'].forEach(id =>
+['suatsOn','mostrarCuotas'].forEach(id =>
   $(id).addEventListener('change', ()=>{ sincronizarUI(); dibujar(); })
 );
 
-// transferencia auto ↔ manual: rearma las filas para reflejar el modo
-$('transfAuto').addEventListener('change', ()=>{ sincronizarUI(); pintarFilas(); dibujar(); });
-$('transfPct').addEventListener('input', ()=>{ pintarFilas(); dibujar(); });
+$('defTransfModo').addEventListener('change', ()=>{ sincronizarUI(); dibujar(); });
+$('defEfvoModo').addEventListener('change', ()=>{ sincronizarUI(); dibujar(); });
 
 $('agregar').addEventListener('click', ()=>{
-  filas.push({jur:'', cant:1, deuda:0, resol:0});
+  const def = getDefaults();
+  filas.push({ jur:'', cant:1, deuda:0, resol:0, ...def });
   pintarFilas(); dibujar();
 });
 
@@ -1004,8 +1151,11 @@ pintarFilas();
 function iniciar(){
   const necesarias = [
     "800 40px Syne", "700 34px Syne",
-    "700 25px 'DM Sans','Helvetica Neue',Arial,sans-serif", "500 23px 'DM Sans','Helvetica Neue',Arial,sans-serif", "400 21px 'DM Sans','Helvetica Neue',Arial,sans-serif",
-    "700 40px 'JetBrains Mono','SF Mono',Consolas,monospace", "500 23px 'JetBrains Mono','SF Mono',Consolas,monospace"
+    "700 25px 'DM Sans','Helvetica Neue',Arial,sans-serif",
+    "500 23px 'DM Sans','Helvetica Neue',Arial,sans-serif",
+    "400 21px 'DM Sans','Helvetica Neue',Arial,sans-serif",
+    "700 40px 'JetBrains Mono','SF Mono',Consolas,monospace",
+    "500 23px 'JetBrains Mono','SF Mono',Consolas,monospace"
   ];
   if(document.fonts && document.fonts.load){
     Promise.all(necesarias.map(f => document.fonts.load(f).catch(()=>null)))
