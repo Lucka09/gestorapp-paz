@@ -1,171 +1,158 @@
 <!DOCTYPE html>
 <html lang="es-AR">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Presupuestos · Gestoría Paz</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Sans:wght@400;500;700&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
-<style>
-:root{
-  --naranja:#F28F07;
-  --negro:#121212;
-  --blanco:#FFFFFF;
-  --gris:#EAEAEA;
-  --gris-medio:#8A8A8A;
-  --azul:#3D2FD6;
-  --azul-suave:rgba(61,47,214,.14);
-  --radio:14px;
-}
-*{box-sizing:border-box;margin:0;padding:0}
-html,body{height:100%}
-body{
-  font-family:'DM Sans','Helvetica Neue',Arial,sans-serif;
-  background:var(--gris);
-  color:var(--negro);
-  -webkit-font-smoothing:antialiased;
-}
-.app{display:grid;grid-template-columns:minmax(420px,520px) 1fr;min-height:100vh}
-@media(max-width:960px){.app{grid-template-columns:1fr}}
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Presupuestos · Gestoría Paz</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Sans:wght@400;500;700&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --naranja: #F28F07;
+      --negro: #121212;
+      --blanco: #FFFFFF;
+      --gris: #EAEAEA;
+      --gris-medio: #8A8A8A;
+      --azul: #3D2FD6;
+      --azul-suave: rgba(61, 47, 214, 0.14);
+      --radio: 14px;
+    }
 
-/* ---------- PANEL ---------- */
-.panel{
-  background:var(--blanco);
-  padding:28px 26px 60px;
-  overflow-y:auto;
-  max-height:100vh;
-  border-right:1px solid #dcdcdc;
-}
-@media(max-width:960px){.panel{max-height:none;border-right:none;border-bottom:1px solid #dcdcdc}}
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; }
+    body {
+      font-family: 'DM Sans', 'Helvetica Neue', Arial, sans-serif;
+      background: var(--gris);
+      color: var(--negro);
+      -webkit-font-smoothing: antialiased;
+    }
 
-.marca{display:flex;align-items:center;gap:11px;margin-bottom:4px}
-.marca .mono{
-  width:38px;height:38px;border-radius:10px;
-  border:2.5px solid var(--naranja);
-  display:grid;place-items:center;
-  font-family:'Syne','Arial Black','Helvetica Neue',sans-serif;font-weight:800;font-size:15px;
-  color:var(--naranja);letter-spacing:-.5px;
-}
-.marca h1{font-family:'Syne','Arial Black','Helvetica Neue',sans-serif;font-weight:800;font-size:17px;letter-spacing:-.3px;line-height:1.1}
-.marca span{display:block;font-family:'DM Sans','Helvetica Neue',Arial,sans-serif;font-weight:500;font-size:10.5px;color:var(--gris-medio);letter-spacing:1.4px;text-transform:uppercase;margin-top:2px}
-.intro{font-size:12.5px;color:var(--gris-medio);margin:14px 0 26px;line-height:1.5}
+    .app { display: grid; grid-template-columns: minmax(440px, 540px) 1fr; min-height: 100vh; }
+    @media(max-width: 960px) { .app { grid-template-columns: 1fr; } }
 
-fieldset{border:none;margin-bottom:26px}
-legend{
-  font-size:10.5px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;
-  color:var(--negro);padding-bottom:10px;display:flex;align-items:center;gap:8px;width:100%;
-}
-legend::after{content:"";flex:1;height:2px;background:var(--naranja);opacity:.85}
+    /* ---------- PANEL UI ---------- */
+    .panel {
+      background: var(--blanco);
+      padding: 28px 26px 60px;
+      overflow-y: auto;
+      max-height: 100vh;
+      border-right: 1px solid #dcdcdc;
+    }
+    @media(max-width: 960px) { .panel { max-height: none; border-right: none; border-bottom: 1px solid #dcdcdc; } }
 
-label{display:block;font-size:11px;font-weight:700;color:#555;margin:0 0 5px;letter-spacing:.2px}
-input,select{
-  width:100%;padding:10px 12px;border:1.5px solid #d8d8d8;border-radius:9px;
-  font-family:'DM Sans','Helvetica Neue',Arial,sans-serif;font-size:14px;background:var(--blanco);color:var(--negro);
-  transition:border-color .18s ease, box-shadow .18s ease;
-}
-input:hover,select:hover{border-color:#b6b6b6}
-input:focus,select:focus{
-  outline:none;border-color:var(--azul);
-  box-shadow:0 0 0 4px var(--azul-suave);
-}
-input[readonly]{background:#f2f2f2;color:#888;cursor:not-allowed;border-style:dashed}
-input[type=file]{padding:8px;font-size:12px;cursor:pointer}
-.fila{display:grid;gap:10px;margin-bottom:12px}
-.f2{grid-template-columns:1fr 1fr}
-.f3{grid-template-columns:1.6fr .6fr 1fr}
+    .marca { display: flex; align-items: center; gap: 11px; margin-bottom: 4px; }
+    .marca .mono {
+      width: 38px; height: 38px; border-radius: 10px;
+      border: 2.5px solid var(--naranja);
+      display: grid; place-items: center;
+      font-family: 'Syne', 'Arial Black', sans-serif; font-weight: 800; font-size: 15px;
+      color: var(--naranja); letter-spacing: -.5px;
+    }
+    .marca h1 { font-family: 'Syne', 'Arial Black', sans-serif; font-weight: 800; font-size: 17px; letter-spacing: -.3px; line-height: 1.1; }
+    .marca span { display: block; font-weight: 500; font-size: 10.5px; color: var(--gris-medio); letter-spacing: 1.4px; text-transform: uppercase; margin-top: 2px; }
+    
+    .intro { font-size: 12.5px; color: var(--gris-medio); margin: 14px 0 26px; line-height: 1.5; }
 
-.check{display:flex;align-items:center;gap:9px;cursor:pointer;font-weight:600;font-size:13px;color:var(--negro);margin-bottom:0}
-.check input{width:17px;height:17px;accent-color:var(--naranja);cursor:pointer;padding:0}
-.grupo{background:#fafafa;border:1.5px solid #e6e6e6;border-radius:var(--radio);padding:14px;margin-bottom:12px}
-.oculto{display:none!important}
+    fieldset { border: none; margin-bottom: 26px; }
+    legend {
+      font-size: 10.5px; font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase;
+      color: var(--negro); padding-bottom: 10px; display: flex; align-items: center; gap: 8px; width: 100%;
+    }
+    legend::after { content: ""; flex: 1; height: 2px; background: var(--naranja); opacity: .85; }
 
-/* ---------- JURISDICCIONES ---------- */
-.jur{
-  background:#fafafa;border:1.5px solid #e4e4e4;border-radius:var(--radio);
-  padding:13px;margin-bottom:10px;position:relative;
-  transition:border-color .18s ease, box-shadow .18s ease;
-}
-.jur:hover{border-color:#cfcfcf;box-shadow:0 3px 14px rgba(61,47,214,.07)}
-.jur .quitar{
-  position:absolute;top:9px;right:9px;width:24px;height:24px;border-radius:7px;
-  border:none;background:var(--gris);color:#777;cursor:pointer;font-size:15px;line-height:1;
-  transition:background .16s ease,color .16s ease;
-}
-.jur .quitar:hover{background:var(--negro);color:var(--blanco)}
-.jur .idx{
-  font-family:'JetBrains Mono','SF Mono',Consolas,monospace;font-size:10px;font-weight:700;
-  color:var(--naranja);letter-spacing:1px;margin-bottom:9px;display:flex;align-items:center;gap:10px;
-}
-.jur .idx span{color:var(--gris-medio);font-weight:400;font-size:10px;letter-spacing:.3px}
+    label { display: block; font-size: 11px; font-weight: 700; color: #555; margin: 0 0 5px; letter-spacing: .2px; }
+    input, select {
+      width: 100%; padding: 10px 12px; border: 1.5px solid #d8d8d8; border-radius: 9px;
+      font-family: inherit; font-size: 14px; background: var(--blanco); color: var(--negro);
+      transition: border-color .18s ease, box-shadow .18s ease;
+    }
+    input:hover, select:hover { border-color: #b6b6b6; }
+    input:focus, select:focus { outline: none; border-color: var(--azul); box-shadow: 0 0 0 4px var(--azul-suave); }
+    input[readonly] { background: #f2f2f2; color: #888; cursor: not-allowed; border-style: dashed; }
+    input[type=file] { padding: 8px; font-size: 12px; cursor: pointer; }
+    
+    .fila { display: grid; gap: 10px; margin-bottom: 12px; }
+    .f2 { grid-template-columns: 1fr 1fr; }
+    .f3 { grid-template-columns: 1fr 1fr 1fr; }
+    .f4 { grid-template-columns: 1.3fr 0.6fr 1fr 1fr; }
 
-/* Sub-sección condiciones por jurisdicción */
-.jur-cond{
-  margin-top:10px;
-  border-top:1.5px solid #e6e6e6;
-  padding-top:10px;
-}
-.jur-cond-titulo{
-  font-size:10px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;
-  color:var(--naranja);margin-bottom:9px;
-}
-.jur-cond .f3{grid-template-columns:1fr 1fr 1fr}
+    .check { display: flex; align-items: center; gap: 9px; cursor: pointer; font-weight: 600; font-size: 13px; margin-bottom: 0; }
+    .check input { width: 17px; height: 17px; accent-color: var(--naranja); cursor: pointer; padding: 0; }
+    
+    .grupo { background: #fafafa; border: 1.5px solid #e6e6e6; border-radius: var(--radio); padding: 14px; margin-bottom: 12px; }
+    .oculto { display: none !important; }
 
-button.accion{
-  width:100%;padding:12px;border:none;border-radius:10px;cursor:pointer;
-  font-family:'DM Sans','Helvetica Neue',Arial,sans-serif;font-weight:700;font-size:13.5px;letter-spacing:.2px;
-  transition:transform .15s ease, box-shadow .2s ease, background .18s ease;
-}
-.sec{background:var(--gris);color:var(--negro);border:1.5px solid #d5d5d5}
-.sec:hover{background:#e0e0e0;box-shadow:0 4px 16px rgba(61,47,214,.12)}
-.pri{background:var(--naranja);color:var(--negro)}
-.pri:hover{transform:translateY(-2px);box-shadow:0 8px 22px rgba(242,143,7,.35),0 0 0 3px var(--azul-suave)}
-.oscuro{background:var(--negro);color:var(--blanco)}
-.oscuro:hover{transform:translateY(-2px);box-shadow:0 8px 22px rgba(18,18,18,.3),0 0 0 3px var(--azul-suave)}
-button.accion:active{transform:translateY(0)}
-.botonera{display:grid;gap:9px;position:sticky;bottom:0;background:var(--blanco);padding-top:14px}
+    /* ---------- JURISDICCIONES ---------- */
+    .jur {
+      background: #fafafa; border: 1.5px solid #e4e4e4; border-radius: var(--radio);
+      padding: 13px; margin-bottom: 10px; position: relative;
+      transition: border-color .18s ease, box-shadow .18s ease;
+    }
+    .jur:hover { border-color: #cfcfcf; box-shadow: 0 3px 14px rgba(61,47,214,.07); }
+    .jur .quitar {
+      position: absolute; top: 9px; right: 9px; width: 24px; height: 24px; border-radius: 7px;
+      border: none; background: var(--gris); color: #777; cursor: pointer; font-size: 15px; line-height: 1;
+      transition: background .16s ease, color .16s ease;
+    }
+    .jur .quitar:hover { background: var(--negro); color: var(--blanco); }
+    .jur .idx {
+      font-family: 'JetBrains Mono', monospace; font-size: 10px; font-weight: 700;
+      color: var(--naranja); letter-spacing: 1px; margin-bottom: 9px; display: flex; align-items: center; gap: 10px;
+    }
+    .jur .idx span { color: var(--gris-medio); font-weight: 400; font-size: 10px; letter-spacing: .3px; }
 
-.hint{font-size:11px;color:var(--gris-medio);margin-top:7px;line-height:1.45}
+    .jur-cond { margin-top: 10px; border-top: 1.5px solid #e6e6e6; padding-top: 10px; }
+    .jur-cond-titulo { font-size: 10px; font-weight: 700; letter-spacing: 1.2px; text-transform: uppercase; color: var(--naranja); margin-bottom: 9px; }
 
-/* Badge "defaults globales" */
-.badge-default{
-  display:inline-block;font-size:10px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;
-  background:var(--naranja);color:var(--negro);border-radius:5px;padding:2px 7px;margin-left:8px;vertical-align:middle;
-}
+    /* ---------- BOTONES ---------- */
+    button.accion {
+      width: 100%; padding: 12px; border: none; border-radius: 10px; cursor: pointer;
+      font-family: inherit; font-weight: 700; font-size: 13.5px; letter-spacing: .2px;
+      transition: transform .15s ease, box-shadow .2s ease, background .18s ease;
+    }
+    .sec { background: var(--gris); color: var(--negro); border: 1.5px solid #d5d5d5; }
+    .sec:hover { background: #e0e0e0; box-shadow: 0 4px 16px rgba(61,47,214,.12); }
+    .pri { background: var(--naranja); color: var(--negro); }
+    .pri:hover { transform: translateY(-2px); box-shadow: 0 8px 22px rgba(242,143,7,.35), 0 0 0 3px var(--azul-suave); }
+    .oscuro { background: var(--negro); color: var(--blanco); }
+    .oscuro:hover { transform: translateY(-2px); box-shadow: 0 8px 22px rgba(18,18,18,.3), 0 0 0 3px var(--azul-suave); }
+    button.accion:active { transform: translateY(0); }
+    
+    .botonera { display: grid; gap: 9px; position: sticky; bottom: 0; background: var(--blanco); padding-top: 14px; }
+    .hint { font-size: 11px; color: var(--gris-medio); margin-top: 7px; line-height: 1.45; }
 
-/* ---------- VISTA PREVIA ---------- */
-.vista{
-  padding:36px 28px 56px;display:flex;flex-direction:column;align-items:center;gap:16px;
-  background:
-    radial-gradient(circle at 20% 0%, rgba(242,143,7,.10), transparent 55%),
-    var(--gris);
-}
-.rotulo{
-  font-family:'JetBrains Mono','SF Mono',Consolas,monospace;font-size:10.5px;font-weight:700;letter-spacing:2px;
-  text-transform:uppercase;color:var(--gris-medio);
-}
-#vistaPrevia{
-  width:100%;max-width:400px;height:auto;display:block;border-radius:8px;
-  box-shadow:0 18px 50px rgba(18,18,18,.18), 0 0 0 1px rgba(18,18,18,.06);
-  background:var(--blanco);
-}
-.pie-vista{
-  font-size:11.5px;color:var(--gris-medio);text-align:center;margin-top:2px;
-}
-.aviso{
-  position:fixed;left:50%;bottom:26px;transform:translateX(-50%) translateY(90px);
-  background:var(--negro);color:var(--blanco);padding:12px 22px;border-radius:10px;
-  font-size:13px;font-weight:500;box-shadow:0 10px 30px rgba(0,0,0,.3);
-  opacity:0;transition:transform .3s cubic-bezier(.2,.9,.3,1.2),opacity .3s ease;pointer-events:none;z-index:50;
-}
-.aviso.ver{transform:translateX(-50%) translateY(0);opacity:1}
-@media(prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
-</style>
+    /* ---------- VISTA PREVIA ---------- */
+    .vista {
+      padding: 36px 28px 56px; display: flex; flex-direction: column; align-items: center; gap: 16px;
+      background: radial-gradient(circle at 20% 0%, rgba(242,143,7,.10), transparent 55%), var(--gris);
+    }
+    .rotulo {
+      font-family: 'JetBrains Mono', monospace; font-size: 10.5px; font-weight: 700; letter-spacing: 2px;
+      text-transform: uppercase; color: var(--gris-medio);
+    }
+    #vistaPrevia {
+      width: 100%; max-width: 420px; height: auto; display: block; border-radius: 8px;
+      box-shadow: 0 18px 50px rgba(18,18,18,.18), 0 0 0 1px rgba(18,18,18,.06);
+      background: var(--blanco);
+    }
+    .pie-vista { font-size: 11.5px; color: var(--gris-medio); text-align: center; margin-top: 2px; }
+    
+    /* ---------- TOAST ---------- */
+    .aviso {
+      position: fixed; left: 50%; bottom: 26px; transform: translateX(-50%) translateY(90px);
+      background: var(--negro); color: var(--blanco); padding: 12px 22px; border-radius: 10px;
+      font-size: 13px; font-weight: 500; box-shadow: 0 10px 30px rgba(0,0,0,.3);
+      opacity: 0; transition: transform .3s cubic-bezier(.2,.9,.3,1.2), opacity .3s ease; pointer-events: none; z-index: 50;
+    }
+    .aviso.ver { transform: translateX(-50%) translateY(0); opacity: 1; }
+    @media(prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+  </style>
 </head>
 <body>
 
 <div class="app">
-  <!-- ============ PANEL ============ -->
+  <!-- ============ PANEL LATERAL ============ -->
   <aside class="panel">
     <div class="marca">
       <div class="mono">GP</div>
@@ -174,8 +161,9 @@ button.accion:active{transform:translateY(0)}
         <span>Generador de presupuestos</span>
       </div>
     </div>
-    <p class="intro">Completá los datos y descargá el presupuesto listo para enviar por WhatsApp.</p>
+    <p class="intro">Completá los datos y descargá el presupuesto con desglose listo para enviar por WhatsApp.</p>
 
+    <!-- Datos Base -->
     <fieldset>
       <legend>Datos del trámite</legend>
       <div class="fila f2">
@@ -190,9 +178,10 @@ button.accion:active{transform:translateY(0)}
       </div>
     </fieldset>
 
+    <!-- Defaults Globales -->
     <fieldset>
       <legend>Defaults por jurisdicción</legend>
-      <p class="hint" style="margin-bottom:12px">Estos valores se aplican <strong>al crear cada jurisdicción nueva</strong>. Podés editarlos individualmente en cada fila después.</p>
+      <p class="hint" style="margin-bottom:12px">Estos valores se aplican <strong>al crear cada jurisdicción nueva</strong>.</p>
       <div class="grupo">
         <div class="jur-cond-titulo">Transferencia · "Queda en"</div>
         <div class="fila f2" style="margin-bottom:8px">
@@ -224,13 +213,15 @@ button.accion:active{transform:translateY(0)}
       </div>
     </fieldset>
 
+    <!-- Jurisdicciones -->
     <fieldset>
       <legend>Jurisdicciones</legend>
       <div id="jurisdicciones"></div>
       <button class="accion sec" id="agregar">+ Agregar jurisdicción</button>
-      <p class="hint"><strong>Deuda</strong>: total de infracciones. <strong>Cant.</strong>: cantidad. <strong>Queda En</strong>: lo que abona el cliente. Cada jurisdicción tiene sus propias condiciones de pago editables.</p>
+      <p class="hint"><strong>Deuda</strong>: total de infracciones. <strong>Cant.</strong>: cantidad. <strong>Queda En</strong>: transferencia. <strong>Efectivo</strong>: pago en oficina.</p>
     </fieldset>
 
+    <!-- SUATS -->
     <fieldset>
       <legend>SUATS</legend>
       <div class="grupo">
@@ -238,23 +229,23 @@ button.accion:active{transform:translateY(0)}
         <div class="fila" style="margin-top:11px;margin-bottom:0">
           <div><label>Monto SUATS</label><input id="suatsMonto" type="number" value="20000" min="0" step="500"></div>
         </div>
-        <p class="hint">Se suma parejo a transferencia, efectivo y cuotas. No recibe descuento (es un costo que se traslada).</p>
+        <p class="hint">El monto se absorbe dentro de Queda En y Efectivo en cada jurisdicción, sin desglosarse por separado.</p>
       </div>
     </fieldset>
 
+    <!-- Cuotas -->
     <fieldset>
       <legend>Financiación en cuotas</legend>
       <label class="check"><input type="checkbox" id="mostrarCuotas"> Ofrecer pago en cuotas</label>
-      <p class="hint" style="margin-top:6px;margin-bottom:12px;">Desmarcá si no se financia — el presupuesto queda solo con transferencia y efectivo.</p>
-      <div class="grupo oculto" id="grupoCuotas">
+      <div class="grupo oculto" id="grupoCuotas" style="margin-top:10px;">
         <div class="fila f2" style="margin-bottom:0">
           <div><label>Cuotas cortas</label><input id="nChica" type="number" value="3" min="1" max="12"></div>
           <div><label>Cuotas largas</label><input id="nLarga" type="number" value="6" min="1" max="12"></div>
         </div>
-        <p class="hint">El recargo por jurisdicción se configura en cada fila.</p>
       </div>
     </fieldset>
 
+    <!-- Condiciones Legales -->
     <fieldset>
       <legend>Condiciones</legend>
       <div class="fila f2">
@@ -263,18 +254,19 @@ button.accion:active{transform:translateY(0)}
       </div>
     </fieldset>
 
+    <!-- Acciones -->
     <div class="botonera">
       <button class="accion pri" id="descargar">Descargar imagen</button>
       <button class="accion oscuro" id="copiar">Copiar texto para WhatsApp</button>
     </div>
   </aside>
 
-  <!-- ============ VISTA PREVIA ============ -->
+  <!-- ============ VISTA PREVIA CANVAS ============ -->
   <main class="vista">
     <span class="rotulo">Vista previa</span>
     <canvas id="lienzo" width="1080" height="2046" style="display:none"></canvas>
     <img id="vistaPrevia" alt="Vista previa del presupuesto">
-    <p class="pie-vista">Así se va a ver la imagen que descargues.</p>
+    <p class="pie-vista">Así se va a ver la imagen que descargues con desglose completo.</p>
   </main>
 </div>
 
@@ -283,896 +275,614 @@ button.accion:active{transform:translateY(0)}
 <script>
 'use strict';
 
-/* ═══════════ CONSTANTES DE MARCA ═══════════ */
-const NARANJA = '#F28F07';
-const NEGRO   = '#121212';
-const BLANCO  = '#FFFFFF';
-const GRIS    = '#EAEAEA';
-const GRIS_TX = '#8A8A8A';
-
-const W  = 1080;
-const PX = 68;
+/* ═══════════ CONSTANTES DE DISEÑO Y MARCA ═══════════ */
+const CONFIG_COLOR = { NARANJA: '#F28F07', NEGRO: '#121212', BLANCO: '#FFFFFF', GRIS: '#EAEAEA', GRIS_TX: '#8A8A8A' };
+const CANVAS_W = 1080;
+const CANVAS_PX = 68;
 
 const DATOS_FIJOS = {
   direccion: 'Güemes 2261, San Martín Centro',
-  whatsapp:  '11 3614-1431',
-  email:     'info@gestoriapaz.com',
-  web:       'gestoriapaz.com',
+  whatsapp: '11 3614-1431',
+  email: 'info@gestoriapaz.com',
+  web: 'gestoriapaz.com',
   instagram: '@gestoriapaz.ar',
-  facebook:  '/gestoriapaz',
-  tiktok:    '@gestoriapaz',
-  maps:      'https://maps.app.goo.gl/yyU7xhaqu7GAJLp',
-  googleRating:  '4.9',
+  facebook: '/gestoriapaz',
+  tiktok: '@gestoriapaz',
+  maps: 'https://maps.app.goo.gl/yyU7xhaqu7GAJLp',
+  googleRating: '4.9',
   googleReviews: 91,
   googleReviewsUrl: 'https://share.google/eqvCtlIIC4QRFEoWa'
 };
 
-/* ═══════════ ESTADO ═══════════
- * Cada fila tiene sus propias condiciones de pago:
- *   transfModo: 'manual' | 'pct'
- *   transfPct:  número (% de la deuda)
- *   efvoModo:   'pct' | 'manual'
- *   efvoPct:    número (descuento % sobre honorario)
- *   efvoMonto:  número (monto manual en efectivo, sin SUATS)
- *   recargoChica / recargoLarga: % de recargo cuotas
- */
-let filas = [
-  {
-    jur:'Pag. Provincia de Buenos Aires', cant:16, deuda:1703250, resol:697300,
-    transfModo:'manual', transfPct:41,
-    efvoModo:'pct', efvoPct:10, efvoMonto:0,
-    recargoChica:15, recargoLarga:35
-  }
-];
+/* ═══════════ ESTADO DE LA APLICACIÓN ═══════════ */
+let filas = [{
+  jur: 'Pag. Provincia de Buenos Aires', cant: 16, deuda: 1703250, resol: 697300,
+  transfModo: 'manual', transfPct: 41, efvoModo: 'pct', efvoPct: 10, efvoMonto: 627570,
+  recargoChica: 15, recargoLarga: 35
+}];
 let logoImg = null;
 
-/* ═══════════ UTILIDADES ═══════════ */
+/* ═══════════ HELPERS Y CÁLCULOS ═══════════ */
 const $ = id => document.getElementById(id);
-const money = n => '$ ' + Math.round(n||0).toLocaleString('es-AR');
-const num = id => parseFloat(($(id)||{}).value)||0;
-const int = id => parseInt(($(id)||{}).value)||0;
-const numEl = el => parseFloat(el.value)||0;
-const intEl = el => parseInt(el.value)||0;
+const money = n => '$ ' + Math.round(n || 0).toLocaleString('es-AR');
+const num = id => parseFloat(($(id) || {}).value) || 0;
+const int = id => parseInt(($(id) || {}).value) || 0;
 
-function fechaLarga(iso){
-  if(!iso) return '';
-  const [a,m,d] = iso.split('-');
+function fechaLarga(iso) {
+  if (!iso) return '';
+  const [a, m, d] = iso.split('-');
   return `${d}/${m}/${a}`;
 }
 
-function wrap(ctx, texto, max){
-  const palabras = texto.split(' ');
-  const lineas = [];
-  let actual = '';
-  for(const p of palabras){
-    const prueba = actual ? actual+' '+p : p;
-    if(ctx.measureText(prueba).width > max && actual){ lineas.push(actual); actual = p; }
-    else actual = prueba;
-  }
-  if(actual) lineas.push(actual);
-  return lineas;
-}
-
-function ls(ctx, valor){ try{ ctx.letterSpacing = valor; }catch(e){} }
-
-function ajustar(ctx, texto, maxAncho, peso, tamBase, familia, tamMin){
-  let t = tamBase;
-  const min = tamMin || Math.max(10, Math.round(tamBase*0.55));
-  ctx.font = `${peso} ${t}px ${familia}`;
-  while(ctx.measureText(texto).width > maxAncho && t > min){
-    t -= 1;
-    ctx.font = `${peso} ${t}px ${familia}`;
-  }
-  return t;
-}
-
-/* ═══════════ MOTOR DE CÁLCULO ═══════════ */
-function calcularFila(f, S_incluido){
+function calcularFila(f) {
   const d = f.deuda || 0;
-  // Queda En (honorario transferencia)
-  const quedan = f.transfModo === 'pct'
-    ? Math.round(d * f.transfPct / 100)
-    : (f.resol || 0);
-  // Honorario efectivo (sin SUATS)
-  const hefvo = f.efvoModo === 'manual'
-    ? (f.efvoMonto || 0)
-    : Math.round(quedan * (1 - f.efvoPct / 100));
+  const quedan = f.transfModo === 'pct' ? Math.round(d * f.transfPct / 100) : (f.resol || 0);
+  const hefvo = f.efvoModo === 'manual' ? (f.efvoMonto || 0) : Math.round(quedan * (1 - (f.efvoPct || 0) / 100));
   return { quedan, hefvo };
 }
 
-function calcular(){
+function calcularContexto() {
   const S = $('suatsOn').checked ? num('suatsMonto') : 0;
-  const D = filas.reduce((s,f) => s + (f.deuda||0), 0);
+  const D = filas.reduce((acc, f) => acc + (f.deuda || 0), 0);
 
-  const quedaFila = filas.map(f => {
-    const { quedan } = calcularFila(f, S);
-    return f.transfModo === 'pct' ? quedan : (f.resol || 0);
-  });
-  const Htransf = quedaFila.reduce((s,v) => s+v, 0);
+  const quedaFila = filas.map(f => calcularFila(f).quedan);
+  const efvoFila = filas.map(f => calcularFila(f).hefvo);
+
+  const quedaConSuats = quedaFila.map(v => v + S);
+  const efvoConSuats = efvoFila.map(v => v + S);
+
+  const Htransf = quedaFila.reduce((acc, v) => acc + v, 0);
+  const HefvoTotal = efvoFila.reduce((acc, v) => acc + v, 0);
+
   const T = Htransf + S;
-
-  // Efectivo: suma de honorarios por fila + SUATS global
-  const HefvoTotal = filas.reduce((s,f) => {
-    const { hefvo } = calcularFila(f, S);
-    return s + hefvo;
-  }, 0);
   const E = HefvoTotal + S;
-
   const ahorro = D - T;
 
-  // Cuotas: usamos el promedio ponderado de recarjos por deuda
   const mostrarCuotas = $('mostrarCuotas').checked;
   const nChica = int('nChica') || 3;
   const nLarga = int('nLarga') || 6;
 
-  // Para cuotas tomamos el total a abonar (T) con recargo promedio ponderado
   let finChica = 0, finLarga = 0;
-  if(filas.length === 0){
-    finChica = T;
-    finLarga = T;
+  if (filas.length === 0) {
+    finChica = T; finLarga = T;
   } else {
     filas.forEach(f => {
-      const { quedan } = calcularFila(f, 0);
-      finChica += Math.round(quedan * (1 + f.recargoChica/100));
-      finLarga  += Math.round(quedan * (1 + f.recargoLarga/100));
+      const { quedan } = calcularFila(f);
+      finChica += Math.round(quedan * (1 + f.recargoChica / 100));
+      finLarga += Math.round(quedan * (1 + f.recargoLarga / 100));
     });
-    finChica += S;
-    finLarga += S;
+    finChica += S; finLarga += S;
   }
-  const cuotaChica = nChica > 0 ? finChica / nChica : 0;
-  const cuotaLarga = nLarga > 0 ? finLarga / nLarga : 0;
-
+  
   return {
-    D, S, quedaFila, Htransf, T,
-    HefvoTotal, E,
-    ahorro,
-    mostrarCuotas,
-    nChica, nLarga, cuotaChica, cuotaLarga, finChica, finLarga,
-    plazo:   $('plazo').value.trim(),
-    validez: int('validez') || 5,
-    patente: ($('patente').value||'').toUpperCase().trim(),
-    cliente: $('cliente').value.trim(),
-    fecha:   fechaLarga($('fecha').value)
+    D, S, quedaFila, efvoFila, quedaConSuats, efvoConSuats, T, E, ahorro, mostrarCuotas,
+    nChica, nLarga, cuotaChica: nChica > 0 ? finChica / nChica : 0, cuotaLarga: nLarga > 0 ? finLarga / nLarga : 0,
+    plazo: $('plazo').value.trim(), validez: int('validez') || 5,
+    patente: ($('patente').value || '').toUpperCase().trim(),
+    cliente: $('cliente').value.trim(), fecha: fechaLarga($('fecha').value)
   };
 }
 
-/* ═══════════ FORMULARIO DE JURISDICCIONES ═══════════ */
-function pintarFilas(){
+/* ═══════════ RENDER UI DEL PANEL ═══════════ */
+function pintarFilas() {
   const cont = $('jurisdicciones');
   cont.innerHTML = '';
-
+  
   filas.forEach((f, i) => {
     const div = document.createElement('div');
     div.className = 'jur';
-
-    const autoQuedan = f.transfModo === 'pct'
-      ? Math.round((f.deuda||0) * f.transfPct / 100)
-      : (f.resol || 0);
+    const { quedan, hefvo } = calcularFila(f);
 
     div.innerHTML = `
-      <div class="idx">
-        JURISDICCIÓN ${String(i+1).padStart(2,'0')}
-        <span>condiciones propias</span>
-      </div>
+      <div class="idx">JURISDICCIÓN ${String(i + 1).padStart(2, '0')} <span>condiciones propias</span></div>
       ${filas.length > 1 ? `<button class="quitar" data-q="${i}" aria-label="Quitar">×</button>` : ''}
-
       <div class="fila"><input data-c="jur" data-i="${i}" value="${f.jur}" placeholder="Organismo / Jurisdicción"></div>
-      <div class="fila f3">
+      <div class="fila f4">
         <div><label>Deuda</label><input type="number" data-c="deuda" data-i="${i}" value="${f.deuda}"></div>
         <div><label>Cant.</label><input type="number" data-c="cant" data-i="${i}" value="${f.cant}"></div>
-        <div><label>Queda En</label><input type="number" data-c="resol" data-i="${i}" value="${autoQuedan}" ${f.transfModo==='pct'?'readonly':''}></div>
+        <div><label>Queda En</label><input type="number" data-c="resol" data-i="${i}" value="${quedan}" ${f.transfModo === 'pct' ? 'readonly' : ''}></div>
+        <div><label>Efectivo</label><input type="number" data-c="efvoMonto" data-i="${i}" value="${hefvo}" ${f.efvoModo === 'pct' ? 'readonly' : ''}></div>
       </div>
-
       <div class="jur-cond">
-        <div class="jur-cond-titulo">Condiciones de pago · Jurisdicción ${i+1}</div>
-
+        <div class="jur-cond-titulo">Condiciones de pago · Jurisdicción ${i + 1}</div>
         <div class="fila f2" style="margin-bottom:8px">
           <div>
             <label>Transferencia</label>
             <select data-c="transfModo" data-i="${i}">
-              <option value="manual" ${f.transfModo==='manual'?'selected':''}>Manual</option>
-              <option value="pct" ${f.transfModo==='pct'?'selected':''}>Automático por %</option>
+              <option value="manual" ${f.transfModo === 'manual' ? 'selected' : ''}>Manual</option>
+              <option value="pct" ${f.transfModo === 'pct' ? 'selected' : ''}>Automático por %</option>
             </select>
           </div>
-          <div class="${f.transfModo==='manual'?'oculto':''}" data-wrap="pct" data-i="${i}">
-            <label>% que abona</label>
-            <input type="number" data-c="transfPct" data-i="${i}" value="${f.transfPct}" min="0" max="100" step="0.5">
+          <div class="${f.transfModo === 'manual' ? 'oculto' : ''}" data-wrap="pct" data-i="${i}">
+            <label>% que abona</label><input type="number" data-c="transfPct" data-i="${i}" value="${f.transfPct}" min="0" max="100" step="0.5">
           </div>
         </div>
-
         <div class="fila f2" style="margin-bottom:8px">
           <div>
             <label>Efectivo</label>
             <select data-c="efvoModo" data-i="${i}">
-              <option value="pct" ${f.efvoModo==='pct'?'selected':''}>Descuento %</option>
-              <option value="manual" ${f.efvoModo==='manual'?'selected':''}>Manual</option>
+              <option value="pct" ${f.efvoModo === 'pct' ? 'selected' : ''}>Descuento %</option>
+              <option value="manual" ${f.efvoModo === 'manual' ? 'selected' : ''}>Manual</option>
             </select>
           </div>
-          <div class="${f.efvoModo==='manual'?'oculto':''}" data-wrap="efvoPct" data-i="${i}">
-            <label>Descuento (%)</label>
-            <input type="number" data-c="efvoPct" data-i="${i}" value="${f.efvoPct}" min="0" max="60" step="0.5">
-          </div>
-          <div class="${f.efvoModo==='pct'?'oculto':''}" data-wrap="efvoMonto" data-i="${i}">
-            <label>Monto efectivo (sin SUATS)</label>
-            <input type="number" data-c="efvoMonto" data-i="${i}" value="${f.efvoMonto}" min="0" step="1000">
-          </div>
-        </div>
-
-        <div id="grupoCuotasJur${i}" class="${$('mostrarCuotas') && $('mostrarCuotas').checked ? '' : 'oculto'}">
-          <div class="fila f2" style="margin-bottom:0">
-            <div><label>Recargo cuotas cortas (%)</label><input type="number" data-c="recargoChica" data-i="${i}" value="${f.recargoChica}" min="0" max="150" step="0.5"></div>
-            <div><label>Recargo cuotas largas (%)</label><input type="number" data-c="recargoLarga" data-i="${i}" value="${f.recargoLarga}" min="0" max="150" step="0.5"></div>
+          <div class="${f.efvoModo === 'manual' ? 'oculto' : ''}" data-wrap="efvoPct" data-i="${i}">
+            <label>Descuento (%)</label><input type="number" data-c="efvoPct" data-i="${i}" value="${f.efvoPct}" min="0" max="60" step="0.5">
           </div>
         </div>
       </div>`;
-
     cont.appendChild(div);
   });
 
-  // Eventos
+  // Attach Listeners dinámicos
   cont.querySelectorAll('input[data-c],select[data-c]').forEach(el => {
-    const ev = el.tagName === 'SELECT' ? 'change' : 'input';
-    el.addEventListener(ev, e => {
-      const i = +e.target.dataset.i;
-      const c = e.target.dataset.c;
-      if(e.target.hasAttribute('readonly')) return;
+    el.addEventListener(el.tagName === 'SELECT' ? 'change' : 'input', e => {
+      if (e.target.hasAttribute('readonly')) return;
+      const i = +e.target.dataset.i, c = e.target.dataset.c;
+      const esNum = ['deuda', 'cant', 'resol', 'transfPct', 'efvoPct', 'efvoMonto', 'recargoChica', 'recargoLarga'].includes(c);
+      filas[i][c] = esNum ? (parseFloat(e.target.value) || 0) : e.target.value;
 
-      const esNum = ['deuda','cant','resol','transfPct','efvoPct','efvoMonto','recargoChica','recargoLarga'].includes(c);
-      filas[i][c] = esNum ? (parseFloat(e.target.value)||0) : e.target.value;
-
-      // Reacciones especiales
-      if(c === 'transfModo'){
-        // mostrar/ocultar campo %
-        const wrapPct = cont.querySelector(`[data-wrap="pct"][data-i="${i}"]`);
-        if(wrapPct) wrapPct.classList.toggle('oculto', filas[i].transfModo !== 'pct');
-        // readonly en Queda En
-        const ri = cont.querySelector(`input[data-c="resol"][data-i="${i}"]`);
-        if(ri) ri.readOnly = filas[i].transfModo === 'pct';
-        actualizarQuen(i);
-      }
-      if(c === 'efvoModo'){
-        const wPct   = cont.querySelector(`[data-wrap="efvoPct"][data-i="${i}"]`);
-        const wMonto = cont.querySelector(`[data-wrap="efvoMonto"][data-i="${i}"]`);
-        if(wPct)   wPct.classList.toggle('oculto', filas[i].efvoModo !== 'pct');
-        if(wMonto) wMonto.classList.toggle('oculto', filas[i].efvoModo !== 'manual');
-      }
-      if(c === 'deuda' || c === 'transfPct'){
-        actualizarQuen(i);
+      if (['transfModo', 'efvoModo', 'deuda', 'transfPct', 'efvoPct', 'resol'].includes(c)) {
+        if (c === 'transfModo') {
+          cont.querySelector(`[data-wrap="pct"][data-i="${i}"]`)?.classList.toggle('oculto', filas[i].transfModo !== 'pct');
+          const ri = cont.querySelector(`input[data-c="resol"][data-i="${i}"]`);
+          if (ri) ri.readOnly = filas[i].transfModo === 'pct';
+        }
+        if (c === 'efvoModo') {
+          cont.querySelector(`[data-wrap="efvoPct"][data-i="${i}"]`)?.classList.toggle('oculto', filas[i].efvoModo !== 'pct');
+          const ei = cont.querySelector(`input[data-c="efvoMonto"][data-i="${i}"]`);
+          if (ei) ei.readOnly = filas[i].efvoModo === 'pct';
+        }
+        actualizarMontosFila(i);
       }
       dibujar();
     });
   });
 
   cont.querySelectorAll('.quitar').forEach(b => {
-    b.addEventListener('click', e => {
-      filas.splice(+e.target.dataset.q, 1);
-      pintarFilas(); dibujar();
-    });
+    b.addEventListener('click', e => { filas.splice(+e.target.dataset.q, 1); pintarFilas(); dibujar(); });
   });
 }
 
-function actualizarQuen(i){
-  const f = filas[i];
-  if(f.transfModo !== 'pct') return;
-  const ri = document.querySelector(`input[data-c="resol"][data-i="${i}"]`);
-  if(ri) ri.value = Math.round((f.deuda||0) * f.transfPct / 100);
+function actualizarMontosFila(i) {
+  const { quedan, hefvo } = calcularFila(filas[i]);
+  if (filas[i].transfModo === 'pct') document.querySelector(`input[data-c="resol"][data-i="${i}"]`).value = quedan;
+  if (filas[i].efvoModo === 'pct') document.querySelector(`input[data-c="efvoMonto"][data-i="${i}"]`).value = hefvo;
 }
 
-function getDefaults(){
-  return {
-    transfModo:   $('defTransfModo').value,
-    transfPct:    num('defTransfPct'),
-    efvoModo:     $('defEfvoModo').value,
-    efvoPct:      num('defEfvoPct'),
-    efvoMonto:    0,
-    recargoChica: num('defRecargoChica'),
-    recargoLarga: num('defRecargoLarga'),
-  };
-}
-
-/* ═══════════ LOGO / MARCA DE AGUA (vector oficial) ═══════════ */
+/* ═══════════ VECTOR Y MARCA DE AGUA ═══════════ */
 const LOGO_PATH_D = "M3480 6571 c-974 -139 -1802 -762 -2168 -1633 -231 -547 -277 -1193 -127 -1773 212 -819 756 -1480 1508 -1834 59 -28 111 -51 115 -51 4 0 41 -14 82 -30 583 -238 1349 -236 1960 5 220 87 526 260 664 376 12 9 62 51 112 92 210 175 426 430 582 686 54 89 184 349 203 406 7 22 16 45 20 50 24 35 109 352 134 495 9 52 21 124 27 160 17 90 16 551 -1 665 -35 241 -114 559 -162 647 -5 10 -9 22 -9 27 0 5 -14 40 -31 78 -17 37 -38 84 -46 103 -114 254 -337 559 -593 808 -373 363 -903 621 -1465 713 -185 31 -624 36 -805 10z m695 -176 c1081 -134 1955 -919 2189 -1967 110 -490 65 -1120 -107 -1510 -8 -18 -20 -49 -27 -68 -66 -182 -285 -537 -431 -700 -457 -509 -971 -790 -1614 -882 -135 -19 -511 -16 -663 5 -582 83 -1107 349 -1510 766 -826 854 -973 2196 -350 3179 410 647 1097 1083 1853 1177 145 18 515 18 660 0z M2359 5727 c-39 -30 -39 -37 -39 -731 0 -429 4 -677 10 -681 5 -3 23 4 40 16 l30 23 0 647 c0 581 2 647 16 653 9 3 154 6 324 6 170 0 315 -3 324 -6 14 -5 16 -27 16 -140 0 -169 -5 -164 166 -164 l122 0 6 -37 c3 -21 4 -154 3 -296 -1 -142 0 -260 4 -263 3 -2 21 11 40 29 l34 32 -3 297 -3 297 -162 166 -162 165 -375 0 c-279 0 -379 -4 -391 -13z m878 -209 c83 -82 82 -90 -9 -86 l-73 3 -3 73 c-4 90 3 91 85 10z M2914 5033 c-71 -76 -135 -139 -144 -141 -8 -1 -40 22 -70 53 -55 56 -76 65 -98 43 -24 -24 -11 -49 64 -120 91 -87 96 -91 126 -79 25 9 308 314 308 332 0 22 -21 49 -39 49 -11 0 -73 -58 -147 -137z M4155 4914 c-291 -22 -482 -75 -651 -179 -11 -7 -56 -32 -100 -55 -141 -75 -263 -151 -309 -190 -33 -29 -59 -41 -102 -50 -275 -53 -625 -181 -754 -276 -131 -96 -12 -117 681 -118 409 0 443 1 565 22 185 33 391 61 501 68 l94 7 0 -28 c0 -51 -97 -193 -151 -220 -39 -21 -94 -31 -284 -55 -93 -11 -201 -28 -240 -36 -234 -51 -253 -54 -377 -54 -171 0 -504 18 -658 35 -110 12 -127 17 -142 37 -35 45 -39 48 -68 48 -18 0 -34 8 -44 22 -33 47 -59 -38 -59 -187 1 -142 19 -195 67 -195 27 1 29 2 13 11 -23 14 -56 85 -57 122 0 32 20 35 58 9 29 -20 62 -34 62 -27 0 3 -13 29 -30 58 -43 77 -41 101 8 92 63 -10 394 -34 654 -47 258 -12 377 -7 855 38 98 9 104 -15 11 -41 -72 -20 -288 -111 -303 -127 -7 -7 2 -9 30 -4 22 3 103 13 180 22 192 21 206 16 259 -87 48 -96 44 -113 -27 -134 -124 -37 -643 -46 -957 -16 -58 5 -181 15 -275 21 -453 31 -515 41 -515 87 0 15 -3 14 -21 -4 -42 -41 8 -79 120 -94 368 -47 1594 -82 1730 -49 65 15 77 32 85 116 38 441 232 726 431 635 76 -34 133 -116 161 -231 l14 -55 -5 70 c-3 50 -13 87 -34 130 -29 57 -84 125 -102 125 -5 0 -9 6 -9 14 0 21 73 36 465 95 476 73 912 120 950 103 26 -12 49 -71 69 -184 l14 -73 1 51 c1 27 -9 88 -20 135 -25 100 -60 149 -129 184 -26 13 -70 43 -97 65 -26 23 -58 49 -69 59 -243 201 -376 270 -619 318 -77 15 -728 27 -870 17z m1040 -104 c170 -54 326 -162 396 -275 43 -68 23 -91 -86 -100 -214 -17 -465 -47 -510 -60 -27 -8 -81 -17 -120 -21 -55 -5 -75 -11 -93 -30 -26 -28 -64 -31 -83 -8 -11 14 -27 16 -91 11 -55 -5 -78 -3 -78 5 0 35 226 436 263 467 59 48 267 54 402 11z m-480 9 c6 -9 -7 -41 -38 -94 -130 -217 -156 -258 -186 -282 -16 -14 -477 -16 -1041 -4 -273 6 -295 7 -295 24 0 9 12 25 26 35 253 169 313 205 444 267 75 35 90 38 230 50 190 16 851 19 860 4z m-545 -454 c0 -8 -7 -15 -15 -15 -8 0 -15 7 -15 15 0 8 7 15 15 15 8 0 15 -7 15 -15z m-60 -8 c0 -8 -43 -23 -117 -41 -65 -16 -142 -37 -172 -48 -65 -22 -71 -22 -71 -4 0 15 101 51 210 76 30 7 69 16 85 21 46 11 65 10 65 -4z m-370 -102 c0 -8 -7 -15 -15 -15 -8 0 -15 7 -15 15 0 8 7 15 15 15 8 0 15 -7 15 -15z m-80 -30 c0 -8 -7 -15 -15 -15 -8 0 -15 7 -15 15 0 8 7 15 15 15 8 0 15 -7 15 -15z M4798 4521 c-44 -9 -78 -36 -78 -63 0 -16 9 -18 98 -18 129 0 202 9 202 26 0 35 -145 71 -222 55z M5727 4079 c-44 -36 -65 -75 -101 -186 -36 -114 -32 -135 8 -33 43 114 63 151 95 177 58 50 117 12 147 -95 21 -77 22 -80 23 -57 1 66 -37 167 -77 203 -33 29 -50 28 -95 -9z M3929 4066 c-4 -4 -349 -46 -499 -62 -62 -6 -140 -35 -140 -52 0 -4 26 -20 57 -36 68 -33 106 -34 298 -11 179 22 221 32 255 56 28 21 90 92 90 103 0 7 -54 8 -61 2z M5738 3958 c-39 -33 -81 -246 -45 -232 27 10 50 -21 42 -57 -6 -29 -6 -30 13 -20 12 6 25 11 29 11 15 0 43 -57 43 -88 0 -62 -26 -83 -48 -39 -10 19 -11 16 -6 -20 7 -54 -18 -71 -48 -32 -20 23 -20 51 -2 117 5 16 2 22 -9 22 -8 0 -18 6 -21 13 -15 31 3 -133 19 -170 61 -151 169 70 152 313 -11 147 -62 227 -119 182z m78 -75 c14 -33 14 -40 0 -70 -19 -41 -20 -43 -2 -43 19 0 26 -22 26 -81 0 -56 -13 -63 -49 -25 -17 18 -22 32 -17 50 4 15 2 26 -4 26 -5 0 -10 23 -10 53 0 123 26 164 56 90z m-66 -63 c0 -77 -17 -95 -39 -41 -15 35 2 111 24 111 12 0 15 -15 15 -70z M4270 3831 c-102 -55 -156 -192 -148 -380 13 -286 176 -399 304 -210 124 185 95 518 -51 589 -50 24 -60 24 -105 1z m78 -83 c2 -20 -4 -50 -12 -67 -9 -16 -16 -39 -16 -51 0 -13 -7 -20 -18 -20 -15 0 -20 14 -30 82 -13 92 -9 100 43 96 27 -3 30 -7 33 -40z m95 -63 c27 -57 22 -81 -22 -109 -96 -61 -109 -46 -59 69 37 85 55 94 81 40z m-200 -35 c30 -105 17 -125 -50 -74 -38 29 -39 33 -17 91 24 62 45 57 67 -17z m77 -97 c0 -10 3 -28 6 -40 6 -21 3 -23 -30 -23 -41 0 -50 28 -19 62 21 23 43 23 43 1z m-95 -63 c32 -12 32 -19 -6 -80 -49 -80 -78 -60 -79 56 0 48 12 52 85 24z m238 -30 c-5 -103 -23 -113 -90 -50 -68 63 -47 102 52 97 l40 -2 -2 -45z m-153 -24 c5 -13 12 -25 17 -27 10 -5 73 -123 73 -138 0 -20 -52 -61 -76 -61 -23 0 -24 2 -24 89 0 66 -4 92 -15 101 -20 17 -20 60 0 60 9 0 20 -11 25 -24z m-36 -70 c10 -40 -5 -146 -20 -146 -21 0 -54 37 -54 60 0 30 40 110 55 110 7 0 16 -11 19 -24z M5255 3734 c-212 -36 -434 -96 -524 -142 -69 -35 -49 -38 75 -13 611 126 654 135 689 154 19 10 19 10 0 18 -33 13 -93 9 -240 -17z M2133 2949 c-224 -71 -242 -392 -29 -501 52 -26 220 -23 279 6 l37 18 0 84 c0 71 3 85 20 97 30 21 14 27 -77 27 -89 0 -94 -3 -63 -28 25 -21 39 -127 21 -160 -24 -45 -131 -40 -180 8 -90 90 -99 316 -15 389 77 68 227 41 248 -44 11 -42 26 -18 26 40 0 51 -1 54 -32 64 -63 22 -168 22 -235 0z M3135 2958 c-81 -29 -117 -76 -117 -150 1 -65 29 -96 129 -144 106 -50 126 -79 107 -152 -13 -46 -97 -67 -153 -38 -25 13 -51 53 -65 99 -11 35 -24 16 -28 -40 -5 -85 21 -103 149 -103 127 0 211 70 200 167 -7 65 -43 104 -139 151 -93 45 -105 55 -114 100 -5 25 -1 36 19 56 50 50 140 26 170 -45 18 -43 36 -24 30 32 -4 37 -10 49 -30 58 -36 17 -124 22 -158 9z M4154 2961 c-144 -37 -223 -144 -212 -285 9 -109 53 -179 142 -227 53 -28 189 -27 251 2 187 88 197 384 17 482 -54 29 -144 42 -198 28z m110 -45 c127 -53 143 -363 23 -436 -120 -74 -231 40 -231 235 0 158 94 249 208 201z M2535 2952 c-2 -2 5 -12 16 -23 30 -30 29 -464 -1 -474 -55 -18 -5 -25 170 -25 l190 0 0 23 c0 12 3 39 6 60 8 47 -17 52 -36 8 -14 -35 -70 -61 -129 -61 -71 0 -71 0 -71 116 l0 104 60 0 c57 0 62 -2 78 -30 26 -45 32 -37 32 45 0 83 -2 86 -36 50 -19 -21 -32 -25 -79 -25 l-55 0 0 100 0 100 59 0 c76 0 108 -12 123 -47 17 -38 18 -39 28 -23 14 22 12 88 -2 97 -12 7 -346 12 -353 5z M3426 2952 c-9 -9 -7 -122 2 -122 5 0 16 16 25 34 17 37 69 61 117 54 l25 -3 3 -206 c3 -227 -3 -259 -43 -259 -14 0 -25 -4 -25 -10 0 -6 43 -10 110 -10 109 0 131 6 88 25 -23 10 -23 12 -26 238 l-2 227 46 0 c48 0 104 -40 104 -74 0 -9 7 -16 15 -16 24 0 21 117 -2 124 -24 7 -430 5 -437 -2z M4577 2953 c-3 -2 3 -13 14 -24 30 -30 29 -439 -1 -469 -29 -29 -28 -30 70 -30 92 0 106 5 70 28 -18 11 -20 23 -20 107 l0 95 29 0 c25 0 35 -10 76 -77 26 -43 59 -95 73 -115 l25 -38 73 0 c43 0 74 4 74 10 0 6 -6 10 -13 10 -19 0 -57 44 -116 133 -60 92 -60 96 -18 122 103 65 81 210 -38 239 -35 9 -291 17 -298 9z m236 -44 c49 -22 63 -108 27 -166 -19 -33 -39 -42 -95 -46 l-30 -2 -3 113 -3 112 40 0 c22 0 51 -5 64 -11z M5130 2952 c-9 -3 -6 -10 9 -21 20 -15 21 -26 25 -196 4 -235 0 -274 -30 -286 -42 -15 -27 -19 76 -19 100 0 120 7 78 25 -23 10 -23 13 -26 232 -2 213 -1 224 18 240 11 10 20 21 20 25 0 7 -148 7 -170 0z M5616 2951 c-21 -4 -32 -14 -39 -36 -50 -163 -162 -453 -180 -467 -21 -17 -20 -18 46 -18 64 0 86 11 51 24 -18 7 -16 67 5 119 10 27 12 27 100 27 l90 0 20 -55 c25 -67 26 -73 4 -97 -15 -17 -13 -18 75 -18 99 0 101 1 75 30 -18 19 -31 49 -78 180 -15 41 -31 84 -35 95 -5 11 -27 65 -48 120 -42 106 -42 106 -86 96z m24 -210 c17 -49 29 -94 25 -100 -11 -20 -135 -14 -135 6 0 32 54 183 66 183 6 0 26 -40 44 -89z M3197 2203 c-3 -5 3 -17 14 -26 18 -16 19 -31 19 -234 -1 -223 -5 -253 -41 -253 -11 0 -11 -2 1 -10 19 -12 177 -13 184 -1 3 5 -6 16 -19 25 -25 16 -26 20 -23 104 l3 87 72 6 c83 8 127 30 160 78 53 79 35 155 -47 201 -41 23 -58 25 -181 28 -76 2 -139 0 -142 -5z m238 -39 c49 -19 62 -143 20 -192 -27 -32 -71 -48 -105 -37 -19 6 -20 15 -20 121 l0 114 44 0 c24 0 52 -3 61 -6z M3825 2200 c-13 -5 -28 -32 -44 -76 -73 -211 -155 -420 -167 -427 -29 -17 -12 -27 44 -27 69 0 77 5 51 31 -22 22 -20 50 7 115 l14 34 88 -3 87 -2 17 -35 c28 -57 33 -101 15 -115 -26 -19 -9 -25 73 -25 89 0 95 3 70 39 -15 20 -121 282 -192 474 -10 28 -27 32 -63 17z m34 -216 c17 -47 31 -90 31 -95 0 -5 -31 -9 -70 -9 -80 0 -82 3 -54 87 42 131 51 132 93 17z M4207 2203 c-4 -3 -7 -31 -7 -62 l1 -56 21 29 c29 39 75 56 153 56 81 0 81 -3 10 -117 -30 -48 -58 -95 -62 -103 -4 -8 -41 -72 -84 -142 -42 -70 -74 -129 -71 -132 8 -8 362 -5 392 3 21 6 26 14 31 56 8 68 3 72 -37 31 -40 -41 -85 -56 -171 -56 -52 0 -63 3 -63 17 0 17 81 161 197 351 35 56 63 109 63 117 0 16 -358 23 -373 8z";
 let _logoTile = null;
 
-function obtenerLogoTile(){
-  if(_logoTile) return _logoTile;
+function obtenerLogoTile() {
+  if (_logoTile) return _logoTile;
   const path = new Path2D(LOGO_PATH_D);
   const RES = 480;
-  const bx0=118, by0=73, bx1=667, by1=622;
-  const bw = bx1-bx0, bh = by1-by0;
-  const cx = (bx0+bx1)/2, cy = (by0+by1)/2;
-  const escala = (RES*0.92) / Math.max(bw,bh);
-
   const off = document.createElement('canvas');
-  off.width = RES; off.height = RES;
+  off.width = off.height = RES;
   const octx = off.getContext('2d');
+  
   octx.save();
-  octx.translate(RES/2, RES/2);
-  octx.scale(escala, escala);
-  octx.translate(-cx, -cy);
+  octx.translate(RES / 2, RES / 2);
+  octx.scale(0.85, 0.85);
+  octx.translate(-392, -347); // Ajuste de centro aproximado
   octx.translate(0, 723);
   octx.scale(0.1, -0.1);
-  octx.fillStyle = NARANJA;
+  octx.fillStyle = CONFIG_COLOR.NARANJA;
   octx.fill(path);
   octx.restore();
-
+  
   _logoTile = off;
   return off;
 }
 
-function dibujarMarcaDeAgua(ctx, W, H){
+function dibujarMarcaDeAgua(ctx, W, H) {
   const tile = obtenerLogoTile();
   ctx.save();
   ctx.globalAlpha = 0.06;
-  ctx.translate(W/2, H/2);
-  ctx.rotate(-18 * Math.PI/180);
-  ctx.translate(-W/2, -H/2);
-  const diag = Math.sqrt(W*W + H*H);
+  ctx.translate(W / 2, H / 2);
+  ctx.rotate(-18 * Math.PI / 180);
+  ctx.translate(-W / 2, -H / 2);
+  
+  const diag = Math.sqrt(W * W + H * H);
   const paso = 300, tam = 108;
-  for(let yy = -diag; yy < H+diag; yy += paso*0.9){
-    for(let xx = -diag; xx < W+diag; xx += paso){
-      ctx.drawImage(tile, xx-tam/2, yy-tam/2, tam, tam);
+  for (let yy = -diag; yy < H + diag; yy += paso * 0.9) {
+    for (let xx = -diag; xx < W + diag; xx += paso) {
+      ctx.drawImage(tile, xx - tam / 2, yy - tam / 2, tam, tam);
     }
   }
   ctx.restore();
 }
 
-/* ═══════════ DIBUJO DEL DOCUMENTO ═══════════ */
-function dibujar(){
-  const cv  = $('lienzo');
+function wrap(ctx, texto, max) {
+  const palabras = texto.split(' ');
+  const lineas = [];
+  let actual = '';
+  for (const p of palabras) {
+    const prueba = actual ? actual + ' ' + p : p;
+    if (ctx.measureText(prueba).width > max && actual) { lineas.push(actual); actual = p; }
+    else actual = prueba;
+  }
+  if (actual) lineas.push(actual);
+  return lineas;
+}
+
+function truncar(ctx, texto, maxAncho) {
+  let t = texto;
+  while (ctx.measureText(t).width > maxAncho && t.length > 4) t = t.slice(0, -2);
+  return t !== texto ? t + '…' : texto;
+}
+
+function ls(ctx, valor) { try { ctx.letterSpacing = valor; } catch (e) {} }
+
+function ajustar(ctx, texto, maxAncho, peso, tamBase, familia, tamMin) {
+  let t = tamBase;
+  const min = tamMin || Math.max(10, Math.round(tamBase * 0.55));
+  ctx.font = `${peso} ${t}px ${familia}`;
+  while (ctx.measureText(texto).width > maxAncho && t > min) {
+    t -= 1;
+    ctx.font = `${peso} ${t}px ${familia}`;
+  }
+  return t;
+}
+
+/* ═══════════ MOTOR DE DIBUJO CANVAS ═══════════ */
+function dibujar() {
+  const cv = $('lienzo');
   const ctx = cv.getContext('2d');
-  const c = calcular();
+  const c = calcularContexto();
 
   const legal = 'Incluye la gestión de las infracciones visibles en las plataformas oficiales al día de la fecha. No incluye municipios no adheridos.';
-
   ctx.font = "400 21px 'DM Sans','Helvetica Neue',Arial,sans-serif";
-  const lineasLegal = wrap(ctx, legal, W - PX*2);
+  const lineasLegal = wrap(ctx, legal, CANVAS_W - CANVAS_PX * 2);
 
-  const H_HEAD   = 250;
-  const H_PAT    = 168;
-  const H_LEGAL  = 26 + lineasLegal.length*30 + 26;
-  const H_TABLA  = 66 + filas.length*76 + 34;
-  const H_DEUDA  = 90;
-  const H_CARDS  = 218;
-  const H_CUOTAS = c.mostrarCuotas ? 92 : 0;
-  const H_AHORRO = 168;
-  const H_PAGOS  = 196;
-  const H_PLAZO  = 118;
-  const H_ATENC  = 322;
-  const H_RESENA = 108;
-  const H_FOOT   = 268;
-  const H = H_HEAD+H_PAT+H_LEGAL+H_TABLA+H_DEUDA+H_CARDS+H_CUOTAS+H_AHORRO+H_PAGOS+H_PLAZO+H_ATENC+H_RESENA+H_FOOT;
+  const numFilasTotal = filas.length + (c.S > 0 ? 1 : 0);
+  
+  const DIM = {
+    HEAD: 250, PAT: 168, LEGAL: 26 + lineasLegal.length * 30 + 26,
+    TABLA: 66 + filas.length * 76 + 34, DEUDA: 90,
+    CARDS: Math.max(320, 216 + filas.length * 32 + (c.S > 0 ? 42 : 0)),
+    CUOTAS: c.mostrarCuotas ? 92 : 0, AHORRO: 168, PAGOS: 196,
+    PLAZO: 118, ATENC: 322, RESENA: 108, FOOT: 268
+  };
+  
+  const H = Object.values(DIM).reduce((acc, v) => acc + v, 0);
 
-  cv.width = W; cv.height = H;
-  cv.style.aspectRatio = W + ' / ' + H;
+  cv.width = CANVAS_W; cv.height = H;
+  cv.style.aspectRatio = `${CANVAS_W} / ${H}`;
   cv.style.height = 'auto';
 
-  ctx.clearRect(0,0,W,H);
-  ctx.textAlign = 'left';
-  ctx.textBaseline = 'alphabetic';
-  ls(ctx,'0px');
+  ctx.clearRect(0, 0, CANVAS_W, H);
+  ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
+  ls(ctx, '0px');
 
-  ctx.fillStyle = BLANCO; ctx.fillRect(0,0,W,H);
+  ctx.fillStyle = CONFIG_COLOR.BLANCO; ctx.fillRect(0, 0, CANVAS_W, H);
   let y = 0;
 
   /* ── CABECERA ── */
-  ctx.fillStyle = NEGRO; ctx.fillRect(0,0,W,H_HEAD);
-  ctx.fillStyle = NARANJA;
-  ctx.beginPath();
-  ctx.moveTo(W-200,H_HEAD); ctx.lineTo(W,H_HEAD-80); ctx.lineTo(W,H_HEAD);
-  ctx.closePath(); ctx.fill();
+  ctx.fillStyle = CONFIG_COLOR.NEGRO; ctx.fillRect(0, 0, CANVAS_W, DIM.HEAD);
+  ctx.fillStyle = CONFIG_COLOR.NARANJA;
+  ctx.beginPath(); ctx.moveTo(CANVAS_W - 200, DIM.HEAD); ctx.lineTo(CANVAS_W, DIM.HEAD - 80); ctx.lineTo(CANVAS_W, DIM.HEAD); ctx.fill();
 
-  const ZONA_IZQ_X   = PX+104;
-  const ZONA_DER_FIN = W-PX;
-  const SEPARACION   = 56;
-  const ANCHO_DISP   = ZONA_DER_FIN - ZONA_IZQ_X - SEPARACION;
-  const ZONA_IZQ_MAX = Math.floor(ANCHO_DISP * 0.46);
-  const ZONA_DER_MAX = Math.floor(ANCHO_DISP * 0.54);
-
-  const TAM_LOGO = 92;
-  if(logoImg){
-    const alto = 96, ancho = logoImg.width/logoImg.height*alto;
-    ctx.drawImage(logoImg, PX, 74, Math.min(ancho,260), alto);
+  if (logoImg) {
+    const alto = 96, ancho = logoImg.width / logoImg.height * alto;
+    ctx.drawImage(logoImg, CANVAS_PX, 74, Math.min(ancho, 260), alto);
   } else {
-    const tile = obtenerLogoTile();
-    ctx.drawImage(tile, PX, 78, TAM_LOGO, TAM_LOGO);
-    ctx.fillStyle = BLANCO;
-    ajustar(ctx, 'GESTORÍA PAZ', ZONA_IZQ_MAX, 800, 32, "'Syne','Arial Black','Helvetica Neue',sans-serif", 20);
-    ctx.fillText('GESTORÍA PAZ', ZONA_IZQ_X, 122);
-    ls(ctx,'3px');
-    ctx.fillStyle = NARANJA;
-    ajustar(ctx, 'TU TRANQUILIDAD, NUESTRO COMPROMISO', ZONA_IZQ_MAX, 500, 16, "'DM Sans','Helvetica Neue',Arial,sans-serif", 14);
-    ctx.fillText('TU TRANQUILIDAD, NUESTRO COMPROMISO', ZONA_IZQ_X, 152);
-    ls(ctx,'0px');
+    ctx.drawImage(obtenerLogoTile(), CANVAS_PX, 78, 92, 92);
+    ctx.fillStyle = CONFIG_COLOR.BLANCO;
+    ajustar(ctx, 'GESTORÍA PAZ', 170, 800, 32, "'Syne', sans-serif", 20);
+    ctx.fillText('GESTORÍA PAZ', CANVAS_PX + 104, 122);
+    ls(ctx, '3px'); ctx.fillStyle = CONFIG_COLOR.NARANJA;
+    ajustar(ctx, 'TU TRANQUILIDAD, NUESTRO COMPROMISO', 170, 500, 16, "'DM Sans', sans-serif", 14);
+    ctx.fillText('TU TRANQUILIDAD, NUESTRO COMPROMISO', CANVAS_PX + 104, 152);
+    ls(ctx, '0px');
   }
 
-  ctx.textAlign = 'right';
-  ctx.fillStyle = BLANCO;
-  ajustar(ctx, 'PRESUPUESTO', ZONA_DER_MAX, 800, 40, "'Syne','Arial Black','Helvetica Neue',sans-serif", 24);
-  ctx.fillText('PRESUPUESTO', ZONA_DER_FIN, 128);
-  ls(ctx,'2.5px');
-  ctx.fillStyle = NARANJA;
-  ajustar(ctx, 'GESTIÓN DE INFRACCIONES', ZONA_DER_MAX, 700, 15, "'DM Sans','Helvetica Neue',Arial,sans-serif", 10);
-  ctx.fillText('GESTIÓN DE INFRACCIONES', ZONA_DER_FIN, 158);
-  ls(ctx,'0px');
-  ctx.textAlign = 'left';
-  y = H_HEAD;
+  ctx.textAlign = 'right'; ctx.fillStyle = CONFIG_COLOR.BLANCO;
+  ajustar(ctx, 'PRESUPUESTO', 200, 800, 40, "'Syne', sans-serif", 24);
+  ctx.fillText('PRESUPUESTO', CANVAS_W - CANVAS_PX, 128);
+  ls(ctx, '2.5px'); ctx.fillStyle = CONFIG_COLOR.NARANJA;
+  ajustar(ctx, 'GESTIÓN DE INFRACCIONES', 200, 700, 15, "'DM Sans', sans-serif", 10);
+  ctx.fillText('GESTIÓN DE INFRACCIONES', CANVAS_W - CANVAS_PX, 158);
+  ls(ctx, '0px'); ctx.textAlign = 'left';
+  y = DIM.HEAD;
 
   /* ── DOMINIO + FECHA ── */
-  ctx.fillStyle = BLANCO; ctx.fillRect(0,y,W,H_PAT);
-  ls(ctx,'2.5px');
-  ctx.fillStyle = GRIS_TX; ctx.font = "700 15px 'DM Sans','Helvetica Neue',Arial,sans-serif";
-  ctx.fillText('DOMINIO', PX, y+50);
-  ls(ctx,'0px');
-  ctx.fillStyle = NEGRO;
-  ajustar(ctx, c.patente, 420, 700, 40, "'JetBrains Mono','SF Mono',Consolas,monospace", 22);
+  ctx.fillStyle = CONFIG_COLOR.BLANCO; ctx.fillRect(0, y, CANVAS_W, DIM.PAT);
+  ls(ctx, '2.5px'); ctx.fillStyle = CONFIG_COLOR.GRIS_TX; ctx.font = "700 15px 'DM Sans', sans-serif";
+  ctx.fillText('DOMINIO', CANVAS_PX, y + 50);
+  ls(ctx, '0px'); ctx.fillStyle = CONFIG_COLOR.NEGRO;
+  ajustar(ctx, c.patente, 420, 700, 40, "'JetBrains Mono', monospace", 22);
   const anchoPat = ctx.measureText(c.patente).width;
-  ctx.beginPath(); ctx.roundRect(PX, y+64, Math.max(anchoPat+150,290), 66, 12); ctx.fill();
-  ctx.fillStyle = NARANJA;
-  ls(ctx,'3px');
-  ctx.fillText(c.patente, PX+28, y+110);
-  ls(ctx,'0px');
+  ctx.beginPath(); ctx.roundRect(CANVAS_PX, y + 64, Math.max(anchoPat + 150, 290), 66, 12); ctx.fill();
+  ctx.fillStyle = CONFIG_COLOR.NARANJA; ls(ctx, '3px');
+  ctx.fillText(c.patente, CANVAS_PX + 28, y + 110);
+  ls(ctx, '0px');
 
-  ctx.textAlign = 'right';
-  ls(ctx,'2.5px');
-  ctx.fillStyle = GRIS_TX; ctx.font = "700 15px 'DM Sans','Helvetica Neue',Arial,sans-serif";
-  ctx.fillText('FECHA', W-PX, y+50);
-  ls(ctx,'0px');
-  ctx.fillStyle = NEGRO; ctx.font = "500 26px 'DM Sans','Helvetica Neue',Arial,sans-serif";
-  ctx.fillText(c.fecha, W-PX, y+92);
-  if(c.cliente){
-    ctx.fillStyle = GRIS_TX; ctx.font = "500 21px 'DM Sans','Helvetica Neue',Arial,sans-serif";
-    ctx.fillText(c.cliente, W-PX, y+124);
+  ctx.textAlign = 'right'; ls(ctx, '2.5px');
+  ctx.fillStyle = CONFIG_COLOR.GRIS_TX; ctx.font = "700 15px 'DM Sans', sans-serif";
+  ctx.fillText('FECHA', CANVAS_W - CANVAS_PX, y + 50);
+  ls(ctx, '0px'); ctx.fillStyle = CONFIG_COLOR.NEGRO; ctx.font = "500 26px 'DM Sans', sans-serif";
+  ctx.fillText(c.fecha, CANVAS_W - CANVAS_PX, y + 92);
+  if (c.cliente) {
+    ctx.fillStyle = CONFIG_COLOR.GRIS_TX; ctx.font = "500 21px 'DM Sans', sans-serif";
+    ctx.fillText(c.cliente, CANVAS_W - CANVAS_PX, y + 124);
   }
-  ctx.textAlign = 'left';
-  y += H_PAT;
+  ctx.textAlign = 'left'; y += DIM.PAT;
 
   /* ── ACLARACIÓN LEGAL ── */
-  ctx.fillStyle = GRIS; ctx.fillRect(0,y,W,H_LEGAL);
-  ctx.fillStyle = NARANJA; ctx.fillRect(0,y,7,H_LEGAL);
-  ctx.fillStyle = '#5E5E5E'; ctx.font = "400 21px 'DM Sans','Helvetica Neue',Arial,sans-serif";
-  lineasLegal.forEach((l,i)=> ctx.fillText(l, PX, y+52+i*30));
-  y += H_LEGAL;
+  ctx.fillStyle = CONFIG_COLOR.GRIS; ctx.fillRect(0, y, CANVAS_W, DIM.LEGAL);
+  ctx.fillStyle = CONFIG_COLOR.NARANJA; ctx.fillRect(0, y, 7, DIM.LEGAL);
+  ctx.fillStyle = '#5E5E5E'; ctx.font = "400 21px 'DM Sans', sans-serif";
+  lineasLegal.forEach((l, i) => ctx.fillText(l, CANVAS_PX, y + 52 + i * 30));
+  y += DIM.LEGAL;
 
-  /* ── TABLA ── */
-  ctx.fillStyle = NEGRO; ctx.fillRect(0,y,W,66);
-  ls(ctx,'1.6px');
-  ctx.fillStyle = BLANCO; ctx.font = "700 17px 'DM Sans','Helvetica Neue',Arial,sans-serif";
-  ctx.fillText('JURISDICCIÓN', PX, y+42);
-  ctx.textAlign = 'center'; ctx.fillText('CANT.', 618, y+42);
-  ctx.textAlign = 'right';
-  ctx.fillText('DEUDA', 830, y+42);
-  ctx.fillStyle = NARANJA; ctx.fillText('QUEDA EN', W-PX, y+42);
-  ls(ctx,'0px'); ctx.textAlign = 'left';
-  y += 66;
+  /* ── TABLA DE JURISDICCIONES ── */
+  ctx.fillStyle = CONFIG_COLOR.NEGRO; ctx.fillRect(0, y, CANVAS_W, 66);
+  ls(ctx, '1.3px'); ctx.fillStyle = CONFIG_COLOR.BLANCO; ctx.font = "700 15px 'DM Sans', sans-serif";
+  ctx.fillText('JURISDICCIÓN', CANVAS_PX, y + 42);
+  ctx.textAlign = 'center'; ctx.fillText('CANT.', 480, y + 42);
+  ctx.textAlign = 'right'; ctx.fillText('DEUDA', 660, y + 42);
+  ctx.fillStyle = CONFIG_COLOR.BLANCO; ctx.fillText('QUEDA EN', 840, y + 42);
+  ctx.fillStyle = CONFIG_COLOR.NARANJA; ctx.fillText('EFECTIVO', CANVAS_W - CANVAS_PX, y + 42);
+  ls(ctx, '0px'); ctx.textAlign = 'left'; y += 66;
 
-  filas.forEach((f,i)=>{
-    ctx.fillStyle = i%2 ? '#F7F7F7' : BLANCO; ctx.fillRect(0,y,W,76);
-    ctx.fillStyle = NEGRO; ctx.font = "500 23px 'DM Sans','Helvetica Neue',Arial,sans-serif";
-    let nombre = f.jur;
-    while(ctx.measureText(nombre).width > 470 && nombre.length>4) nombre = nombre.slice(0,-2);
-    if(nombre !== f.jur) nombre += '…';
-    ctx.fillText(nombre, PX, y+48);
-
-    ctx.textAlign = 'center';
-    ctx.font = "700 23px 'JetBrains Mono','SF Mono',Consolas,monospace";
-    ctx.fillText(String(f.cant), 618, y+48);
-
-    ctx.textAlign = 'right';
-    ctx.fillStyle = GRIS_TX; ctx.font = "500 23px 'JetBrains Mono','SF Mono',Consolas,monospace";
-    ctx.fillText(money(f.deuda), 830, y+48);
-
-    ctx.fillStyle = NEGRO; ctx.font = "700 25px 'JetBrains Mono','SF Mono',Consolas,monospace";
-    ctx.fillText(money(c.quedaFila[i]), W-PX, y+48);
-    ctx.textAlign = 'left';
-    y += 76;
+  filas.forEach((f, i) => {
+    ctx.fillStyle = i % 2 ? '#F7F7F7' : CONFIG_COLOR.BLANCO; ctx.fillRect(0, y, CANVAS_W, 76);
+    ctx.fillStyle = CONFIG_COLOR.NEGRO; ctx.font = "500 21px 'DM Sans', sans-serif";
+    ctx.fillText(truncar(ctx, f.jur || `Jurisdicción ${i + 1}`, 360), CANVAS_PX, y + 48);
+    ctx.textAlign = 'center'; ctx.font = "700 21px 'JetBrains Mono', monospace";
+    ctx.fillText(String(f.cant), 480, y + 48);
+    ctx.textAlign = 'right'; ctx.fillStyle = CONFIG_COLOR.GRIS_TX; ctx.font = "500 21px 'JetBrains Mono', monospace";
+    ctx.fillText(money(f.deuda), 660, y + 48);
+    ctx.fillStyle = CONFIG_COLOR.NEGRO; ctx.font = "700 22px 'JetBrains Mono', monospace";
+    ctx.fillText(money(c.quedaConSuats[i]), 840, y + 48);
+    ctx.fillStyle = CONFIG_COLOR.NARANJA; ctx.font = "700 22px 'JetBrains Mono', monospace";
+    ctx.fillText(money(c.efvoConSuats[i]), CANVAS_W - CANVAS_PX, y + 48);
+    ctx.textAlign = 'left'; y += 76;
   });
-  ctx.strokeStyle = '#DDD'; ctx.lineWidth = 2;
-  ctx.beginPath(); ctx.moveTo(PX,y); ctx.lineTo(W-PX,y); ctx.stroke();
+
+  ctx.strokeStyle = '#DDD'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(CANVAS_PX, y); ctx.lineTo(CANVAS_W - CANVAS_PX, y); ctx.stroke();
   y += 34;
 
-  /* ── DEUDA SIN GESTIONAR (tachado) ── */
-  ctx.fillStyle = GRIS;
-  ctx.beginPath(); ctx.roundRect(PX, y, W-PX*2, 74, 12); ctx.fill();
-  ctx.fillStyle = '#5E5E5E'; ctx.font = "500 23px 'DM Sans','Helvetica Neue',Arial,sans-serif";
-  ctx.fillText('Deuda total sin gestionar', PX+28, y+46);
-  ctx.textAlign = 'right';
-  ctx.font = "500 25px 'JetBrains Mono','SF Mono',Consolas,monospace";
-  ctx.fillText(money(c.D), W-PX-28, y+46);
+  /* ── DEUDA SIN GESTIONAR ── */
+  ctx.fillStyle = CONFIG_COLOR.GRIS; ctx.beginPath(); ctx.roundRect(CANVAS_PX, y, CANVAS_W - CANVAS_PX * 2, 74, 12); ctx.fill();
+  ctx.fillStyle = '#5E5E5E'; ctx.font = "500 23px 'DM Sans', sans-serif"; ctx.fillText('Deuda total sin gestionar', CANVAS_PX + 28, y + 46);
+  ctx.textAlign = 'right'; ctx.font = "500 25px 'JetBrains Mono', monospace"; ctx.fillText(money(c.D), CANVAS_W - CANVAS_PX - 28, y + 46);
   const wD = ctx.measureText(money(c.D)).width;
-  ctx.strokeStyle = '#9A9A9A'; ctx.lineWidth = 2.5;
-  ctx.beginPath(); ctx.moveTo(W-PX-28-wD, y+38); ctx.lineTo(W-PX-28, y+38); ctx.stroke();
-  ctx.textAlign = 'left';
-  y += H_DEUDA;
+  ctx.strokeStyle = '#9A9A9A'; ctx.lineWidth = 2.5; ctx.beginPath(); ctx.moveTo(CANVAS_W - CANVAS_PX - 28 - wD, y + 38); ctx.lineTo(CANVAS_W - CANVAS_PX - 28, y + 38); ctx.stroke();
+  ctx.textAlign = 'left'; y += DIM.DEUDA;
 
-  /* ── TOTALES GRANDES ── */
-  const anchoCol = (W-PX*2-16)/2;
-  const ALT_CARD = 200;
+  /* ── TARJETAS TOTALES ── */
+  const anchoCol = (CANVAS_W - CANVAS_PX * 2 - 16) / 2;
+  const altCard = DIM.CARDS - 24;
+  
+  // Tarjeta 1 - Transferencia
+  ctx.fillStyle = CONFIG_COLOR.NARANJA; ctx.beginPath(); ctx.roundRect(CANVAS_PX, y, anchoCol, altCard, 16); ctx.fill();
+  ls(ctx, '1.6px'); ctx.fillStyle = CONFIG_COLOR.NEGRO;
+  ajustar(ctx, 'TOTAL A ABONAR', anchoCol - 56, 700, 15, "'DM Sans', sans-serif", 11); ctx.fillText('TOTAL A ABONAR', CANVAS_PX + 28, y + 44);
+  ls(ctx, '0px'); ajustar(ctx, money(c.T), anchoCol - 56, 700, 52, "'JetBrains Mono', monospace", 26);
+  ctx.fillText(money(c.T), CANVAS_PX + 28, y + 102);
+  ctx.font = "700 17px 'DM Sans', sans-serif"; ctx.fillText('Transferencia bancaria', CANVAS_PX + 28, y + 130);
+  ctx.strokeStyle = 'rgba(18,18,18,0.2)'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(CANVAS_PX + 28, y + 144); ctx.lineTo(CANVAS_PX + anchoCol - 28, y + 144); ctx.stroke();
+  ls(ctx, '1px'); ctx.font = "700 11px 'DM Sans', sans-serif"; ctx.fillText('DESGLOSE TRANSFERENCIA:', CANVAS_PX + 28, y + 166); ls(ctx, '0px');
 
-  // Card 1 — TOTAL A ABONAR (transferencia)
-  ctx.fillStyle = NARANJA;
-  ctx.beginPath(); ctx.roundRect(PX, y, anchoCol, ALT_CARD, 16); ctx.fill();
-  ls(ctx,'1.6px');
-  ctx.fillStyle = NEGRO;
-  ajustar(ctx, 'TOTAL A ABONAR', anchoCol-56, 700, 17, "'DM Sans','Helvetica Neue',Arial,sans-serif", 11);
-  ctx.fillText('TOTAL A ABONAR', PX+30, y+50);
-  ls(ctx,'0px');
-  ctx.fillStyle = NEGRO;
-  ajustar(ctx, money(c.T), anchoCol-56, 700, 60, "'JetBrains Mono','SF Mono',Consolas,monospace", 28);
-  ctx.fillText(money(c.T), PX+30, y+120);
-  ctx.font = "700 20px 'DM Sans','Helvetica Neue',Arial,sans-serif";
-  ctx.fillText('Transferencia bancaria', PX+30, y+154);
-  if(c.S > 0){
-    ctx.fillStyle = '#5A3A05'; ctx.font = "500 16px 'DM Sans','Helvetica Neue',Arial,sans-serif";
-    ctx.fillText('✓ Informe de Multas Gratis', PX+30, y+182);
+  let yDesTransf = y + 192;
+  filas.forEach((f, i) => {
+    ctx.fillStyle = '#2A1B02'; ctx.font = "500 15px 'DM Sans', sans-serif";
+    ctx.fillText(`• ${truncar(ctx, f.jur || `Jur. ${i + 1}`, 220)}`, CANVAS_PX + 28, yDesTransf);
+    ctx.textAlign = 'right'; ctx.font = "700 15px 'JetBrains Mono', monospace"; ctx.fillText(money(c.quedaConSuats[i]), CANVAS_PX + anchoCol - 28, yDesTransf); ctx.textAlign = 'left';
+    yDesTransf += 30;
+  });
+  if (c.S > 0) {
+    ctx.fillStyle = '#5A3A05'; ctx.font = "500 15px 'DM Sans', sans-serif";
+    ctx.fillText('Incluye Informe de Multas Gratis', CANVAS_PX + 28, yDesTransf);
+    yDesTransf += 30;
   }
 
-  // Card 2 — EN EFECTIVO
-  const x2 = PX+anchoCol+16;
-  ctx.fillStyle = NEGRO;
-  ctx.beginPath(); ctx.roundRect(x2, y, anchoCol, ALT_CARD, 16); ctx.fill();
-  ls(ctx,'1.6px');
-  ctx.fillStyle = NARANJA;
-  ajustar(ctx, 'EN EFECTIVO', anchoCol-56, 700, 17, "'DM Sans','Helvetica Neue',Arial,sans-serif", 11);
-  ctx.fillText('EN EFECTIVO', x2+30, y+50);
-  ls(ctx,'0px');
-  ctx.fillStyle = BLANCO;
-  ajustar(ctx, money(c.E), anchoCol-56, 700, 60, "'JetBrains Mono','SF Mono',Consolas,monospace", 28);
-  ctx.fillText(money(c.E), x2+30, y+120);
-  ctx.fillStyle = GRIS; ctx.font = "700 20px 'DM Sans','Helvetica Neue',Arial,sans-serif";
-  ctx.fillText('En nuestras oficinas', x2+30, y+154);
-  ctx.fillStyle = GRIS_TX; ctx.font = "500 16px 'DM Sans','Helvetica Neue',Arial,sans-serif";
-  ctx.fillText('Descuento · pago único', x2+30, y+182);
-  y += H_CARDS;
+  // Tarjeta 2 - Efectivo
+  const x2 = CANVAS_PX + anchoCol + 16;
+  ctx.fillStyle = CONFIG_COLOR.NEGRO; ctx.beginPath(); ctx.roundRect(x2, y, anchoCol, altCard, 16); ctx.fill();
+  ls(ctx, '1.6px'); ctx.fillStyle = CONFIG_COLOR.NARANJA;
+  ajustar(ctx, 'EN EFECTIVO', anchoCol - 56, 700, 15, "'DM Sans', sans-serif", 11); ctx.fillText('EN EFECTIVO', x2 + 28, y + 44);
+  ls(ctx, '0px'); ctx.fillStyle = CONFIG_COLOR.BLANCO;
+  ajustar(ctx, money(c.E), anchoCol - 56, 700, 52, "'JetBrains Mono', monospace", 26); ctx.fillText(money(c.E), x2 + 28, y + 102);
+  ctx.fillStyle = CONFIG_COLOR.GRIS; ctx.font = "700 17px 'DM Sans', sans-serif"; ctx.fillText('En nuestras oficinas · pago único', x2 + 28, y + 130);
+  ctx.strokeStyle = 'rgba(255,255,255,0.15)'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(x2 + 28, y + 144); ctx.lineTo(x2 + anchoCol - 28, y + 144); ctx.stroke();
+  ls(ctx, '1px'); ctx.fillStyle = CONFIG_COLOR.NARANJA; ctx.font = "700 11px 'DM Sans', sans-serif"; ctx.fillText('DESGLOSE EN EFECTIVO:', x2 + 28, y + 166); ls(ctx, '0px');
 
-  /* ── CUOTAS (franja opcional) ── */
-  if(c.mostrarCuotas){
-    ctx.fillStyle = GRIS;
-    ctx.beginPath(); ctx.roundRect(PX, y, W-PX*2, 76, 14); ctx.fill();
-    ctx.fillStyle = NARANJA;
-    ctx.beginPath(); ctx.roundRect(PX, y, 6, 76, 3); ctx.fill();
-    ctx.fillStyle = NEGRO;
-    ls(ctx,'1.2px'); ctx.font = "700 15px 'DM Sans','Helvetica Neue',Arial,sans-serif";
-    ctx.fillText('FINANCIACIÓN EN CUOTAS', PX+28, y+30);
-    ls(ctx,'0px');
+  let yDesEfvo = y + 192;
+  filas.forEach((f, i) => {
+    ctx.fillStyle = '#EAEAEA'; ctx.font = "500 15px 'DM Sans', sans-serif";
+    ctx.fillText(`• ${truncar(ctx, f.jur || `Jur. ${i + 1}`, 220)}`, x2 + 28, yDesEfvo);
+    ctx.textAlign = 'right'; ctx.fillStyle = CONFIG_COLOR.BLANCO; ctx.font = "700 15px 'JetBrains Mono', monospace"; ctx.fillText(money(c.efvoConSuats[i]), x2 + anchoCol - 28, yDesEfvo); ctx.textAlign = 'left';
+    yDesEfvo += 30;
+  });
+  if (c.S > 0) {
+    ctx.fillStyle = '#EAEAEA'; ctx.font = "500 15px 'DM Sans', sans-serif";
+    ctx.fillText('Incluye Informe de Multas Gratis', x2 + 28, yDesEfvo);
+    yDesEfvo += 30;
+  }
+  y += DIM.CARDS;
+
+  /* ── CUOTAS ── */
+  if (c.mostrarCuotas) {
+    ctx.fillStyle = CONFIG_COLOR.GRIS; ctx.beginPath(); ctx.roundRect(CANVAS_PX, y, CANVAS_W - CANVAS_PX * 2, 76, 14); ctx.fill();
+    ctx.fillStyle = CONFIG_COLOR.NARANJA; ctx.beginPath(); ctx.roundRect(CANVAS_PX, y, 6, 76, 3); ctx.fill();
+    ctx.fillStyle = CONFIG_COLOR.NEGRO; ls(ctx, '1.2px'); ctx.font = "700 15px 'DM Sans', sans-serif"; ctx.fillText('FINANCIACIÓN EN CUOTAS', CANVAS_PX + 28, y + 30); ls(ctx, '0px');
     const txtCuotas = `${c.nChica} × ${money(c.cuotaChica)}      ·      ${c.nLarga} × ${money(c.cuotaLarga)}`;
-    ctx.fillStyle = NEGRO;
-    ajustar(ctx, txtCuotas, W-PX*2-56, 700, 26, "'JetBrains Mono','SF Mono',Consolas,monospace", 15);
-    ctx.fillText(txtCuotas, PX+28, y+60);
-    y += H_CUOTAS;
+    ajustar(ctx, txtCuotas, CANVAS_W - CANVAS_PX * 2 - 56, 700, 26, "'JetBrains Mono', monospace", 15); ctx.fillText(txtCuotas, CANVAS_PX + 28, y + 60);
+    y += DIM.CUOTAS;
   }
 
-  /* ── AHORRO (secundario) ── */
-  ctx.fillStyle = NEGRO;
-  ctx.beginPath(); ctx.roundRect(PX, y, W-PX*2, 150, 16); ctx.fill();
-  ls(ctx,'2.5px');
-  ctx.fillStyle = GRIS_TX;
-  ajustar(ctx, 'TU AHORRO CON ESTA GESTIÓN', W-PX*2-68, 700, 16, "'DM Sans','Helvetica Neue',Arial,sans-serif", 11);
-  ctx.fillText('TU AHORRO CON ESTA GESTIÓN', PX+34, y+46);
-  ls(ctx,'0px');
-  ctx.fillStyle = NARANJA;
-  ajustar(ctx, money(c.ahorro), W-PX*2-260, 700, 48, "'JetBrains Mono','SF Mono',Consolas,monospace", 26);
-  ctx.fillText(money(c.ahorro), PX+34, y+108);
-  y += H_AHORRO;
+  /* ── AHORRO ── */
+  ctx.fillStyle = CONFIG_COLOR.NEGRO; ctx.beginPath(); ctx.roundRect(CANVAS_PX, y, CANVAS_W - CANVAS_PX * 2, 150, 16); ctx.fill();
+  ls(ctx, '2.5px'); ctx.fillStyle = CONFIG_COLOR.GRIS_TX;
+  ajustar(ctx, 'TU AHORRO CON ESTA GESTIÓN', CANVAS_W - CANVAS_PX * 2 - 68, 700, 16, "'DM Sans', sans-serif", 11); ctx.fillText('TU AHORRO CON ESTA GESTIÓN', CANVAS_PX + 34, y + 46);
+  ls(ctx, '0px'); ctx.fillStyle = CONFIG_COLOR.NARANJA;
+  ajustar(ctx, money(c.ahorro), CANVAS_W - CANVAS_PX * 2 - 260, 700, 48, "'JetBrains Mono', monospace", 26); ctx.fillText(money(c.ahorro), CANVAS_PX + 34, y + 108);
+  y += DIM.AHORRO;
 
   /* ── FORMAS DE PAGO ── */
-  ls(ctx,'2.5px');
-  ctx.fillStyle = NEGRO; ctx.font = "700 16px 'DM Sans','Helvetica Neue',Arial,sans-serif";
-  ctx.fillText('FORMAS DE PAGO', PX, y+46);
-  ls(ctx,'0px');
+  ls(ctx, '2.5px'); ctx.fillStyle = CONFIG_COLOR.NEGRO; ctx.font = "700 16px 'DM Sans', sans-serif"; ctx.fillText('FORMAS DE PAGO', CANVAS_PX, y + 46); ls(ctx, '0px');
   const pagos = [
-    'Transferencia bancaria',
-    c.mostrarCuotas ? `Tarjeta de crédito · hasta ${c.nLarga} cuotas fijas` : 'Tarjeta de crédito · consultar financiación',
-    'Efectivo en oficina',
-    'Mercado Pago'
+    'Transferencia bancaria', c.mostrarCuotas ? `Tarjeta de crédito · hasta ${c.nLarga} cuotas fijas` : 'Tarjeta de crédito · consultar financiación',
+    'Efectivo en oficina', 'Mercado Pago'
   ];
-  ctx.font = "400 22px 'DM Sans','Helvetica Neue',Arial,sans-serif";
-  const colX = [PX, PX + (W-PX*2)/2 + 10];
-  pagos.forEach((p,i)=>{
-    const cx = colX[i % 2];
-    const yy = y + 92 + Math.floor(i/2)*44;
-    ctx.fillStyle = NARANJA;
-    ctx.beginPath(); ctx.arc(cx+7, yy-8, 6, 0, Math.PI*2); ctx.fill();
-    ctx.fillStyle = '#3A3A3A';
-    ctx.fillText(p, cx+30, yy);
+  ctx.font = "400 22px 'DM Sans', sans-serif";
+  const colX = [CANVAS_PX, CANVAS_PX + (CANVAS_W - CANVAS_PX * 2) / 2 + 10];
+  pagos.forEach((p, i) => {
+    const cx = colX[i % 2], yy = y + 92 + Math.floor(i / 2) * 44;
+    ctx.fillStyle = CONFIG_COLOR.NARANJA; ctx.beginPath(); ctx.arc(cx + 7, yy - 8, 6, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#3A3A3A'; ctx.fillText(p, cx + 30, yy);
   });
-  y += H_PAGOS;
+  y += DIM.PAGOS;
 
   /* ── PLAZO Y VALIDEZ ── */
-  ctx.fillStyle = GRIS;
-  ctx.beginPath(); ctx.roundRect(PX, y, W-PX*2, 92, 14); ctx.fill();
-  ctx.fillStyle = NEGRO; ctx.font = "700 25px 'DM Sans','Helvetica Neue',Arial,sans-serif";
-  ctx.fillText(`Informe de multas limpio en ${c.plazo}`, PX+28, y+42);
-  ctx.fillStyle = '#5E5E5E'; ctx.font = "400 20px 'DM Sans','Helvetica Neue',Arial,sans-serif";
-  ctx.fillText(`Presupuesto válido por ${c.validez} días · Emitimos recibo por el servicio`, PX+28, y+72);
-  y += H_PLAZO;
+  ctx.fillStyle = CONFIG_COLOR.GRIS; ctx.beginPath(); ctx.roundRect(CANVAS_PX, y, CANVAS_W - CANVAS_PX * 2, 92, 14); ctx.fill();
+  ctx.fillStyle = CONFIG_COLOR.NEGRO; ctx.font = "700 25px 'DM Sans', sans-serif"; ctx.fillText(`Informe de multas limpio en ${c.plazo}`, CANVAS_PX + 28, y + 42);
+  ctx.fillStyle = '#5E5E5E'; ctx.font = "400 20px 'DM Sans', sans-serif"; ctx.fillText(`Presupuesto válido por ${c.validez} días · Emitimos recibo por el servicio`, CANVAS_PX + 28, y + 72);
+  y += DIM.PLAZO;
 
   /* ── CÓMO TE ATENDEMOS ── */
-  ls(ctx,'2.5px');
-  ctx.fillStyle = NEGRO; ctx.font = "700 16px 'DM Sans','Helvetica Neue',Arial,sans-serif";
-  ctx.fillText('CÓMO TE ATENDEMOS', PX, y+34);
-  ls(ctx,'0px');
-
-  const anchoAt = (W-PX*2-16)/2;
-  const yAt = y + 58;
-
-  ctx.fillStyle = BLANCO;
-  ctx.beginPath(); ctx.roundRect(PX, yAt, anchoAt, 140, 14); ctx.fill();
-  ctx.strokeStyle = '#DCDCDC'; ctx.lineWidth = 2;
-  ctx.beginPath(); ctx.roundRect(PX, yAt, anchoAt, 140, 14); ctx.stroke();
-  ctx.fillStyle = NARANJA;
-  ctx.beginPath(); ctx.roundRect(PX, yAt, 6, 140, 3); ctx.fill();
-  ls(ctx,'1.6px');
-  ctx.fillStyle = NARANJA; ctx.font = "700 14px 'DM Sans','Helvetica Neue',Arial,sans-serif";
-  ctx.fillText('UBICACIÓN', PX+26, yAt+36);
-  ls(ctx,'0px');
-  ctx.fillStyle = NEGRO; ctx.font = "700 23px 'DM Sans','Helvetica Neue',Arial,sans-serif";
-  ctx.fillText('Güemes 2261', PX+26, yAt+72);
-  ctx.font = "500 20px 'DM Sans','Helvetica Neue',Arial,sans-serif";
-  ctx.fillText('San Martín Centro', PX+26, yAt+100);
-  ctx.fillStyle = GRIS_TX; ctx.font = "400 18px 'DM Sans','Helvetica Neue',Arial,sans-serif";
-  ctx.fillText('Mapa en el mensaje adjunto', PX+26, yAt+126);
-
-  const xAt2 = PX + anchoAt + 16;
-  ctx.fillStyle = BLANCO;
-  ctx.beginPath(); ctx.roundRect(xAt2, yAt, anchoAt, 140, 14); ctx.fill();
-  ctx.strokeStyle = '#DCDCDC'; ctx.lineWidth = 2;
-  ctx.beginPath(); ctx.roundRect(xAt2, yAt, anchoAt, 140, 14); ctx.stroke();
-  ctx.fillStyle = NARANJA;
-  ctx.beginPath(); ctx.roundRect(xAt2, yAt, 6, 140, 3); ctx.fill();
-  ls(ctx,'1.6px');
-  ctx.fillStyle = NARANJA; ctx.font = "700 14px 'DM Sans','Helvetica Neue',Arial,sans-serif";
-  ctx.fillText('ATENCIÓN ONLINE', xAt2+26, yAt+36);
-  ls(ctx,'0px');
-  ctx.fillStyle = NEGRO; ctx.font = "700 23px 'DM Sans','Helvetica Neue',Arial,sans-serif";
-  ctx.fillText('Videollamada', xAt2+26, yAt+72);
-  ctx.font = "500 20px 'DM Sans','Helvetica Neue',Arial,sans-serif";
-  ctx.fillText('Coordinamos día y hora', xAt2+26, yAt+100);
-  ctx.fillStyle = GRIS_TX; ctx.font = "400 18px 'DM Sans','Helvetica Neue',Arial,sans-serif";
-  ctx.fillText('Si estás lejos o preferís esta modalidad', xAt2+26, yAt+126);
+  ls(ctx, '2.5px'); ctx.fillStyle = CONFIG_COLOR.NEGRO; ctx.font = "700 16px 'DM Sans', sans-serif"; ctx.fillText('CÓMO TE ATENDEMOS', CANVAS_PX, y + 34); ls(ctx, '0px');
+  const anchoAt = (CANVAS_W - CANVAS_PX * 2 - 16) / 2, yAt = y + 58, xAt2 = CANVAS_PX + anchoAt + 16;
+  
+  [CANVAS_PX, xAt2].forEach((xBase, index) => {
+    ctx.fillStyle = CONFIG_COLOR.BLANCO; ctx.beginPath(); ctx.roundRect(xBase, yAt, anchoAt, 140, 14); ctx.fill();
+    ctx.strokeStyle = '#DCDCDC'; ctx.lineWidth = 2; ctx.beginPath(); ctx.roundRect(xBase, yAt, anchoAt, 140, 14); ctx.stroke();
+    ctx.fillStyle = CONFIG_COLOR.NARANJA; ctx.beginPath(); ctx.roundRect(xBase, yAt, 6, 140, 3); ctx.fill();
+    ls(ctx, '1.6px'); ctx.font = "700 14px 'DM Sans', sans-serif";
+    ctx.fillText(index === 0 ? 'UBICACIÓN' : 'ATENCIÓN ONLINE', xBase + 26, yAt + 36);
+    ls(ctx, '0px'); ctx.fillStyle = CONFIG_COLOR.NEGRO; ctx.font = "700 23px 'DM Sans', sans-serif";
+    ctx.fillText(index === 0 ? 'Güemes 2261' : 'Videollamada', xBase + 26, yAt + 72);
+    ctx.font = "500 20px 'DM Sans', sans-serif"; ctx.fillText(index === 0 ? 'San Martín Centro' : 'Coordinamos día y hora', xBase + 26, yAt + 100);
+    ctx.fillStyle = CONFIG_COLOR.GRIS_TX; ctx.font = "400 18px 'DM Sans', sans-serif"; ctx.fillText(index === 0 ? 'Mapa en el mensaje adjunto' : 'Si estás lejos o preferís esta modalidad', xBase + 26, yAt + 126);
+  });
 
   const yCita = yAt + 156;
-  ctx.fillStyle = NARANJA;
-  ctx.beginPath(); ctx.roundRect(PX, yCita, W-PX*2, 62, 12); ctx.fill();
-  ctx.textAlign = 'center';
-  ctx.fillStyle = NEGRO;
-  ajustar(ctx, 'Ambas modalidades se atienden únicamente con cita previa', W-PX*2-48, 700, 23, "'DM Sans','Helvetica Neue',Arial,sans-serif", 15);
-  ctx.fillText('Ambas modalidades se atienden únicamente con cita previa', W/2, yCita+39);
-  ctx.textAlign = 'left';
-  y += H_ATENC;
+  ctx.fillStyle = CONFIG_COLOR.NARANJA; ctx.beginPath(); ctx.roundRect(CANVAS_PX, yCita, CANVAS_W - CANVAS_PX * 2, 62, 12); ctx.fill();
+  ctx.textAlign = 'center'; ctx.fillStyle = CONFIG_COLOR.NEGRO;
+  ajustar(ctx, 'Ambas modalidades se atienden únicamente con cita previa', CANVAS_W - CANVAS_PX * 2 - 48, 700, 23, "'DM Sans', sans-serif", 15);
+  ctx.fillText('Ambas modalidades se atienden únicamente con cita previa', CANVAS_W / 2, yCita + 39); ctx.textAlign = 'left';
+  y += DIM.ATENC;
 
-  /* ── RESEÑAS DE GOOGLE ── */
-  ctx.fillStyle = GRIS;
-  ctx.beginPath(); ctx.roundRect(PX, y, W-PX*2, 84, 14); ctx.fill();
-  function estrella(cx, cy, r){
+  /* ── RESEÑAS ── */
+  ctx.fillStyle = CONFIG_COLOR.GRIS; ctx.beginPath(); ctx.roundRect(CANVAS_PX, y, CANVAS_W - CANVAS_PX * 2, 84, 14); ctx.fill();
+  ctx.fillStyle = CONFIG_COLOR.NARANJA;
+  for (let i = 0; i < 5; i++) {
     ctx.beginPath();
-    for(let i=0; i<5; i++){
-      const ang = -Math.PI/2 + i*(2*Math.PI/5);
-      const angInt = ang + Math.PI/5;
-      ctx.lineTo(cx + r*Math.cos(ang), cy + r*Math.sin(ang));
-      ctx.lineTo(cx + r*0.42*Math.cos(angInt), cy + r*0.42*Math.sin(angInt));
+    for (let j = 0; j < 5; j++) {
+      const ang = -Math.PI / 2 + j * (2 * Math.PI / 5), angInt = ang + Math.PI / 5;
+      ctx.lineTo(CANVAS_PX + 30 + i * 30 + 12 * Math.cos(ang), y + 30 + 12 * Math.sin(ang));
+      ctx.lineTo(CANVAS_PX + 30 + i * 30 + 12 * 0.42 * Math.cos(angInt), y + 30 + 12 * 0.42 * Math.sin(angInt));
     }
     ctx.closePath(); ctx.fill();
   }
-  ctx.fillStyle = NARANJA;
-  for(let i=0; i<5; i++){ estrella(PX+30+i*30, y+30, 12); }
-  ctx.fillStyle = NEGRO; ctx.font = "700 32px 'JetBrains Mono','SF Mono',Consolas,monospace";
-  ctx.fillText(DATOS_FIJOS.googleRating, PX+30, y+66);
-  ctx.fillStyle = GRIS_TX; ctx.font = "500 24px 'DM Sans','Helvetica Neue',Arial,sans-serif";
-  ctx.fillText(`${DATOS_FIJOS.googleReviews} opiniones en Google`, PX+120, y+66);
-  ctx.textAlign = 'right';
-  ctx.fillStyle = NARANJA; ctx.font = "700 26px 'DM Sans','Helvetica Neue',Arial,sans-serif";
-  ctx.fillText('Ver reseñas →', W-PX, y+48);
-  ctx.textAlign = 'left';
-  y += H_RESENA;
+  ctx.fillStyle = CONFIG_COLOR.NEGRO; ctx.font = "700 32px 'JetBrains Mono', monospace"; ctx.fillText(DATOS_FIJOS.googleRating, CANVAS_PX + 30, y + 66);
+  ctx.fillStyle = CONFIG_COLOR.GRIS_TX; ctx.font = "500 24px 'DM Sans', sans-serif"; ctx.fillText(`${DATOS_FIJOS.googleReviews} opiniones en Google`, CANVAS_PX + 120, y + 66);
+  ctx.textAlign = 'right'; ctx.fillStyle = CONFIG_COLOR.NARANJA; ctx.font = "700 26px 'DM Sans', sans-serif"; ctx.fillText('Ver reseñas →', CANVAS_W - CANVAS_PX, y + 48); ctx.textAlign = 'left';
+  y += DIM.RESENA;
 
-  /* ── PIE ── */
-  ctx.fillStyle = NEGRO; ctx.fillRect(0,y,W,H_FOOT);
-  ctx.fillStyle = NARANJA; ctx.fillRect(0,y,W,6);
-  ctx.fillStyle = NARANJA;
-  ajustar(ctx, 'WhatsApp  '+DATOS_FIJOS.whatsapp, (W-PX*2)*0.52, 700, 30, "'DM Sans','Helvetica Neue',Arial,sans-serif", 18);
-  ctx.fillText('WhatsApp  '+DATOS_FIJOS.whatsapp, PX, y+62);
-  ctx.fillStyle = BLANCO; ctx.font = "500 21px 'DM Sans','Helvetica Neue',Arial,sans-serif";
-  ctx.fillText(DATOS_FIJOS.email, PX, y+100);
-  ctx.fillText(DATOS_FIJOS.web, PX, y+132);
-  ctx.fillStyle = GRIS_TX; ctx.font = "400 19px 'DM Sans','Helvetica Neue',Arial,sans-serif";
-  ctx.fillText(DATOS_FIJOS.direccion, PX, y+172);
+  /* ── FOOTER ── */
+  ctx.fillStyle = CONFIG_COLOR.NEGRO; ctx.fillRect(0, y, CANVAS_W, DIM.FOOT);
+  ctx.fillStyle = CONFIG_COLOR.NARANJA; ctx.fillRect(0, y, CANVAS_W, 6);
+  ajustar(ctx, 'WhatsApp  ' + DATOS_FIJOS.whatsapp, (CANVAS_W - CANVAS_PX * 2) * 0.52, 700, 30, "'DM Sans', sans-serif", 18);
+  ctx.fillText('WhatsApp  ' + DATOS_FIJOS.whatsapp, CANVAS_PX, y + 62);
+  ctx.fillStyle = CONFIG_COLOR.BLANCO; ctx.font = "500 21px 'DM Sans', sans-serif";
+  ctx.fillText(DATOS_FIJOS.email, CANVAS_PX, y + 100); ctx.fillText(DATOS_FIJOS.web, CANVAS_PX, y + 132);
+  ctx.fillStyle = CONFIG_COLOR.GRIS_TX; ctx.font = "400 19px 'DM Sans', sans-serif"; ctx.fillText(DATOS_FIJOS.direccion, CANVAS_PX, y + 172);
 
-  ctx.textAlign = 'right';
-  ls(ctx,'2px');
-  ctx.fillStyle = GRIS_TX; ctx.font = "700 13px 'DM Sans','Helvetica Neue',Arial,sans-serif";
-  ctx.fillText('SEGUINOS', W-PX, y+58);
-  ls(ctx,'0px');
-  const redes = [
-    ['Instagram', DATOS_FIJOS.instagram],
-    ['Facebook',  DATOS_FIJOS.facebook],
-    ['TikTok',    DATOS_FIJOS.tiktok]
-  ];
-  redes.forEach((r,i)=>{
-    const yy = y + 92 + i*32;
-    ctx.fillStyle = BLANCO; ctx.font = "500 20px 'DM Sans','Helvetica Neue',Arial,sans-serif";
-    const anchoUsuario = ctx.measureText(r[1]).width;
-    ctx.fillText(r[1], W-PX, yy);
-    ctx.fillStyle = GRIS_TX; ctx.font = "400 16px 'DM Sans','Helvetica Neue',Arial,sans-serif";
-    ctx.fillText(r[0], W-PX-anchoUsuario-26, yy);
+  ctx.textAlign = 'right'; ls(ctx, '2px'); ctx.font = "700 13px 'DM Sans', sans-serif"; ctx.fillText('SEGUINOS', CANVAS_W - CANVAS_PX, y + 58); ls(ctx, '0px');
+  [['Instagram', DATOS_FIJOS.instagram], ['Facebook', DATOS_FIJOS.facebook], ['TikTok', DATOS_FIJOS.tiktok]].forEach((r, i) => {
+    const yy = y + 92 + i * 32;
+    ctx.fillStyle = CONFIG_COLOR.BLANCO; ctx.font = "500 20px 'DM Sans', sans-serif";
+    ctx.fillText(r[1], CANVAS_W - CANVAS_PX, yy);
+    ctx.fillStyle = CONFIG_COLOR.GRIS_TX; ctx.font = "400 16px 'DM Sans', sans-serif";
+    ctx.fillText(r[0], CANVAS_W - CANVAS_PX - ctx.measureText(r[1]).width - 26, yy);
   });
-  ls(ctx,'2px');
-  ctx.fillStyle = NARANJA; ctx.font = "700 18px 'DM Sans','Helvetica Neue',Arial,sans-serif";
-  ctx.fillText('Tu Tranquilidad, Nuestro Compromiso', W-PX, y+212);
-  ls(ctx,'0px');
-  ctx.textAlign = 'left';
+  ls(ctx, '2px'); ctx.fillStyle = CONFIG_COLOR.NARANJA; ctx.font = "700 18px 'DM Sans', sans-serif"; ctx.fillText('Tu Tranquilidad, Nuestro Compromiso', CANVAS_W - CANVAS_PX, y + 212);
+  ls(ctx, '0px'); ctx.textAlign = 'left';
 
-  dibujarMarcaDeAgua(ctx, W, H);
-
-  try{ $('vistaPrevia').src = cv.toDataURL('image/png'); }catch(e){}
+  dibujarMarcaDeAgua(ctx, CANVAS_W, H);
+  try { $('vistaPrevia').src = cv.toDataURL('image/png'); } catch (e) {}
 }
 
-/* ═══════════ TEXTO PARA WHATSAPP ═══════════ */
-function textoWhatsapp(){
-  const c = calcular();
+/* ═══════════ TEXTO WHATSAPP ═══════════ */
+function textoWhatsapp() {
+  const c = calcularContexto();
+  const formatDesglose = (montoProp) => filas.map((f, i) => `  • ${f.jur || 'Jurisdicción ' + (i + 1)}: ${money(c[montoProp][i])}`).join('\n');
+  const cuotasInfo = c.mostrarCuotas ? `\n▸ *En cuotas:* ${c.nChica} x ${money(c.cuotaChica)}  ·  ${c.nLarga} x ${money(c.cuotaLarga)}` : '';
+  const lineaSuats = c.S > 0 ? `\n_Incluye Informe de Multas Gratis._` : '';
+  const tarjetaTxt = c.mostrarCuotas ? `Tarjeta de crédito, hasta ${c.nLarga} cuotas fijas` : 'Tarjeta de crédito (consultar financiación)';
 
-  // Desglose por jurisdicción
-  const desglose = filas.map((f,i) =>
-    `  • ${f.jur||'Jurisdicción '+(i+1)}: ${money(c.quedaFila[i])}`
-  ).join('\n');
-
-  const lineaCuotas = c.mostrarCuotas
-    ? `\n▸ *En cuotas:* ${c.nChica} x ${money(c.cuotaChica)}  ·  ${c.nLarga} x ${money(c.cuotaLarga)}`
-    : '';
-  const lineaTarjetaPago = c.mostrarCuotas
-    ? `Tarjeta de crédito, hasta ${c.nLarga} cuotas fijas`
-    : 'Tarjeta de crédito (consultar financiación)';
-  const lineaSuats = c.S>0 ? `\n_Incluye Informe de Multas Gratis._` : '';
-
-  return `*GESTORÍA PAZ* — Presupuesto
-Dominio: *${c.patente}*
-
-Deuda total actual: ${money(c.D)}
-Ahorro con la gestión: *${money(c.ahorro)}*
-
-*Honorarios por jurisdicción:*
-${desglose}
-
-▸ *Total a abonar:* ${money(c.T)} (transferencia)
-▸ *En efectivo:* ${money(c.E)}${lineaCuotas}${lineaSuats}
-
-Incluye la gestión de las infracciones visibles en las plataformas oficiales al día de la fecha.
-El informe de multas sale limpio en ${c.plazo}. Ideal para renovar el registro, transferir el vehículo o presentar la baja al seguro.
-
-*Formas de pago*
-• Transferencia bancaria
-• ${lineaTarjetaPago}
-• Efectivo en oficina
-• Mercado Pago
-
-Emitimos recibo por el servicio.
-
-*Cómo te atendemos* (siempre con cita previa)
-
-▸ *En nuestra oficina*
-${DATOS_FIJOS.direccion}
-Ver ubicación: ${DATOS_FIJOS.maps}
-
-▸ *Por videollamada*
-Si te queda lejos o preferís hacerlo desde tu casa, coordinamos día y horario. Es la misma atención, con la comodidad y la seguridad de verificar todo en pantalla.
-
-Presupuesto válido por ${c.validez} días. Los importes pueden variar según las actualizaciones de los organismos.
-
-Decime cómo querés avanzar y lo dejamos iniciado hoy.
-
-★ ${DATOS_FIJOS.googleRating} en Google (${DATOS_FIJOS.googleReviews} opiniones) ★ Nuestras reseñas en Google → ${DATOS_FIJOS.googleReviewsUrl}
-
-—
-Gestoría Paz · Tu Tranquilidad, Nuestro Compromiso
-${DATOS_FIJOS.email} · ${DATOS_FIJOS.web}
-Instagram ${DATOS_FIJOS.instagram} · Facebook ${DATOS_FIJOS.facebook} · TikTok ${DATOS_FIJOS.tiktok}`;
+  return `*GESTORÍA PAZ* — Presupuesto\nDominio: *${c.patente}*\n\nDeuda total actual: ${money(c.D)}\nAhorro con la gestión: *${money(c.ahorro)}*\n\n*Desglose por Jurisdicción (Transferencia):*\n${formatDesglose('quedaConSuats')}\n▸ *TOTAL A ABONAR:* ${money(c.T)} (transferencia)\n\n*Desglose en Efectivo (en nuestras oficinas):*\n${formatDesglose('efvoConSuats')}\n▸ *TOTAL EN EFECTIVO:* ${money(c.E)}${cuotasInfo}${lineaSuats}\n\nIncluye la gestión de las infracciones visibles en las plataformas oficiales al día de la fecha.\nEl informe de multas sale limpio en ${c.plazo}. Ideal para renovar el registro, transferir el vehículo o presentar la baja al seguro.\n\n*Formas de pago*\n• Transferencia bancaria\n• ${tarjetaTxt}\n• Efectivo en oficina\n• Mercado Pago\n\nEmitimos recibo por el servicio.\n\n*Cómo te atendemos* (siempre con cita previa)\n\n▸ *En nuestra oficina*\n${DATOS_FIJOS.direccion}\nVer ubicación: ${DATOS_FIJOS.maps}\n\n▸ *Por videollamada*\nSi te queda lejos o preferís hacerlo desde tu casa, coordinamos día y horario. Es la misma atención, con la comodidad y la seguridad de verificar todo en pantalla.\n\nPresupuesto válido por ${c.validez} días. Los importes pueden variar según las actualizaciones de los organismos.\n\nDecime cómo querés avanzar y lo dejamos iniciado hoy.\n\n★ ${DATOS_FIJOS.googleRating} en Google (${DATOS_FIJOS.googleReviews} opiniones) ★ Nuestras reseñas en Google → ${DATOS_FIJOS.googleReviewsUrl}\n\n—\nGestoría Paz · Tu Tranquilidad, Nuestro Compromiso\n${DATOS_FIJOS.email} · ${DATOS_FIJOS.web}\nInstagram ${DATOS_FIJOS.instagram} · Facebook ${DATOS_FIJOS.facebook} · TikTok ${DATOS_FIJOS.tiktok}`;
 }
 
-/* ═══════════ AVISOS ═══════════ */
-let temporizador;
-function avisar(msg){
+/* ═══════════ EVENTOS Y UI ═══════════ */
+let timerAviso;
+function avisar(msg) {
   const a = $('aviso');
   a.textContent = msg; a.classList.add('ver');
-  clearTimeout(temporizador);
-  temporizador = setTimeout(()=>a.classList.remove('ver'), 2600);
+  clearTimeout(timerAviso);
+  timerAviso = setTimeout(() => a.classList.remove('ver'), 2600);
 }
 
-/* ═══════════ SINCRONIZAR UI GLOBAL ═══════════ */
-function sincronizarUI(){
-  // defaults: mostrar % transfModo
+function sincronizarUI() {
   $('defWrapPct').classList.toggle('oculto', $('defTransfModo').value !== 'pct');
   $('defWrapEfvoPct').classList.toggle('oculto', $('defEfvoModo').value !== 'pct');
-  // cuotas globales
   $('grupoCuotas').classList.toggle('oculto', !$('mostrarCuotas').checked);
-  // cuotas en cada fila
-  filas.forEach((_,i)=>{
-    const el = $('grupoCuotasJur'+i);
-    if(el) el.classList.toggle('oculto', !$('mostrarCuotas').checked);
-  });
+  filas.forEach((_, i) => $('grupoCuotasJur' + i)?.classList.toggle('oculto', !$('mostrarCuotas').checked));
 }
 
-/* ═══════════ EVENTOS ═══════════ */
-['patente','cliente','fecha','suatsMonto','nChica','nLarga','plazo','validez',
- 'defTransfPct','defEfvoPct','defRecargoChica','defRecargoLarga']
-  .forEach(id => $(id).addEventListener('input', dibujar));
+['patente', 'cliente', 'fecha', 'suatsMonto', 'nChica', 'nLarga', 'plazo', 'validez', 'defTransfPct', 'defEfvoPct', 'defRecargoChica', 'defRecargoLarga'].forEach(id => $(id).addEventListener('input', dibujar));
+['suatsOn', 'mostrarCuotas', 'defTransfModo', 'defEfvoModo'].forEach(id => $(id).addEventListener('change', () => { sincronizarUI(); dibujar(); }));
 
-['suatsOn','mostrarCuotas'].forEach(id =>
-  $(id).addEventListener('change', ()=>{ sincronizarUI(); dibujar(); })
-);
-
-$('defTransfModo').addEventListener('change', ()=>{ sincronizarUI(); dibujar(); });
-$('defEfvoModo').addEventListener('change', ()=>{ sincronizarUI(); dibujar(); });
-
-$('agregar').addEventListener('click', ()=>{
-  const def = getDefaults();
-  filas.push({ jur:'', cant:1, deuda:0, resol:0, ...def });
+$('agregar').addEventListener('click', () => {
+  filas.push({
+    jur: '', cant: 1, deuda: 0, resol: 0, efvoMonto: 0,
+    transfModo: $('defTransfModo').value, transfPct: num('defTransfPct'),
+    efvoModo: $('defEfvoModo').value, efvoPct: num('defEfvoPct'),
+    recargoChica: num('defRecargoChica'), recargoLarga: num('defRecargoLarga')
+  });
   pintarFilas(); dibujar();
 });
 
-$('logo').addEventListener('change', e=>{
+$('logo').addEventListener('change', e => {
   const archivo = e.target.files[0];
-  if(!archivo) return;
+  if (!archivo) return;
   const lector = new FileReader();
-  lector.onload = ev=>{
-    const img = new Image();
-    img.onload = ()=>{ logoImg = img; dibujar(); };
-    img.src = ev.target.result;
-  };
+  lector.onload = ev => { const img = new Image(); img.onload = () => { logoImg = img; dibujar(); }; img.src = ev.target.result; };
   lector.readAsDataURL(archivo);
 });
 
-$('descargar').addEventListener('click', ()=>{
-  const patente = ($('patente').value||'presupuesto').toUpperCase().trim();
-  $('lienzo').toBlob(blob=>{
+$('descargar').addEventListener('click', () => {
+  const patente = ($('patente').value || 'presupuesto').toUpperCase().trim();
+  $('lienzo').toBlob(blob => {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
-    a.href = url;
-    a.download = `Presupuesto-GestoriaPaz-${patente}.png`;
-    a.click();
+    a.href = url; a.download = `Presupuesto-GestoriaPaz-${patente}.png`; a.click();
     URL.revokeObjectURL(url);
     avisar('Imagen descargada');
   }, 'image/png');
 });
 
-$('copiar').addEventListener('click', async ()=>{
-  try{
-    await navigator.clipboard.writeText(textoWhatsapp());
-    avisar('Texto copiado — pegalo en WhatsApp');
-  }catch(e){
-    avisar('No se pudo copiar. Probá desde otro navegador.');
-  }
+$('copiar').addEventListener('click', async () => {
+  try { await navigator.clipboard.writeText(textoWhatsapp()); avisar('Texto copiado — pegalo en WhatsApp'); }
+  catch (e) { avisar('No se pudo copiar. Probá desde otro navegador.'); }
 });
 
-/* ═══════════ INICIO ═══════════ */
-$('fecha').value = new Date().toISOString().slice(0,10);
-sincronizarUI();
-pintarFilas();
+/* ═══════════ INICIALIZACIÓN ═══════════ */
+$('fecha').value = new Date().toISOString().slice(0, 10);
+sincronizarUI(); pintarFilas();
 
-function iniciar(){
-  const necesarias = [
-    "800 40px Syne", "700 34px Syne",
-    "700 25px 'DM Sans','Helvetica Neue',Arial,sans-serif",
-    "500 23px 'DM Sans','Helvetica Neue',Arial,sans-serif",
-    "400 21px 'DM Sans','Helvetica Neue',Arial,sans-serif",
-    "700 40px 'JetBrains Mono','SF Mono',Consolas,monospace",
-    "500 23px 'JetBrains Mono','SF Mono',Consolas,monospace"
-  ];
-  if(document.fonts && document.fonts.load){
-    Promise.all(necesarias.map(f => document.fonts.load(f).catch(()=>null)))
-      .then(dibujar)
-      .catch(dibujar);
-  } else {
-    dibujar();
-  }
-  dibujar();
-  setTimeout(dibujar, 900);
-}
-iniciar();
+Promise.all([
+  "800 40px Syne", "700 34px Syne", "700 25px 'DM Sans'", "500 23px 'DM Sans'",
+  "400 21px 'DM Sans'", "700 40px 'JetBrains Mono'", "500 23px 'JetBrains Mono'"
+].map(f => document.fonts ? document.fonts.load(f).catch(() => null) : Promise.resolve()))
+  .then(dibujar).catch(dibujar);
 
-window.addEventListener('resize', function(){
-  const cv = $('lienzo');
-  cv.style.aspectRatio = cv.width + ' / ' + cv.height;
-});
+setTimeout(dibujar, 900);
+window.addEventListener('resize', () => { const cv = $('lienzo'); cv.style.aspectRatio = `${cv.width} / ${cv.height}`; });
 </script>
 </body>
 </html>
