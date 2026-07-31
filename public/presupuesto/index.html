@@ -581,7 +581,7 @@ function dibujar() {
   ajustar(ctx, 'PRESUPUESTO', 200, 800, 40, "'Syne', sans-serif", 24);
   ctx.fillText('PRESUPUESTO', CANVAS_W - CANVAS_PX, 128);
   ls(ctx, '2.5px'); ctx.fillStyle = CONFIG_COLOR.NARANJA;
-  ajustar(ctx, 'GESTIÓN DE INFRACCIONES', 200, 700, 15, "'DM Sans', sans-serif", 10);
+  ajustar(ctx, 'GESTIÓN DE INFRACCIONES', 200, 700, 15, "'DM Sans', sans-serif", 14);
   ctx.fillText('GESTIÓN DE INFRACCIONES', CANVAS_W - CANVAS_PX, 158);
   ls(ctx, '0px'); ctx.textAlign = 'left';
   y = DIM.HEAD;
@@ -792,13 +792,13 @@ function dibujar() {
   ctx.fillText(DATOS_FIJOS.email, CANVAS_PX, y + 100); ctx.fillText(DATOS_FIJOS.web, CANVAS_PX, y + 132);
   ctx.fillStyle = CONFIG_COLOR.GRIS_TX; ctx.font = "400 19px 'DM Sans', sans-serif"; ctx.fillText(DATOS_FIJOS.direccion, CANVAS_PX, y + 172);
 
-  ctx.textAlign = 'right'; ls(ctx, '2px'); ctx.font = "700 13px 'DM Sans', sans-serif"; ctx.fillText('SEGUINOS', CANVAS_W - CANVAS_PX, y + 58); ls(ctx, '0px');
+  ctx.textAlign = 'right'; ls(ctx, '4px'); ctx.font = "700 13px 'DM Sans', sans-serif"; ctx.fillText('SEGUINOS', CANVAS_W - CANVAS_PX, y + 58); ls(ctx, '2px');
   [['Instagram', DATOS_FIJOS.instagram], ['Facebook', DATOS_FIJOS.facebook], ['TikTok', DATOS_FIJOS.tiktok]].forEach((r, i) => {
     const yy = y + 92 + i * 32;
     ctx.fillStyle = CONFIG_COLOR.BLANCO; ctx.font = "500 20px 'DM Sans', sans-serif";
     ctx.fillText(r[1], CANVAS_W - CANVAS_PX, yy);
     ctx.fillStyle = CONFIG_COLOR.GRIS_TX; ctx.font = "400 16px 'DM Sans', sans-serif";
-    ctx.fillText(r[0], CANVAS_W - CANVAS_PX - ctx.measureText(r[1]).width - 26, yy);
+    ctx.fillText(r[0], CANVAS_W - CANVAS_PX - ctx.measureText(r[1]).width - 36, yy);
   });
   ls(ctx, '2px'); ctx.fillStyle = CONFIG_COLOR.NARANJA; ctx.font = "700 18px 'DM Sans', sans-serif"; ctx.fillText('Tu Tranquilidad, Nuestro Compromiso', CANVAS_W - CANVAS_PX, y + 212);
   ls(ctx, '0px'); ctx.textAlign = 'left';
