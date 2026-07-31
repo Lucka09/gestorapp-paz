@@ -328,8 +328,12 @@ function calcularContexto() {
   const quedaFila = filas.map(f => calcularFila(f).quedan);
   const efvoFila = filas.map(f => calcularFila(f).hefvo);
 
-  const quedaConSuats = quedaFila.map(v => v + S);
-  const efvoConSuats = efvoFila.map(v => v + S);
+  // CORRECCIÓN: Distribuir el SUAT en partes para que sea 1 solo por presupuesto
+  const cuotaSuat = filas.length > 0 ? Math.floor(S / filas.length) : 0;
+  const restoSuat = filas.length > 0 ? S - (cuotaSuat * (filas.length - 1)) : 0;
+
+  const quedaConSuats = quedaFila.map((v, i) => v + (i === filas.length - 1 ? restoSuat : cuotaSuat));
+  const efvoConSuats = efvoFila.map((v, i) => v + (i === filas.length - 1 ? restoSuat : cuotaSuat));
 
   const Htransf = quedaFila.reduce((acc, v) => acc + v, 0);
   const HefvoTotal = efvoFila.reduce((acc, v) => acc + v, 0);
