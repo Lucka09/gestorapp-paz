@@ -20,7 +20,7 @@
         <div class="bg-slate-900 border border-slate-800 p-6 rounded-3xl shadow-2xl flex flex-col gap-4">
             <div>
                 <h1 class="text-xl font-bold text-amber-400">Generador de Recordatorios</h1>
-                <p class="text-xs text-slate-400">Gestoría Paz — Estándar de Excelencia</p>
+                <p class="text-xs text-slate-400">Gestoría Paz — Gestión de Excelencia</p>
             </div>
 
             <!-- Carga de Logo -->
@@ -65,7 +65,7 @@ Formulario 04 firmado y certificado</textarea>
 
             <div>
                 <label class="text-xs text-slate-400 font-medium">Asesor a Cargo</label>
-                <input type="text" id="input-advisor" value="Lic. Gabriel Paz" class="w-full bg-slate-800 border border-slate-700 rounded-xl p-3 text-sm text-white mt-1 focus:outline-none focus:border-amber-500">
+                <input type="text" id="input-advisor" value="Mandataria Nac. Abigail Paz" class="w-full bg-slate-800 border border-slate-700 rounded-xl p-3 text-sm text-white mt-1 focus:outline-none focus:border-amber-500">
             </div>
 
             <button onclick="descargarImagen()" class="mt-2 w-full bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-bold py-3.5 px-4 rounded-xl shadow-lg flex items-center justify-center gap-2 transition-all cursor-pointer">
@@ -87,7 +87,7 @@ Formulario 04 firmado y certificado</textarea>
                         <span class="text-2xl font-black tracking-wider bg-gradient-to-r from-amber-200 via-amber-400 to-amber-500 bg-clip-text text-transparent">
                             GESTORÍA PAZ
                         </span>
-                        <p class="text-[10px] tracking-widest text-slate-400 uppercase font-semibold">Excelencia en Gestoría Integral</p>
+                        <p class="text-[10px] tracking-widest text-slate-400 uppercase font-semibold">Tu Tranquilidad, Nuestro Compromiso</p>
                     </div>
                     <!-- Contenedor del Logo de Mayor Tamaño -->
                     <div id="preview-logo-box" class="w-16 h-16 rounded-2xl bg-amber-500/10 border border-amber-500/40 flex items-center justify-center overflow-hidden shadow-inner shrink-0">
@@ -159,7 +159,7 @@ Formulario 04 firmado y certificado</textarea>
                     <p class="italic text-slate-300">Ante cualquier consulta, quedamos a disposición. Saludos cordiales,</p>
                     <div class="flex justify-between items-center mt-1">
                         <span class="font-bold text-amber-400">Gestoría Paz</span>
-                        <span id="preview-advisor" class="text-amber-400/90 font-medium">Lic. Gabriel Paz</span>
+                        <span id="preview-advisor" class="text-amber-400/90 font-medium">Mandatario Nac. Abigail Paz</span>
                     </div>
                 </div>
 
@@ -219,17 +219,30 @@ Formulario 04 firmado y certificado</textarea>
 
         function descargarImagen() {
             const node = document.getElementById('capture-card');
-            
-            htmlToImage.toPng(node, { pixelRatio: 3, cacheBust: true })
-                .then(function (dataUrl) {
+            const clientName = document.getElementById('input-client').value.replace(/\s+/g, '-');
+            const filename = `Recordatorio-${clientName}.png`;
+
+            htmlToImage.toBlob(node, { pixelRatio: 3, cacheBust: true })
+                .then(function (blob) {
+                    if (!blob) throw new Error('No se generó el blob de imagen.');
+
+                    if (window.navigator && window.navigator.msSaveOrOpenBlob) {
+                        window.navigator.msSaveOrOpenBlob(blob, filename);
+                        return;
+                    }
+
+                    const url = URL.createObjectURL(blob);
                     const link = document.createElement('a');
-                    const clientName = document.getElementById('input-client').value.replace(/\s+/g, '-');
-                    link.download = `Recordatorio-${clientName}.png`;
-                    link.href = dataUrl;
+                    link.download = filename;
+                    link.href = url;
+                    document.body.appendChild(link);
                     link.click();
+                    document.body.removeChild(link);
+                    URL.revokeObjectURL(url);
                 })
                 .catch(function (error) {
                     console.error('Error al generar la imagen:', error);
+                    alert('No se pudo descargar la imagen. Revisa la consola del navegador.');
                 });
         }
     </script>
