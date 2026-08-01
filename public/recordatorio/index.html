@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Generador de Recordatorios Premium | Gestoría Paz</title>
+    <!-- Tailwind CSS v4 CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="manifest" href="manifest.json">
+<!-- Y opcionalmente el color del tema para navegadores móviles -->
+<meta name="theme-color" content="#f59e0b">
+    <!-- html-to-image para exportar en alta resolución -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html-to-image/1.11.11/html-to-image.min.js"></script>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen p-6 flex flex-col items-center justify-center font-sans">
+
+    <div class="max-w-6xl w-full grid grid-cols-1 lg:grid-cols-2 gap-8 items-center">
+        
+        <!-- Panel de Control / Formulario -->
+        <div class="bg-slate-900 border border-slate-800 p-6 rounded-3xl shadow-2xl flex flex-col gap-4">
+            <div>
+                <h1 class="text-xl font-bold text-amber-400">Generador de Recordatorios</h1>
+                <p class="text-xs text-slate-400">Gestoría Paz — Estándar de Excelencia</p>
+            </div>
+
+            <!-- Carga de Logo -->
+            <div>
+                <label class="text-xs text-slate-400 font-medium">Logotipo / Escudo Oficial (PNG/JPG)</label>
+                <input type="file" id="input-logo-file" accept="image/*" class="w-full bg-slate-800 border border-slate-700 rounded-xl p-2 text-xs text-slate-300 mt-1 file:mr-4 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-amber-500 file:text-slate-950 hover:file:bg-amber-400 cursor-pointer">
+            </div>
+
+            <div>
+                <label class="text-xs text-slate-400 font-medium">Nombre del Cliente</label>
+                <input type="text" id="input-client" value="Carlos Méndez" class="w-full bg-slate-800 border border-slate-700 rounded-xl p-3 text-sm text-white mt-1 focus:outline-none focus:border-amber-500">
+            </div>
+
+            <div>
+                <label class="text-xs text-slate-400 font-medium">Trámite a Realizar</label>
+                <input type="text" id="input-tramite" value="Baja de vehículo por destrucción total" class="w-full bg-slate-800 border border-slate-700 rounded-xl p-3 text-sm text-white mt-1 focus:outline-none focus:border-amber-500">
+            </div>
+
+            <div>
+                <label class="text-xs text-slate-400 font-medium">Registro / Sede Oficial</label>
+                <input type="text" id="input-registro" value="Registro N° 09 de Quilmes" class="w-full bg-slate-800 border border-slate-700 rounded-xl p-3 text-sm text-white mt-1 focus:outline-none focus:border-amber-500">
+            </div>
+
+            <div class="grid grid-cols-2 gap-3">
+                <div>
+                    <label class="text-xs text-slate-400 font-medium">Fecha</label>
+                    <input type="text" id="input-date" value="23/01/2026" class="w-full bg-slate-800 border border-slate-700 rounded-xl p-3 text-sm text-white mt-1 focus:outline-none focus:border-amber-500">
+                </div>
+                <div>
+                    <label class="text-xs text-slate-400 font-medium">Horario</label>
+                    <input type="text" id="input-time" value="14:10" class="w-full bg-slate-800 border border-slate-700 rounded-xl p-3 text-sm text-white mt-1 focus:outline-none focus:border-amber-500">
+                </div>
+            </div>
+
+            <!-- Documentación requerida (Cada línea es un ítem) -->
+            <div>
+                <label class="text-xs text-slate-400 font-medium">Documentación a Presentar (Un ítem por renglón)</label>
+                <textarea id="input-docs" rows="3" class="w-full bg-slate-800 border border-slate-700 rounded-xl p-3 text-sm text-white mt-1 focus:outline-none focus:border-amber-500 leading-relaxed">DNI original y fotocopia
+Título del automotor o cédula verde
+Formulario 04 firmado y certificado</textarea>
+            </div>
+
+            <div>
+                <label class="text-xs text-slate-400 font-medium">Asesor a Cargo</label>
+                <input type="text" id="input-advisor" value="Lic. Gabriel Paz" class="w-full bg-slate-800 border border-slate-700 rounded-xl p-3 text-sm text-white mt-1 focus:outline-none focus:border-amber-500">
+            </div>
+
+            <button onclick="descargarImagen()" class="mt-2 w-full bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-bold py-3.5 px-4 rounded-xl shadow-lg flex items-center justify-center gap-2 transition-all cursor-pointer">
+                📥 Descargar Imagen HD (PNG)
+            </button>
+        </div>
+
+        <!-- Vista Previa de la Tarjeta (Lo que se convierte en imagen) -->
+        <div class="flex justify-center">
+            <div id="capture-card" class="w-[480px] bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 text-slate-100 p-8 rounded-3xl shadow-2xl border border-amber-500/30 relative overflow-hidden font-sans">
+                
+                <!-- Efectos de luz decorativos -->
+                <div class="absolute -top-24 -right-24 w-64 h-64 bg-amber-500/10 rounded-full blur-3xl pointer-events-none"></div>
+                <div class="absolute -bottom-24 -left-24 w-64 h-64 bg-blue-500/10 rounded-full blur-3xl pointer-events-none"></div>
+
+                <!-- Header con Logo Prominente y Marca -->
+                <div class="flex justify-between items-center mb-6 border-b border-slate-700/60 pb-4">
+                    <div>
+                        <span class="text-2xl font-black tracking-wider bg-gradient-to-r from-amber-200 via-amber-400 to-amber-500 bg-clip-text text-transparent">
+                            GESTORÍA PAZ
+                        </span>
+                        <p class="text-[10px] tracking-widest text-slate-400 uppercase font-semibold">Excelencia en Gestoría Integral</p>
+                    </div>
+                    <!-- Contenedor del Logo de Mayor Tamaño -->
+                    <div id="preview-logo-box" class="w-16 h-16 rounded-2xl bg-amber-500/10 border border-amber-500/40 flex items-center justify-center overflow-hidden shadow-inner shrink-0">
+                        <span id="preview-logo-fallback" class="text-amber-400 font-black text-xl tracking-tighter">GP</span>
+                        <img id="preview-logo-img" src="" alt="Logo" class="w-full h-full object-cover hidden">
+                    </div>
+                </div>
+
+                <!-- Saludo -->
+                <div class="mb-5">
+                    <p class="text-slate-300 text-sm mb-1">Estimado/a <span id="preview-client" class="text-white font-semibold">Carlos Méndez</span>,</p>
+                    <h2 class="text-xl font-bold text-white tracking-tight">Recordatorio de Cita Programada</h2>
+                </div>
+
+                <!-- Tarjeta de Trámite -->
+                <div class="bg-slate-800/80 backdrop-blur-md border border-slate-700/70 rounded-2xl p-4 mb-5 shadow-inner">
+                    <div class="flex items-start gap-3">
+                        <div class="p-2.5 bg-amber-500/20 text-amber-400 rounded-xl mt-0.5">
+                            📄
+                        </div>
+                        <div>
+                            <span class="text-[10px] text-amber-400 font-bold uppercase tracking-wider">Gestión a realizar</span>
+                            <p id="preview-tramite" class="text-white font-bold text-base leading-snug">Baja de vehículo por destrucción total</p>
+                        </div>
+                    </div>
+
+                    <div class="mt-3 pt-3 border-t border-slate-700/50 flex items-center gap-2 text-slate-300 text-sm">
+                        📍 <span id="preview-registro" class="font-medium text-slate-200">Registro N° 09 de Quilmes</span>
+                    </div>
+                </div>
+
+                <!-- Grid de Fecha y Hora -->
+                <div class="grid grid-cols-2 gap-3 mb-5">
+                    <div class="bg-slate-800/50 border border-slate-700/50 rounded-2xl p-3.5 flex items-center gap-3">
+                        <div class="p-2 bg-blue-500/20 text-blue-400 rounded-xl text-lg">📅</div>
+                        <div>
+                            <span class="text-[10px] text-slate-400 uppercase font-semibold block">Fecha</span>
+                            <span id="preview-date" class="text-white font-bold text-base">23/01/2026</span>
+                        </div>
+                    </div>
+
+                    <div class="bg-slate-800/50 border border-slate-700/50 rounded-2xl p-3.5 flex items-center gap-3">
+                        <div class="p-2 bg-amber-500/20 text-amber-400 rounded-xl text-lg">⏰</div>
+                        <div>
+                            <span class="text-[10px] text-slate-400 uppercase font-semibold block">Horario</span>
+                            <span class="text-white font-bold text-base"><span id="preview-time">14:10</span> hs</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Bloque de Documentación a Presentar -->
+                <div class="bg-slate-900/70 border border-slate-800 rounded-2xl p-4 mb-4">
+                    <div class="flex items-center gap-2 mb-2 text-amber-400 text-xs font-bold uppercase tracking-wider">
+                        <span>📋 Documentación a Presentar</span>
+                    </div>
+                    <ul id="preview-docs" class="space-y-1.5 text-xs text-slate-300">
+                        <!-- Se llena dinámicamente -->
+                    </ul>
+                </div>
+
+                <!-- Aviso de 10 minutos antes -->
+                <div class="text-xs text-slate-300 bg-slate-900/80 p-3.5 rounded-xl border border-slate-800 mb-5 leading-relaxed flex items-start gap-2.5">
+                    <span class="text-amber-400 text-sm shrink-0 mt-0.5">⚠️</span>
+                    <span>Por favor, preséntese con la documentación correspondiente <strong class="text-white">10 minutos antes</strong> del horario asignado para agilizar el proceso.</span>
+                </div>
+
+                <!-- Footer Profesional y Cordial -->
+                <div class="pt-3 border-t border-slate-700/40 flex flex-col gap-1 text-xs text-slate-400">
+                    <p class="italic text-slate-300">Ante cualquier consulta, quedamos a disposición. Saludos cordiales,</p>
+                    <div class="flex justify-between items-center mt-1">
+                        <span class="font-bold text-amber-400">Gestoría Paz</span>
+                        <span id="preview-advisor" class="text-amber-400/90 font-medium">Lic. Gabriel Paz</span>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+
+    </div>
+
+    <!-- Script de sincronización en tiempo real y exportación HD -->
+    <script>
+        const fields = ['client', 'tramite', 'registro', 'date', 'time', 'advisor'];
+        
+        fields.forEach(field => {
+            const input = document.getElementById(`input-${field}`);
+            const preview = document.getElementById(`preview-${field}`);
+            
+            input.addEventListener('input', (e) => {
+                preview.textContent = e.target.value;
+            });
+        });
+
+        // Sincronización y formateo de la Documentación
+        const inputDocs = document.getElementById('input-docs');
+        const previewDocs = document.getElementById('preview-docs');
+
+        function actualizarDocs() {
+            const lines = inputDocs.value.split('\n').filter(line => line.trim() !== '');
+            previewDocs.innerHTML = '';
+            lines.forEach(line => {
+                const li = document.createElement('li');
+                li.className = 'flex items-start gap-2 leading-tight';
+                li.innerHTML = `<span class="text-amber-400 mt-0.5">•</span> <span>${line}</span>`;
+                previewDocs.appendChild(li);
+            });
+        }
+
+        inputDocs.addEventListener('input', actualizarDocs);
+        actualizarDocs(); // Inicializar al cargar
+
+        // Carga de Logo Personalizado
+        const inputLogoFile = document.getElementById('input-logo-file');
+        const previewLogoImg = document.getElementById('preview-logo-img');
+        const previewLogoFallback = document.getElementById('preview-logo-fallback');
+
+        inputLogoFile.addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function(event) {
+                    previewLogoImg.src = event.target.result;
+                    previewLogoImg.classList.remove('hidden');
+                    previewLogoFallback.classList.add('hidden');
+                }
+                reader.readAsDataURL(file);
+            }
+        });
+
+        function descargarImagen() {
+            const node = document.getElementById('capture-card');
+            
+            htmlToImage.toPng(node, { pixelRatio: 3, cacheBust: true })
+                .then(function (dataUrl) {
+                    const link = document.createElement('a');
+                    const clientName = document.getElementById('input-client').value.replace(/\s+/g, '-');
+                    link.download = `Recordatorio-${clientName}.png`;
+                    link.href = dataUrl;
+                    link.click();
+                })
+                .catch(function (error) {
+                    console.error('Error al generar la imagen:', error);
+                });
+        }
+    </script>
+</body>
+</html>
