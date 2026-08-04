@@ -152,7 +152,6 @@
 <body>
 
 <div class="app">
-  <!-- ============ PANEL LATERAL ============ -->
   <aside class="panel">
     <div class="marca">
       <div class="mono">GP</div>
@@ -163,7 +162,6 @@
     </div>
     <p class="intro">Completá los datos y descargá el presupuesto con desglose listo para enviar por WhatsApp.</p>
 
-    <!-- Datos Base -->
     <fieldset>
       <legend>Datos del trámite</legend>
       <div class="fila f2">
@@ -178,7 +176,6 @@
       </div>
     </fieldset>
 
-    <!-- Defaults Globales -->
     <fieldset>
       <legend>Defaults por jurisdicción</legend>
       <p class="hint" style="margin-bottom:12px">Estos valores se aplican <strong>al crear cada jurisdicción nueva</strong>.</p>
@@ -213,7 +210,6 @@
       </div>
     </fieldset>
 
-    <!-- Jurisdicciones -->
     <fieldset>
       <legend>Jurisdicciones</legend>
       <div id="jurisdicciones"></div>
@@ -221,7 +217,6 @@
       <p class="hint"><strong>Deuda</strong>: total de infracciones. <strong>Cant.</strong>: cantidad. <strong>Queda En</strong>: transferencia. <strong>Efectivo</strong>: pago en oficina.</p>
     </fieldset>
 
-    <!-- SUATS -->
     <fieldset>
       <legend>SUATS</legend>
       <div class="grupo">
@@ -233,7 +228,6 @@
       </div>
     </fieldset>
 
-    <!-- Cuotas -->
     <fieldset>
       <legend>Financiación en cuotas</legend>
       <label class="check"><input type="checkbox" id="mostrarCuotas"> Ofrecer pago en cuotas</label>
@@ -245,7 +239,6 @@
       </div>
     </fieldset>
 
-    <!-- Condiciones Legales -->
     <fieldset>
       <legend>Condiciones</legend>
       <div class="fila f2">
@@ -254,14 +247,12 @@
       </div>
     </fieldset>
 
-    <!-- Acciones -->
     <div class="botonera">
       <button class="accion pri" id="descargar">Descargar imagen</button>
       <button class="accion oscuro" id="copiar">Copiar texto para WhatsApp</button>
     </div>
   </aside>
 
-  <!-- ============ VISTA PREVIA CANVAS ============ -->
   <main class="vista">
     <span class="rotulo">Vista previa</span>
     <canvas id="lienzo" width="1080" height="2046" style="display:none"></canvas>
@@ -417,7 +408,6 @@ function pintarFilas() {
     cont.appendChild(div);
   });
 
-  // Attach Listeners dinámicos
   cont.querySelectorAll('input[data-c],select[data-c]').forEach(el => {
     el.addEventListener(el.tagName === 'SELECT' ? 'change' : 'input', e => {
       if (e.target.hasAttribute('readonly')) return;
@@ -468,7 +458,7 @@ function obtenerLogoTile() {
   octx.save();
   octx.translate(RES / 2, RES / 2);
   octx.scale(0.85, 0.85);
-  octx.translate(-392, -347); // Ajuste de centro aproximado
+  octx.translate(-392, -347);
   octx.translate(0, 723);
   octx.scale(0.1, -0.1);
   octx.fillStyle = CONFIG_COLOR.NARANJA;
@@ -539,6 +529,15 @@ function dibujar() {
   ctx.font = "400 21px 'DM Sans','Helvetica Neue',Arial,sans-serif";
   const lineasLegal = wrap(ctx, legal, CANVAS_W - CANVAS_PX * 2);
 
+  const finePrintText = `⚖️ DEFENSA ADMINISTRATIVA DE ACTAS – PBA
+Presentación de defensa administrativa mediante medida cautelar sobre actas de infracción de la Provincia de Buenos Aires.
+La medida cautelar permite las actuaciones para la realización de trámites ante: • Registro Automotor • Informe 13i • Certificado CENAT • Vialidad Nacional.
+⏱️ Plazo estimado a que el informe de multas salga libre sobre las actas trabajadas: 72 horas hábiles. Aplicable para transferencias, renovación de licencia, bajas registrales y demás trámites.
+Documentación: • DNI (frente y dorso). • Cédula del vehículo (física o digital).
+Observación: Si con posterioridad la autoridad competente dictara resolución de sentencia, el importe resultante —que eventualmente puede representar hasta un 50% del valor original de la infracción— no integra el alcance de la presente gestión, queda a disposición del acreedor del servicio por derivar de un acto administrativo independiente.`;
+  ctx.font = "400 13px 'DM Sans', sans-serif";
+  const lineasFinePrint = finePrintText.split('\n').flatMap(line => wrap(ctx, line, CANVAS_W - CANVAS_PX * 2));
+
   const numFilasTotal = filas.length + (c.S > 0 ? 1 : 0);
   
   const DIM = {
@@ -546,7 +545,9 @@ function dibujar() {
     TABLA: 66 + filas.length * 76 + 34, DEUDA: 90,
     CARDS: Math.max(320, 216 + filas.length * 32 + (c.S > 0 ? 42 : 0)),
     CUOTAS: c.mostrarCuotas ? 92 : 0, AHORRO: 168, PAGOS: 196,
-    PLAZO: 118, ATENC: 322, RESENA: 108, FOOT: 268
+    PLAZO: 118, ATENC: 322, RESENA: 108, 
+    FINE_PRINT: 40 + lineasFinePrint.length * 18,
+    FOOT: 268
   };
   
   const H = Object.values(DIM).reduce((acc, v) => acc + v, 0);
@@ -786,6 +787,12 @@ function dibujar() {
   ctx.fillStyle = CONFIG_COLOR.GRIS_TX; ctx.font = "500 24px 'DM Sans', sans-serif"; ctx.fillText(`${DATOS_FIJOS.googleReviews} opiniones en Google`, CANVAS_PX + 120, y + 66);
   ctx.textAlign = 'right'; ctx.fillStyle = CONFIG_COLOR.NARANJA; ctx.font = "700 26px 'DM Sans', sans-serif"; ctx.fillText('Ver reseñas →', CANVAS_W - CANVAS_PX, y + 48); ctx.textAlign = 'left';
   y += DIM.RESENA;
+
+  /* ── LETRA CHICA (DEFENSA ADMINISTRATIVA PBA) ── */
+  ctx.fillStyle = CONFIG_COLOR.BLANCO; ctx.fillRect(0, y, CANVAS_W, DIM.FINE_PRINT);
+  ctx.fillStyle = '#8A8A8A'; ctx.font = "400 13px 'DM Sans', sans-serif";
+  lineasFinePrint.forEach((l, i) => ctx.fillText(l, CANVAS_PX, y + 26 + i * 18));
+  y += DIM.FINE_PRINT;
 
   /* ── FOOTER ── */
   ctx.fillStyle = CONFIG_COLOR.NEGRO; ctx.fillRect(0, y, CANVAS_W, DIM.FOOT);
