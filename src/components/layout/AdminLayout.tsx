@@ -4,7 +4,7 @@ import {
   CalendarDays, LogOut, Radar, Menu, X, MessageCircle,
   AlertTriangle, Ban, WifiOff, TrendingUp, CheckSquare, UserCog,
   Calculator, Upload, Settings, DollarSign, BarChart2,
-  Megaphone, Trophy, Building2,
+  Megaphone, Trophy, Building2, Search,
 } from 'lucide-react'
 import { useState } from 'react'
 import { signOut }     from 'firebase/auth'
@@ -49,6 +49,7 @@ const NAV_ITEMS_ALL = [
   { to: '/admin/torre-de-control', icon: Radar,           label: 'Torre de Control', permiso: 'verTramites'    },
   { to: '/admin/turnos',           icon: CalendarDays,    label: 'Turnos',           permiso: 'verTurnos'      },
   { to: '/admin/pipeline',         icon: TrendingUp,      label: 'Pipeline',         permiso: 'verCRM'         },
+  { to: '/admin/consultas-multas', icon: Search,         label: 'Consultas de multas', permiso: 'verCRM'        },
   { to: '/admin/bandeja', icon: MessageCircle, label: 'WhatsApp', permiso: 'verBandejaWA' },
   { to: '/admin/cobranzas',        icon: DollarSign,      label: 'Cobranzas',        permiso: 'verCobranzas'   },
   { to: '/admin/reportes',         icon: BarChart2,       label: 'Reportes',         permiso: 'verReportes'    },

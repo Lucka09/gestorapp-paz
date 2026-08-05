@@ -1,0 +1,16 @@
+{
+  "name": "Generador de Recordatorios — Gestoría Paz",
+  "short_name": "Recordatorios Paz",
+  "start_url": "/recordatorios/",
+  "scope": "/recordatorios/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#020617",
+  "theme_color": "#f59e0b",
+  "icons": [
+    { "src": "/recordatorios/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/recordatorios/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/recordatorios/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "maskable" },
+    { "src": "/recordatorios/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

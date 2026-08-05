@@ -20,7 +20,7 @@ import { defineSecret }       from 'firebase-functions/params'
 import * as https             from 'https'
 
 // ─── INICIALIZAR ADMIN SDK ────────────────────────────────────────────────────
-admin.initializeApp()
+if (!admin.apps.length) admin.initializeApp()
 
 // ─── SECRET: API KEY DE ANTHROPIC ────────────────────────────────────────────
 // Se guarda en Firebase Secret Manager, nunca en el código.
@@ -246,3 +246,7 @@ export const whatsappSend = onCall(
     )
   }
 )
+// ─── INFRACCIONES / MULTAS ───────────────────────────────────────────────────
+export { crearConsultaPublica }      from './infracciones/crearConsultaPublica'
+export { guardarConsultaInfraccion } from './infracciones/guardarConsultaInfraccion'
+export { colaProximaConsulta }       from './infracciones/colaProximaConsulta'

@@ -9,6 +9,8 @@ import ClienteLayout from '@/components/layout/ClienteLayout'
 // ─── AUTH ─────────────────────────────────────────────────────────────────────
 import LoginPage from '@/features/auth/LoginPage'
 
+import ConsultasMultasPage from '@/features/multas/ConsultasMultasPage'
+
 // ─── LAZY PAGES — Admin ───────────────────────────────────────────────────────
 const DashboardPage            = lazy(() => import('@/features/dashboard/DashboardPage'))
 const ClientesPage             = lazy(() => import('@/features/clientes/ClientesPage'))
@@ -37,6 +39,7 @@ const BackupPage               = lazy(() => import('@/features/backup/BackupPage
 const VencimientosPage         = lazy(() => import('@/features/vehiculos/VencimientosPage'))
 const SuperAdminPage           = lazy(() => import('@/features/superadmin/SuperAdminPage'))
 const PremiosPage              = lazy(() => import('@/features/premios/PremiosPage'))
+
 
 // ─── GESTOR (mandatario) ──────────────────────────────────────────────────────
 const GestorHomePage           = lazy(() => import('@/features/gestor/GestorHomePage'))
@@ -137,7 +140,7 @@ export const router = createBrowserRouter([
       { path: 'analytics',         element: <L><AnalyticsPage /></L> },
       { path: 'alertas',           element: <L><AlertasPage /></L> },
       { path: 'backup',            element: <L><BackupPage /></L> },
-
+      { path: 'consultas-multas', element: <L><ConsultasMultasPage /></L> },
       // Configuración
       { path: 'configuracion',     element: <L><ConfiguracionPage /></L> },
 

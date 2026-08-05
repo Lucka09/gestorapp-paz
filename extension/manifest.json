@@ -1,0 +1,30 @@
+{
+  "manifest_version": 3,
+  "name": "GestorApp — Consulta de Infracciones PBA",
+  "version": "0.1.0",
+  "description": "Captura las actas del portal de infracciones de PBA y las envía a GestorApp. El captcha lo resuelve la persona; el resto es automático.",
+  "permissions": ["storage", "activeTab", "scripting"],
+  "host_permissions": [
+    "https://infraccionesba.gba.gob.ar/*",
+    "https://us-central1-gestorapp-paz.cloudfunctions.net/*",
+    "https://gestorapp-tau.vercel.app/*"
+  ],
+  "content_scripts": [
+    {
+      "matches": ["https://infraccionesba.gba.gob.ar/consulta-infraccion*"],
+      "js": ["content.js"],
+      "run_at": "document_start"
+    },
+    {
+      "matches": ["https://gestorapp-tau.vercel.app/*"],
+      "js": ["bridge.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": ["interceptor.js"],
+      "matches": ["https://infraccionesba.gba.gob.ar/*"]
+    }
+  ]
+}

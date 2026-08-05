@@ -13,7 +13,17 @@
           "order": "DESCENDING"
         }
       ]
+      
     },
+    {
+  "collectionGroup": "consultasInfracciones",
+  "queryScope": "COLLECTION",
+  "fields": [
+    { "fieldPath": "gestoriaId", "order": "ASCENDING" },
+    { "fieldPath": "estado",     "order": "ASCENDING" },
+    { "fieldPath": "creadaEn",   "order": "ASCENDING" }
+  ]
+},
     {
       "collectionGroup": "turnos",
       "queryScope": "COLLECTION",

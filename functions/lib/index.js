@@ -23,7 +23,7 @@ var __importStar = (this && this.__importStar) || function (mod) {
     return result;
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.whatsappSend = exports.whatsappWebhook = exports.claudeProxy = void 0;
+exports.colaProximaConsulta = exports.guardarConsultaInfraccion = exports.crearConsultaPublica = exports.whatsappSend = exports.whatsappWebhook = exports.claudeProxy = void 0;
 // functions/src/index.ts
 // ─── PROXY SEGURO PARA LA API DE CLAUDE ──────────────────────────────────────
 // La API key de Anthropic NUNCA llega al cliente.
@@ -38,13 +38,14 @@ exports.whatsappSend = exports.whatsappWebhook = exports.claudeProxy = void 0;
 const admin = __importStar(require("firebase-admin"));
 const functions = __importStar(require("firebase-functions"));
 const https_1 = require("firebase-functions/v2/https");
-const whatsappWebhook_1 = require("./whatsapp/whatsappWebhook");
-const whatsappSend_1 = require("./whatsapp/whatsappSend");
+const Webhook_1 = require("./whatsapp/Webhook");
+const Send_1 = require("./whatsapp/Send");
 const https_2 = require("firebase-functions/v2/https");
 const params_1 = require("firebase-functions/params");
 const https = __importStar(require("https"));
 // ─── INICIALIZAR ADMIN SDK ────────────────────────────────────────────────────
-admin.initializeApp();
+if (!admin.apps.length)
+    admin.initializeApp();
 // ─── SECRET: API KEY DE ANTHROPIC ────────────────────────────────────────────
 // Se guarda en Firebase Secret Manager, nunca en el código.
 // Comando para setearlo: firebase functions:secrets:set ANTHROPIC_API_KEY
@@ -171,7 +172,7 @@ exports.whatsappWebhook = (0, https_1.onRequest)({
 }, async (req, res) => {
     if (req.method === 'GET') {
         // Meta verifica el webhook en el setup — responder con el challenge
-        (0, whatsappWebhook_1.handleVerification)(req.query, res);
+        (0, Webhook_1.handleVerification)(req.query, res);
         return;
     }
     if (req.method === 'POST') {
@@ -180,7 +181,7 @@ exports.whatsappWebhook = (0, https_1.onRequest)({
         try {
             const payload = req.body;
             if ((payload === null || payload === void 0 ? void 0 : payload.object) === 'whatsapp_business_account') {
-                await (0, whatsappWebhook_1.handleIncomingMessage)(payload);
+                await (0, Webhook_1.handleIncomingMessage)(payload);
             }
         }
         catch (err) {
@@ -198,8 +199,15 @@ exports.whatsappSend = (0, https_2.onCall)({
     secrets: ['WHATSAPP_TOKEN', 'WHATSAPP_PHONE_NUMBER_ID', 'GESTORIA_ID'],
     enforceAppCheck: false, // activar en producción si se usa App Check
 }, async (request) => {
-    return (0, whatsappSend_1.handleSendMessage)(request.data, request.auth
+    return (0, Send_1.handleSendMessage)(request.data, request.auth
         ? { auth: { uid: request.auth.uid, token: request.auth.token } }
         : {});
 });
+// ─── INFRACCIONES / MULTAS ───────────────────────────────────────────────────
+var crearConsultaPublica_1 = require("./infracciones/crearConsultaPublica");
+Object.defineProperty(exports, "crearConsultaPublica", { enumerable: true, get: function () { return crearConsultaPublica_1.crearConsultaPublica; } });
+var guardarConsultaInfraccion_1 = require("./infracciones/guardarConsultaInfraccion");
+Object.defineProperty(exports, "guardarConsultaInfraccion", { enumerable: true, get: function () { return guardarConsultaInfraccion_1.guardarConsultaInfraccion; } });
+var colaProximaConsulta_1 = require("./infracciones/colaProximaConsulta");
+Object.defineProperty(exports, "colaProximaConsulta", { enumerable: true, get: function () { return colaProximaConsulta_1.colaProximaConsulta; } });
 //# sourceMappingURL=index.js.map
