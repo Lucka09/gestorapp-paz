@@ -203,3 +203,6 @@ export async function buscarClientePorDNI(
   const d = snap.docs[0]
   return { ...d.data(), id: d.id }
 }
+export async function eliminarCliente(id: string): Promise<void> {
+  await deleteDoc(clienteDoc(id))
+}
