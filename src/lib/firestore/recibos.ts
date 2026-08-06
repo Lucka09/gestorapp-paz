@@ -12,6 +12,8 @@ import {
   serverTimestamp, runTransaction, updateDoc, type Timestamp,
 } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
+import { emitirEventoSilencioso } from './eventos'
+import { crearEvento } from '@/types'
 
 const recibosCol = collection(db, 'recibos')
 const tramitesCol = collection(db, 'tramites')
@@ -44,11 +46,24 @@ export interface Recibo extends ReciboInput {
  * ─────────────────────────────────────────────────────────────
  */
 export async function crearRecibo(data: ReciboInput): Promise<string> {
-  const reciboRef = await addDoc(recibosCol, { 
-    ...data, 
+  const reciboRef = await addDoc(recibosCol, {
+    ...data,
     creadoEn: serverTimestamp(),
   })
 
+  // Evento fire-and-forget — todos los datos están en `data`
+  emitirEventoSilencioso(crearEvento({
+    gestoriaId:   data.gestoriaId,
+    tipo:         'recibo.emitido',
+    entidad:      'recibo',
+    entidadId:    reciboRef.id,
+    entidadLabel: data.numeroRecibo,
+    actorId:      data.emitidoPor,
+    actorNombre:  data.emitidoPorNombre,
+    actorTipo:    'usuario',
+    payload:      { monto: data.monto, tramiteId: data.tramiteId, tipo: data.tipo, patente: data.patente },
+    resumen:      `Recibo ${data.numeroRecibo} emitido por $${data.monto}`,
+  }))
   // 🔥 CRÍTICO: Marcar trámite como pagado y actualizar campos financieros
   try {
     const tramiteSnap = await getDoc(doc(tramitesCol, data.tramiteId))

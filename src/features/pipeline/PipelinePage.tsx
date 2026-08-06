@@ -12,8 +12,9 @@ import {
   eliminarProspecto, agregarTarea, completarTarea, eliminarTarea,
   ETAPAS, COLOR_PROSPECTO,
   type Prospecto, type EtapaPipeline, type ColorProspecto,
-  type ProspectoInput,
+  type ProspectoInput, type ActorInfo,
 } from '@/lib/firestore/pipeline'
+import { useGestoriaId } from '@/context/GestoriaContext'
 import { TIPO_TRAMITE_LABELS, type TipoTramite } from '@/types'
 import { Button, Spinner } from '@/components/ui'
 import Modal from '@/components/shared/Modal'
@@ -414,9 +415,11 @@ function ProspectoForm({
 function ModalDetalle({
   prospecto,
   onClose,
+  actor,
 }: {
   prospecto: Prospecto
   onClose:   () => void
+  actor?:    ActorInfo
 }) {
   const [editando,    setEditando]    = useState(false)
   const [presupOpen,  setPresupOpen]  = useState(false)
@@ -442,10 +445,10 @@ function ModalDetalle({
   }
 
   const handleSaveEdit = async (data: Partial<Prospecto>) => {
-    await actualizarProspecto(prospecto.id, data)
-    toast.success('Prospecto actualizado')
-    setEditando(false)
-  }
+  await actualizarProspecto(prospecto.id, data, actor)
+  toast.success('Prospecto actualizado')
+  setEditando(false)
+}
 
   const handleEliminar = async () => {
     if (!confirm('¿Eliminar este prospecto? No se puede deshacer.')) return
@@ -645,8 +648,11 @@ function ModalDetalle({
 export default function PipelinePage() {
   const { user } = useAuth()
   usePageTitle('Pipeline CRM')
-  const { porEtapa, metricas, tareasUrgentes, loading } = useProspectos()
+  const actor: ActorInfo | undefined = user
+    ? { id: user.uid, nombre: `${user.nombre} ${user.apellido}`, rol: user.rol }
+    : undefined
 
+  const { porEtapa, metricas, tareasUrgentes, loading } = useProspectos()
   const [modalNuevo,       setModalNuevo]    = useState(false)
   const [search,           setSearch]        = useState('')
   const [etapaInicial,     setEtapaInicial]  = useState<EtapaPipeline>('nuevo')
@@ -655,7 +661,7 @@ export default function PipelinePage() {
 
   const handleMover = async (id: string, etapa: EtapaPipeline) => {
     try {
-      await moverEtapa(id, etapa)
+      await moverEtapa(id, etapa, actor)
       toast.success(`Movido a ${ETAPAS.find(e => e.key === etapa)?.label}`)
     } catch { toast.error('Error al mover') }
   }
@@ -665,10 +671,13 @@ export default function PipelinePage() {
     setModalNuevo(true)
   }
 
-  const handleCrear = async (data: Partial<Prospecto>) => {
-  if (!user) return
+  // DESPUÉS
+const gestoriaId = useGestoriaId()  // ← agregar este hook al inicio del componente
+
+const handleCrear = async (data: Partial<Prospecto>) => {
+  if (!user || !gestoriaId) return
   await crearProspecto(
-    data as Omit<ProspectoInput, 'tareas' | 'creadoPor' | 'orden' | 'etiquetas'>,
+    { ...data, gestoriaId } as Omit<ProspectoInput, 'tareas' | 'creadoPor' | 'orden' | 'etiquetas'>,
     user.uid
   )
   toast.success('Prospecto creado')
@@ -835,6 +844,7 @@ export default function PipelinePage() {
           <ModalDetalle
             prospecto={prospectoAbierto}
             onClose={() => setAbierto(null)}
+            actor={actor}
           />
         </Modal>
       )}

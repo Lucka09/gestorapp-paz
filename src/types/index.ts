@@ -587,3 +587,31 @@ export const NOTA_TIPO_CONFIG: Record<TipoNota, {
   advertencia: { label: 'Advertencia',emoji: '⚠️', color: 'text-red-700',    bg: 'bg-red-100'    },
   seguimiento: { label: 'Seguimiento',emoji: '🎯', color: 'text-emerald-700',bg: 'bg-emerald-100'},
 }
+// ─── REEXPORTS: CRM + IA + AUTOMATIZACIONES ────────────────────────────────
+export type {
+  Lead, LeadInput, LeadInputPublico,
+  EstadoLead, MotivoPerdida, PrioridadLead, OrigenSistema,
+} from './lead'
+export {
+  ESTADO_LEAD_LABELS, ESTADO_LEAD_COLORS, ESTADO_LEAD_DOT,
+  MOTIVO_PERDIDA_LABELS, PRIORIDAD_LEAD_LABELS, PRIORIDAD_LEAD_COLORS,
+  ESTADOS_LEAD_ACTIVOS, ESTADOS_LEAD_FINALES,
+} from './lead'
+
+export type {
+  Evento, EventoInput, TipoEvento, EntidadEvento, Actor, ActorId,
+} from './evento'
+export {
+  crearEvento, DOMINIOS_EVENTO, TIPO_EVENTO_LABELS, TIPO_EVENTO_EMOJI,
+} from './evento'
+
+export type {
+  Automatizacion, EjecucionAutomatizacion, PlantillaAutomatizacion,
+  TriggerEvento, Condicion, OperadorCondicion, Accion, TipoAccion,
+  EstadoEjecucion,
+} from './automatizacion'
+export {
+  PLANTILLAS_AUTOMATIZACION,
+  TIPO_ACCION_LABELS, TIPO_ACCION_EMOJI,
+  OPERADOR_LABELS, CATEGORIA_AUTOMATIZACION_LABELS,
+} from './automatizacion'

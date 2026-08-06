@@ -10,6 +10,8 @@ import {
 import { clientesCol, clienteDoc } from './collections'
 import type { Cliente, OrigenCanal } from '@/types'
 import { registrarActividad } from './audit'
+import { emitirEventoSilencioso, type ActorInfo } from './eventos'
+import { crearEvento } from '@/types'
 
 export const PAGE_SIZE_CLIENTES = 25
 
@@ -127,35 +129,66 @@ export async function crearCliente(
   data:      ClienteInput,
   creadoPor: string,
 ): Promise<string> {
-  // Limpiar campos undefined para evitar errores de Firestore
   const clean: Record<string, unknown> = {}
   for (const [k, v] of Object.entries(data)) {
     if (v !== undefined) clean[k] = v
   }
-
   const ref = await addDoc(clientesCol, {
     ...clean,
     vehiculosIds: [],
     creadoPor,
     creadoEn: serverTimestamp(),
   } as any)
+
+  // Evento fire-and-forget — los datos ya están en memoria
+  emitirEventoSilencioso(crearEvento({
+    gestoriaId:   data.gestoriaId,
+    tipo:         'cliente.creado',
+    entidad:      'cliente',
+    entidadId:    ref.id,
+    entidadLabel: `${data.apellido}, ${data.nombre}`,
+    actorId:      creadoPor,
+    actorTipo:    'usuario',
+    payload:      { telefono: data.telefono, origenCanal: data.origenCanal },
+    resumen:      `Nuevo cliente ${data.apellido}, ${data.nombre}`,
+  }))
+
   return ref.id
 }
 
 export async function actualizarCliente(
-  id:   string,
-  data: Partial<ClienteInput>,
+  id:    string,
+  data:  Partial<ClienteInput>,
+  actor?: ActorInfo,
 ): Promise<void> {
-  // Limpiar undefined antes de enviar a Firestore
   const clean: Record<string, unknown> = {}
   for (const [k, v] of Object.entries(data)) {
     if (v !== undefined) clean[k] = v
   }
   await updateDoc(clienteDoc(id), clean)
-}
 
-export async function eliminarCliente(id: string): Promise<void> {
-  await deleteDoc(clienteDoc(id))
+  // Evento fire-and-forget — necesita leer el doc para gestoriaId y label
+  void (async () => {
+    try {
+      const snap = await getDoc(clienteDoc(id))
+      if (!snap.exists()) return
+      const c = { ...snap.data(), id: snap.id } as Cliente
+      emitirEventoSilencioso(crearEvento({
+        gestoriaId:   c.gestoriaId,
+        tipo:         'cliente.actualizado',
+        entidad:      'cliente',
+        entidadId:    id,
+        entidadLabel: `${c.apellido}, ${c.nombre}`,
+        actorId:      actor?.id ?? 'system',
+        actorNombre:  actor?.nombre,
+        actorTipo:    actor?.id ? 'usuario' : 'sistema',
+        payload:      { campos: Object.keys(clean) },
+        resumen:      `Cliente ${c.apellido}, ${c.nombre} actualizado`,
+      }))
+    } catch (e) {
+      console.warn('[clientes] No se pudo emitir evento:', e)
+    }
+  })()
 }
 
 // ─── SEARCH ───────────────────────────────────────────────────────────────────

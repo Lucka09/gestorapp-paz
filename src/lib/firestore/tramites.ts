@@ -13,6 +13,8 @@ import { notificarCambioEstado } from './notificaciones'
 import type { Tramite, EstadoTramite, TipoTramite, Rol } from '@/types'
 import { crearRecibo, generarNumeroRecibo } from './recibos'
 import { notificarRecibo } from './alertas'
+import { emitirEventoSilencioso } from './eventos'
+import { crearEvento } from '@/types'
 // ─── READ ─────────────────────────────────────────────────────────────────────
 
 export function subscribeTramites(
@@ -162,7 +164,6 @@ export async function crearTramite(
   data:      TramiteInput,
   creadoPor: string
 ): Promise<string> {
-  // Contar trámites del mismo tipo + gestoriaId + año para el secuencial
   const anioActual = new Date().getFullYear()
   const countSnap  = await getCountFromServer(
     query(tramitesCol,
@@ -172,6 +173,7 @@ export async function crearTramite(
   )
   const secuencial = countSnap.data().count + 1
   const numero     = generarNumeroTramite(data.tipo, secuencial)
+
   const ref = await addDoc(tramitesCol as CollectionReference<DocumentData>, {
     ...data,
     numero,
@@ -186,13 +188,26 @@ export async function crearTramite(
     actualizadoEn:    serverTimestamp(),
   })
 
-  // Vincular al vehículo
+  // Vincular al vehículo (existente)
   const vRef  = vehiculoDoc(data.vehiculoId)
   const vSnap = await getDoc(vRef)
   if (vSnap.exists()) {
     const ids: string[] = vSnap.data().tramitesIds ?? []
     await updateDoc(vRef, { tramitesIds: [...ids, ref.id] })
   }
+
+  // Evento fire-and-forget — todos los datos están en memoria
+  emitirEventoSilencioso(crearEvento({
+    gestoriaId:   data.gestoriaId,
+    tipo:         'tramite.creado',
+    entidad:      'tramite',
+    entidadId:    ref.id,
+    entidadLabel: `${numero} · ${data.patente}`,
+    actorId:      creadoPor,
+    actorTipo:    'usuario',
+    payload:      { tipo: data.tipo, patente: data.patente, honorarios: data.honorarios },
+    resumen:      `Nuevo trámite ${numero} (${data.tipo}) de ${data.patente}`,
+  }))
 
   return ref.id
 }
@@ -205,32 +220,69 @@ export async function cambiarEstado(
   estadoAnterior: EstadoTramite,
   cambiadoPorNombre?: string,
 ): Promise<void> {
-  // 1. Actualizar el trámite
-  // [FIX] arrayUnion() no acepta undefined — todos los campos deben tener valor concreto
+  // 1. Actualizar el trámite (existente)
   await updateDoc(tramiteDoc(id), {
     estado:        nuevoEstado,
     actualizadoEn: serverTimestamp(),
     historialEstados: arrayUnion({
       estadoAnterior,
-      estadoNuevo:         nuevoEstado,
+      estadoNuevo:       nuevoEstado,
       cambiadoPor,
-      cambiadoPorNombre:   cambiadoPorNombre ?? null,   // undefined → null
-      fecha:               new Date(),
-      nota:                nota ?? '',
+      cambiadoPorNombre: cambiadoPorNombre ?? null,
+      fecha:             new Date(),
+      nota:              nota ?? '',
     }),
   })
 
-  // 2-4. Notificación al portal del cliente (best-effort — no bloquea si falla)
+  // 1b. Eventos fire-and-forget (estado_cambiado, y completado si es entrega)
+  void (async () => {
+    try {
+      const snap = await getDoc(tramiteDoc(id))
+      if (!snap.exists()) return
+      const t = { ...snap.data(), id: snap.id } as Tramite
+
+      emitirEventoSilencioso(crearEvento({
+        gestoriaId:   t.gestoriaId,
+        tipo:         'tramite.estado_cambiado',
+        entidad:      'tramite',
+        entidadId:    id,
+        entidadLabel: `${t.numero} · ${t.patente}`,
+        actorId:      cambiadoPor,
+        actorNombre:  cambiadoPorNombre,
+        actorTipo:    'usuario',
+        payload:      { estadoAnterior, estadoNuevo: nuevoEstado, nota },
+        resumen:      `${t.numero} pasó de ${estadoAnterior} a ${nuevoEstado}`,
+      }))
+
+      // Si es entrega al cliente, también emitimos el evento de completado
+      if (nuevoEstado === 'entregado') {
+        emitirEventoSilencioso(crearEvento({
+          gestoriaId:   t.gestoriaId,
+          tipo:         'tramite.completado',
+          entidad:      'tramite',
+          entidadId:    id,
+          entidadLabel: `${t.numero} · ${t.patente}`,
+          actorId:      cambiadoPor,
+          actorNombre:  cambiadoPorNombre,
+          actorTipo:    'usuario',
+          payload:      { estadoAnterior },
+          resumen:      `${t.numero} entregado al cliente`,
+        }))
+      }
+    } catch (e) {
+      console.warn('[tramites] No se pudo emitir evento de estado:', e)
+    }
+  })()
+
+  // 2-4. Notificación al portal del cliente (existente, sin cambios)
   try {
     const tSnap = await getDoc(tramiteDoc(id))
     if (!tSnap.exists()) return
     const tramite = { ...tSnap.data(), id: tSnap.id } as Tramite
-
     const cSnap = await getDoc(clienteDoc(tramite.clienteId))
     if (!cSnap.exists()) return
     const destinatarioId = cSnap.data().userId
-    if (!destinatarioId) return  // cliente sin acceso al portal
-
+    if (!destinatarioId) return
     await notificarCambioEstado({
       destinatarioId,
       tramiteId:   id,
@@ -242,7 +294,6 @@ export async function cambiarEstado(
       nota,
     })
   } catch {
-    // El estado ya se guardó — la notificación es secundaria
     console.warn('[cambiarEstado] No se pudo notificar al cliente, estado actualizado correctamente')
   }
 }
@@ -417,7 +468,21 @@ export async function registrarPago(
     despues: { monto: pago.monto, formaPago: pago.formaPago, tipo, numeroRecibo },
     nota: pago.notas || undefined,
   })
- 
+    // 8. Evento de pago (fire-and-forget)
+  emitirEventoSilencioso(crearEvento({
+    gestoriaId:   ctx.gestoriaId,
+    tipo:         'pago.registrado',
+    entidad:      'pago',
+    entidadId:    reciboId,
+    entidadLabel: `${tramite.numero} · ${tramite.patente}`,
+    actorId:      ctx.uid,
+    actorNombre:  ctx.nombre,
+    actorRol:     ctx.rol as Rol,
+    actorTipo:    'usuario',
+    payload:      { monto: pago.monto, formaPago: pago.formaPago, tipo, numeroRecibo, tramiteId: id },
+    resumen:      `Pago de $${pago.monto} (${tipo}) para ${tramite.patente} — ${numeroRecibo}`,
+  }))
+
   return { tipo, numeroRecibo, reciboId }
 }
  
