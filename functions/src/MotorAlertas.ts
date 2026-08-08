@@ -68,7 +68,9 @@ async function getTramitesInactivos(diasSinMovimiento: number): Promise<AlertaIn
     .where('ultimaActualizacion', '<=', limite)
     .get()
 
-  return snap.docs.map(doc => {
+  return snap.docs
+    .filter(doc => doc.data().tipo !== 'descargo_multa') // multas alertan por fecha, no por inactividad
+    .map(doc => {
     const data = doc.data()
     const diasSin = Math.floor(
       (Date.now() - (data.ultimaActualizacion as Timestamp).toMillis()) / (1000 * 60 * 60 * 24)

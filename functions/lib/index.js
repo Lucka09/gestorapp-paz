@@ -23,7 +23,7 @@ var __importStar = (this && this.__importStar) || function (mod) {
     return result;
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.colaProximaConsulta = exports.guardarConsultaInfraccion = exports.crearConsultaPublica = exports.whatsappSend = exports.whatsappWebhook = exports.claudeProxy = void 0;
+exports.motorAlertasDiario = exports.colaProximaConsulta = exports.guardarConsultaInfraccion = exports.crearConsultaPublica = exports.whatsappSend = exports.whatsappWebhook = exports.claudeProxy = void 0;
 // functions/src/index.ts
 // ─── PROXY SEGURO PARA LA API DE CLAUDE ──────────────────────────────────────
 // La API key de Anthropic NUNCA llega al cliente.
@@ -210,4 +210,6 @@ var guardarConsultaInfraccion_1 = require("./infracciones/guardarConsultaInfracc
 Object.defineProperty(exports, "guardarConsultaInfraccion", { enumerable: true, get: function () { return guardarConsultaInfraccion_1.guardarConsultaInfraccion; } });
 var colaProximaConsulta_1 = require("./infracciones/colaProximaConsulta");
 Object.defineProperty(exports, "colaProximaConsulta", { enumerable: true, get: function () { return colaProximaConsulta_1.colaProximaConsulta; } });
+var MotorAlertas_1 = require("./MotorAlertas");
+Object.defineProperty(exports, "motorAlertasDiario", { enumerable: true, get: function () { return MotorAlertas_1.motorAlertasDiario; } });
 //# sourceMappingURL=index.js.map

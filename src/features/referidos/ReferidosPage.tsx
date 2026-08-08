@@ -10,7 +10,7 @@ import {
   Building2, Car, Store, ShieldAlert,
   TrendingUp, Users, FileText, DollarSign,
   ChevronDown, ChevronUp, ArrowUpRight,
-  BarChart3, Clock, CheckCircle2, Search,
+  BarChart3, Clock, CheckCircle2, Search, Globe,
 } from 'lucide-react'
 import { useNavigate }         from 'react-router-dom'
 import { usePageTitle }        from '@/hooks/usePageTitle'
@@ -55,7 +55,8 @@ const CANAL_ICON: Record<OrigenCanal, React.ElementType> = {
   encargado_multas: ShieldAlert,
   referido_persona: Users,
   instagram: TrendingUp, facebook: TrendingUp, google: TrendingUp,
-  cartel_local: TrendingUp, whatsapp: TrendingUp, otro: TrendingUp,
+  cartel_local: TrendingUp, whatsapp: TrendingUp,
+  web: Globe, otro: TrendingUp,
 }
 
 const CANAL_COLOR: Partial<Record<OrigenCanal, { bg: string; text: string; border: string; accent: string }>> = {

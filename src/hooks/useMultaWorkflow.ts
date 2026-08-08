@@ -14,6 +14,10 @@ import {
   confirmarPaso6Multa,  confirmarPaso7Multa,
   asignarAdminMulta,
   agregarPagoMulta,
+  subscribeMultaWorkflows,
+  setEstadoMultaManual,
+  agregarDocumentoAdicional,
+  eliminarDocumentoAdicional,
 } from '@/lib/firestore/MultaWorwflow'
 import { getDownloadURL, ref as storageRef, uploadBytesResumable } from 'firebase/storage'
 import { storage }         from '@/lib/firebase'
@@ -21,6 +25,7 @@ import type {
   MultaWorkflow, MultaPaso1Data, MultaPaso2Data,
   MultaPaso3Data, MultaReboteResolucion,
   MultaPaso4Data, MultaPaso5Data, MultaPaso6Data, MultaPaso7Data,
+  DocumentoAdicional,
 } from '@/multa_types'
 import type { FotoWorkflow } from '@/torre_types'
 import toast from 'react-hot-toast'
@@ -63,6 +68,29 @@ async function subirFoto(
       },
     )
   })
+}
+
+// ─── HOOK DE LISTA ────────────────────────────────────────────────────────────
+// Todos los workflows de multa de la gestoría, para la pantalla "Revisión de
+// Multas". Trae directo de la colección multaWorkflow (patente, nombre, DNI,
+// fecha y estado ya viven en el doc — no hace falta joinear con trámites).
+
+export function useMultaWorkflows() {
+  const gestoriaId = useGestoriaId()
+  const [rows, setRows]       = useState<MultaWorkflow[]>([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    if (!gestoriaId) return
+    setLoading(true)
+    const unsub = subscribeMultaWorkflows(gestoriaId, data => {
+      setRows(data)
+      setLoading(false)
+    })
+    return unsub
+  }, [gestoriaId])
+
+  return { multas: rows, loading }
 }
 
 // ─── HOOK PRINCIPAL ───────────────────────────────────────────────────────────
@@ -404,9 +432,71 @@ export function useMultaWorkflow(tramiteId: string) {
     }
   }, [tramiteId, user, workflow])
 
+  // ── Documentación adicional (multi-DNI) ───────────────────────────────────
+  const agregarDocAdicional = useCallback(async (
+    campos: { etiqueta: string; dni?: string; nombre?: string },
+    frente: File | null,
+    dorso:  File | null,
+  ) => {
+    if (!user || !gestoriaId) return
+    if (!frente && !dorso) { toast.error('Subí al menos una foto'); return }
+    setGuardando(true)
+    setProgreso(0)
+    try {
+      const base = `${gestoriaId}/multas/${tramiteId}/adicionales/${Date.now()}`
+      const [fFrente, fDorso] = await Promise.all([
+        frente ? subirFoto(frente, `${base}_frente.jpg`, setProgreso) : Promise.resolve(undefined),
+        dorso  ? subirFoto(dorso,  `${base}_dorso.jpg`,  setProgreso) : Promise.resolve(undefined),
+      ])
+      const nuevo: DocumentoAdicional = {
+        id:                `doc_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+        etiqueta:          campos.etiqueta?.trim() || 'Documento adicional',
+        agregadoPor:       user.uid,
+        agregadoPorNombre: `${user.nombre} ${user.apellido}`.trim(),
+        agregadoEn:        Timestamp.now(),
+      }
+      if (campos.dni?.trim())    nuevo.dni = campos.dni.trim()
+      if (campos.nombre?.trim()) nuevo.nombre = campos.nombre.trim()
+      if (fFrente) nuevo.frente = { ...fFrente, subidaPor: user.uid }
+      if (fDorso)  nuevo.dorso  = { ...fDorso,  subidaPor: user.uid }
+      await agregarDocumentoAdicional(tramiteId, nuevo, workflow?.documentosAdicionales ?? [])
+      toast.success('Documentación agregada')
+    } catch (e) {
+      toast.error('Error al agregar la documentación')
+      console.error('[agregarDocAdicional]', e)
+    } finally {
+      setGuardando(false)
+    }
+  }, [tramiteId, gestoriaId, user, workflow])
+
+  const eliminarDocAdicional = useCallback(async (docId: string) => {
+    try {
+      await eliminarDocumentoAdicional(tramiteId, docId, workflow?.documentosAdicionales ?? [])
+      toast.success('Documentación eliminada')
+    } catch {
+      toast.error('No se pudo eliminar')
+    }
+  }, [tramiteId, workflow])
+
+  // ── Estado operativo manual (Revisión de Multas) ──────────────────────────
+  const cambiarEstadoManual = useCallback(async (
+    estado: import('@/multa_types').EstadoMulta | null,
+  ) => {
+    if (!user) return
+    try {
+      await setEstadoMultaManual(tramiteId, estado, user.uid, `${user.nombre} ${user.apellido}`.trim())
+      toast.success(estado ? 'Estado actualizado' : 'Estado en automático')
+    } catch {
+      toast.error('No se pudo actualizar el estado')
+    }
+  }, [tramiteId, user])
+
   const pasoActual = workflow?.pasoActual ?? 1
 
   return {
+    cambiarEstadoManual,
+    agregarDocAdicional,
+    eliminarDocAdicional,
     workflow, loading, guardando, error, progreso, pasoActual,
     confirmarPaso1,
     confirmarPaso2,

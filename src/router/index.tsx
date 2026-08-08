@@ -22,6 +22,7 @@ const TramiteDetallePage       = lazy(() => import('@/features/tramites/TramiteD
 const TorreDeControlPage       = lazy(() => import('@/features/torre/TorreDeControlPage'))
 const TurnosPage               = lazy(() => import('@/features/turnos/TurnosPage'))
 const PipelinePage             = lazy(() => import('@/features/pipeline/PipelinePage'))
+const LeadsPage                = lazy(() => import('@/features/leads/LeadsPage').then(m => ({ default: m.default })))
 const BandejaWAPage            = lazy(() => import('@/features/bandeja/BandejaWAPage'))
 const CobranzasPage            = lazy(() => import('@/features/cobranzas/CobranzasPage'))
 const RecibosPage               = lazy(() => import('@/features/cobranzas/RecibosPage'))
@@ -39,6 +40,7 @@ const BackupPage               = lazy(() => import('@/features/backup/BackupPage
 const VencimientosPage         = lazy(() => import('@/features/vehiculos/VencimientosPage'))
 const SuperAdminPage           = lazy(() => import('@/features/superadmin/SuperAdminPage'))
 const PremiosPage              = lazy(() => import('@/features/premios/PremiosPage'))
+const RevisionMultasPage       = lazy(() => import('@/features/revision-multas/RevisionMultasPage'))
 
 
 // ─── GESTOR (mandatario) ──────────────────────────────────────────────────────
@@ -110,6 +112,7 @@ export const router = createBrowserRouter([
 
       // Pipeline / CRM
       { path: 'pipeline',          element: <L><PipelinePage /></L> },
+      { path: 'leads',             element: <L><LeadsPage /></L> },
 
       // WhatsApp
       { path: 'bandeja',           element: <L><BandejaWAPage /></L> },
@@ -141,6 +144,8 @@ export const router = createBrowserRouter([
       { path: 'alertas',           element: <L><AlertasPage /></L> },
       { path: 'backup',            element: <L><BackupPage /></L> },
       { path: 'consultas-multas', element: <L><ConsultasMultasPage /></L> },
+      { path: 'revision-multas', element: <L><RevisionMultasPage /></L> },
+      
       // Configuración
       { path: 'configuracion',     element: <L><ConfiguracionPage /></L> },
 

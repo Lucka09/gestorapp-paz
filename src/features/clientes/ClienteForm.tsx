@@ -33,7 +33,7 @@ const clienteSchema = z.object({
   origenCanal:   z.enum([
     'referido_persona','concesionaria','agencia','reventa',
     'encargado_multas','instagram','facebook','google',
-    'cartel_local','whatsapp','otro',
+    'cartel_local','whatsapp','web','otro',
   ] as const).optional(),
   origenNombre:  z.string().max(120).optional(),
 })

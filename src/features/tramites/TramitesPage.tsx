@@ -38,8 +38,12 @@ export default function TramitesPage() {
   const [filtros, setFiltros] = useState<TramitesFiltros>({
     search: '', estado: 'todos', tipo: 'todos',
   })
-  const { tramites, total, loading } = useTramitesFiltrados(filtros)
-  const { tramites: todosTramites } = useTramitesFiltrados({ search: '', estado: 'todos', tipo: 'todos' })
+  const { tramites: tramitesRaw, loading } = useTramitesFiltrados(filtros)
+  const { tramites: todosTramitesRaw } = useTramitesFiltrados({ search: '', estado: 'todos', tipo: 'todos' })
+  // Las multas tienen su propio módulo (Revisión de Multas) — se excluyen de acá
+  const tramites      = tramitesRaw.filter(t => t.tipo !== 'descargo_multa')
+  const todosTramites = todosTramitesRaw.filter(t => t.tipo !== 'descargo_multa')
+  const total         = tramites.length
   const { clientes } = useClientes()
 
   const handleCrear = async (data: TramiteInput) => {
@@ -115,7 +119,9 @@ export default function TramitesPage() {
                      outline-none focus:border-[#D4621A] text-gray-700 cursor-pointer"
         >
           <option value="todos">Todos los tipos</option>
-          {(Object.entries(TIPO_TRAMITE_LABELS) as [TipoTramite,string][]).map(([v,l]) => (
+          {(Object.entries(TIPO_TRAMITE_LABELS) as [TipoTramite,string][])
+            .filter(([v]) => v !== 'descargo_multa')
+            .map(([v,l]) => (
             <option key={v} value={v}>{l}</option>
           ))}
         </select>

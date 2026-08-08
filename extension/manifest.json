@@ -1,13 +1,16 @@
 {
   "manifest_version": 3,
   "name": "GestorApp — Consulta de Infracciones PBA",
-  "version": "0.1.0",
-  "description": "Captura las actas del portal de infracciones de PBA y las envía a GestorApp. El captcha lo resuelve la persona; el resto es automático.",
+  "version": "0.1.2",
+  "description": "Captura las actas del portal de infracciones de PBA y las envía a GestorApp.",
   "permissions": ["storage", "activeTab", "scripting"],
   "host_permissions": [
-    "https://infraccionesba.gba.gob.ar/*",
-    "https://us-central1-gestorapp-paz.cloudfunctions.net/*",
-    "https://gestorapp-tau.vercel.app/*"
+    "https://infraccionesba.gba.gob.ar/",
+    "https://crearconsultapublica-jgbhipicma-uc.a.run.app/",
+    "https://colaproximaconsulta-jgbhipicma-uc.a.run.app/",
+    "https://guardarconsultainfraccion-jgbhipicma-uc.a.run.app/",
+    "https://gestorapp-tau.vercel.app/",
+    "https://gestorapp-paz.web.app/"
   ],
   "content_scripts": [
     {
@@ -16,7 +19,14 @@
       "run_at": "document_start"
     },
     {
-      "matches": ["https://gestorapp-tau.vercel.app/*"],
+      "matches": [
+        "https://gestorapp-tau.vercel.app/*",
+        "https://gestorapp-paz.web.app/*",
+        "http://localhost:5173/*",
+        "http://localhost:5174/*",
+        "http://127.0.0.1:5173/*",
+        "http://127.0.0.1:5174/*"
+      ],
       "js": ["bridge.js"],
       "run_at": "document_idle"
     }

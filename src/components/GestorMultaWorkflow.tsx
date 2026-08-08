@@ -13,8 +13,11 @@ import { editarFechaTramiteMulta }        from '@/lib/firestore/MultaWorwflow'
 import {
   PASOS_MULTA_CONFIG, ESTADO_MULTA_LABELS, ESTADO_MULTA_COLORS,
   METODOS_PAGO_LABELS, documentacionCompleta,
+  estadoMultaEfectivo, derivarEstadoMulta,
+  ESTADO_MULTA_OP_LABELS, ESTADO_MULTA_OP_COLORS,
+  ESTADO_MULTA_OP_ORDER, ESTADOS_MULTA_MANUALES,
 } from '@/multa_types'
-import type { MetodoPago, RegistroPago } from '@/multa_types'
+import type { MetodoPago, RegistroPago, EstadoMulta } from '@/multa_types'
 import {
   AlertTriangle, CheckCircle2, Clock, RotateCcw,
   Upload, X, Eye, ChevronDown, ChevronUp,
@@ -245,7 +248,8 @@ export default function GestorMultaWorkflow({ tramiteId, numeroLITExterno }: Pro
     confirmarPaso1, confirmarPaso2,
     confirmarPreRevision, resolverRebote, resolverMesaAyuda,
     confirmarPaso4, confirmarPaso5, confirmarPaso6, confirmarPaso7,
-    asignarAdmin, agregarPago,
+    asignarAdmin, agregarPago, cambiarEstadoManual,
+    agregarDocAdicional, eliminarDocAdicional,
   } = useMultaWorkflow(tramiteId)
 
   // ── Estado de formularios ─────────────────────────────────────────────────
@@ -254,6 +258,14 @@ export default function GestorMultaWorkflow({ tramiteId, numeroLITExterno }: Pro
   const [nuevoPagoModal, setNuevoPagoModal] = useState<{ monto: number; metodoPago: MetodoPago; nota: string }>(
     { monto: 0, metodoPago: 'efectivo', nota: '' }
   )
+
+  // Documentación adicional (multi-DNI)
+  const [docNuevo, setDocNuevo]       = useState({ etiqueta: '', dni: '', nombre: '' })
+  const [docFrente, setDocFrente]     = useState<File | null>(null)
+  const [docDorso, setDocDorso]       = useState<File | null>(null)
+  const [docFrentePrev, setDocFrentePrev] = useState<string | null>(null)
+  const [docDorsoPrev, setDocDorsoPrev]   = useState<string | null>(null)
+  const [docFormOpen, setDocFormOpen] = useState(false)
 
   const [p1, setP1] = useState({
     patente: '', nombreCompleto: '', dni: '',
@@ -354,6 +366,18 @@ export default function GestorMultaWorkflow({ tramiteId, numeroLITExterno }: Pro
     setModalPago(false)
   }
 
+  const handleAgregarDoc = async () => {
+    if (!docFrente && !docDorso) { toast.error('Subí al menos una foto'); return }
+    await agregarDocAdicional(
+      { etiqueta: docNuevo.etiqueta, dni: docNuevo.dni, nombre: docNuevo.nombre },
+      docFrente, docDorso,
+    )
+    setDocNuevo({ etiqueta: '', dni: '', nombre: '' })
+    setDocFrente(null); setDocDorso(null)
+    setDocFrentePrev(null); setDocDorsoPrev(null)
+    setDocFormOpen(false)
+  }
+
   // ── Carga ─────────────────────────────────────────────────────────────────
 
   if (loading) return (
@@ -378,6 +402,7 @@ export default function GestorMultaWorkflow({ tramiteId, numeroLITExterno }: Pro
   const estadoActual = workflow.estadoWorkflow
   const esRebotado   = estadoActual === 'rebotado'
   const esMesa       = estadoActual === 'en_espera_mesa'
+  const estadoOperativo = estadoMultaEfectivo(workflow)
 
   // ─── RENDER ───────────────────────────────────────────────────────────────
 
@@ -393,6 +418,40 @@ export default function GestorMultaWorkflow({ tramiteId, numeroLITExterno }: Pro
           </p>
         </div>
         <BadgeEstado estado={estadoActual} />
+      </div>
+
+      {/* Estado operativo (Revisión de Multas) — visible y editable */}
+      <div className="bg-white border border-gray-100 rounded-2xl p-4">
+        <div className="flex items-center justify-between gap-3 mb-2">
+          <div className="flex items-center gap-2 flex-wrap">
+            <p className="text-xs font-bold text-gray-500 uppercase tracking-wider">Estado</p>
+            <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold ${ESTADO_MULTA_OP_COLORS[estadoOperativo]}`}>
+              {ESTADO_MULTA_OP_LABELS[estadoOperativo]}
+            </span>
+            {workflow.estadoMultaManual && <span className="text-[10px] text-gray-400">(manual)</span>}
+          </div>
+          {workflow.estadoMultaManual && (
+            <button onClick={() => cambiarEstadoManual(null)}
+              className="text-[11px] text-gray-400 hover:text-[#D4621A] underline shrink-0">
+              volver a automático
+            </button>
+          )}
+        </div>
+        <select
+          value={workflow.estadoMultaManual ?? ''}
+          onChange={e => cambiarEstadoManual((e.target.value || null) as EstadoMulta | null)}
+          className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm outline-none focus:border-[#D4621A] bg-white text-gray-700"
+        >
+          <option value="">— Automático ({ESTADO_MULTA_OP_LABELS[derivarEstadoMulta(workflow)]}) —</option>
+          {ESTADO_MULTA_OP_ORDER.map(e => (
+            <option key={e} value={e}>
+              {ESTADO_MULTA_OP_LABELS[e]}{ESTADOS_MULTA_MANUALES.includes(e) ? '' : ' · auto'}
+            </option>
+          ))}
+        </select>
+        {workflow.estadoMultaManual && workflow.estadoMultaManualNombre && (
+          <p className="text-[11px] text-gray-400 mt-1.5">Fijado por {workflow.estadoMultaManualNombre}.</p>
+        )}
       </div>
 
       {/* Alerta: rebote */}
@@ -460,6 +519,96 @@ export default function GestorMultaWorkflow({ tramiteId, numeroLITExterno }: Pro
           Responsable asignado: <strong className="text-blue-800">{workflow.asignadoAdminNombre}</strong>
         </div>
       )}
+
+      {/* ── Documentación adicional (multi-DNI / cargas libres) ── */}
+      <div className="bg-white border border-gray-100 rounded-2xl p-5 space-y-3">
+        <div className="flex items-center gap-2">
+          <FileText size={15} className="text-gray-400" />
+          <p className="text-sm font-bold text-gray-700">Documentación adicional</p>
+          <span className="text-[11px] text-gray-400">({workflow.documentosAdicionales?.length ?? 0})</span>
+        </div>
+        <p className="text-xs text-gray-400 -mt-1">
+          Para patentes con multas a nombre de más de un DNI. Se agrega sin pisar lo ya cargado.
+        </p>
+
+        {/* Lista de documentos ya cargados */}
+        {(workflow.documentosAdicionales?.length ?? 0) > 0 && (
+          <div className="space-y-2">
+            {workflow.documentosAdicionales!.map(doc => (
+              <div key={doc.id} className="flex items-center gap-3 p-2 bg-gray-50 border border-gray-100 rounded-xl">
+                <div className="flex gap-1.5 shrink-0">
+                  {doc.frente && (
+                    <a href={doc.frente.url} target="_blank" rel="noreferrer">
+                      <img src={doc.frente.url} alt="Frente" className="w-10 h-10 rounded-lg object-cover border border-gray-200" />
+                    </a>
+                  )}
+                  {doc.dorso && (
+                    <a href={doc.dorso.url} target="_blank" rel="noreferrer">
+                      <img src={doc.dorso.url} alt="Dorso" className="w-10 h-10 rounded-lg object-cover border border-gray-200" />
+                    </a>
+                  )}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs font-semibold text-gray-700 truncate">{doc.etiqueta}</p>
+                  {(doc.dni || doc.nombre) && (
+                    <p className="text-[11px] text-gray-400 truncate">
+                      {doc.dni ? `DNI ${doc.dni}` : ''}{doc.dni && doc.nombre ? ' · ' : ''}{doc.nombre ?? ''}
+                    </p>
+                  )}
+                </div>
+                <button onClick={() => eliminarDocAdicional(doc.id)}
+                  className="text-gray-300 hover:text-red-500 shrink-0" title="Eliminar">
+                  <X size={15} />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Form de alta */}
+        {!docFormOpen ? (
+          <button onClick={() => setDocFormOpen(true)}
+            className="w-full flex items-center justify-center gap-2 py-2.5 border-2 border-dashed border-gray-200
+                       rounded-xl text-sm font-semibold text-gray-500 hover:border-[#D4621A]/40 hover:text-[#D4621A] transition-all">
+            <PlusCircle size={15} /> Agregar documentación
+          </button>
+        ) : (
+          <div className="border-t border-gray-100 pt-3 space-y-2.5">
+            <input value={docNuevo.etiqueta}
+              onChange={e => setDocNuevo(p => ({ ...p, etiqueta: e.target.value }))}
+              placeholder="Etiqueta (ej: DNI 2do titular)"
+              className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm outline-none focus:border-[#D4621A]" />
+            <div className="grid grid-cols-2 gap-2">
+              <input value={docNuevo.dni}
+                onChange={e => setDocNuevo(p => ({ ...p, dni: e.target.value }))}
+                placeholder="DNI (opcional)"
+                className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm outline-none focus:border-[#D4621A]" />
+              <input value={docNuevo.nombre}
+                onChange={e => setDocNuevo(p => ({ ...p, nombre: e.target.value }))}
+                placeholder="Nombre (opcional)"
+                className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm outline-none focus:border-[#D4621A]" />
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <FotoUploader label="Frente"
+                onChange={f => { setDocFrente(f ?? null); setDocFrentePrev(f ? URL.createObjectURL(f) : null) }}
+                preview={docFrentePrev} />
+              <FotoUploader label="Dorso"
+                onChange={f => { setDocDorso(f ?? null); setDocDorsoPrev(f ? URL.createObjectURL(f) : null) }}
+                preview={docDorsoPrev} />
+            </div>
+            <div className="flex gap-2">
+              <button disabled={(!docFrente && !docDorso) || guardando} onClick={handleAgregarDoc}
+                className="flex-1 py-2.5 bg-[#D4621A] text-white font-semibold rounded-xl text-sm disabled:opacity-50">
+                {guardando ? `Subiendo... ${progreso}%` : 'Agregar'}
+              </button>
+              <button onClick={() => { setDocFormOpen(false); setDocFrente(null); setDocDorso(null); setDocFrentePrev(null); setDocDorsoPrev(null); setDocNuevo({ etiqueta: '', dni: '', nombre: '' }) }}
+                className="px-4 py-2.5 border border-gray-200 text-gray-500 font-semibold rounded-xl text-sm hover:bg-gray-50">
+                Cancelar
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
 
       {/* Panel de pagos — disponible desde paso 2 */}
       {workflow.paso2 && (

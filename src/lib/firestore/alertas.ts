@@ -9,6 +9,7 @@ import { tramitesCol, turnosCol, clientesCol } from './collections'
 import { getVencimientosProximos, calcularEstado, diasRestantes } from './vencimientos'
 import { VENCIMIENTO_LABELS } from '@/types'
 import type { Tramite, Turno, Cliente } from '@/types'
+import { estadoMultaEfectivo, ESTADOS_MULTA_SIN_ALERTA_FECHA } from '@/multa_types'
 
 // ─── COLECCIÓN MULTA WORKFLOW (para alertas de fecha) ─────────────────────────
 const multaWorkflowCol = collection(db, 'multaWorkflow')
@@ -373,6 +374,8 @@ export async function ejecutarMotorAlertas(): Promise<number> {
     ])
 
     snap48.docs.forEach(d => {
+      // Sin alerta de fecha si la multa espera la fecha del cliente
+      if (ESTADOS_MULTA_SIN_ALERTA_FECHA.includes(estadoMultaEfectivo(d.data() as any))) return
       const wf = d.data() as { tramiteId: string; gestoriaId: string; paso1?: { patente?: string; nombreCompleto?: string; fechaTramite?: string } }
       const patente = wf.paso1?.patente ?? wf.tramiteId
       const fecha   = wf.paso1?.fechaTramite ?? '—'
@@ -387,6 +390,8 @@ export async function ejecutarMotorAlertas(): Promise<number> {
     })
 
     snap24.docs.forEach(d => {
+      // Sin alerta de fecha si la multa espera la fecha del cliente
+      if (ESTADOS_MULTA_SIN_ALERTA_FECHA.includes(estadoMultaEfectivo(d.data() as any))) return
       const wf = d.data() as { tramiteId: string; gestoriaId: string; paso1?: { patente?: string; nombreCompleto?: string; fechaTramite?: string } }
       const patente = wf.paso1?.patente ?? wf.tramiteId
       const fecha   = wf.paso1?.fechaTramite ?? '—'

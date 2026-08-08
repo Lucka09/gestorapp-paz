@@ -123,6 +123,7 @@ export type OrigenCanal =
   | 'google'
   | 'cartel_local'
   | 'whatsapp'
+  | 'web'
   | 'otro'
  
 export const ORIGEN_CANAL_LABELS: Record<OrigenCanal, string> = {
@@ -136,6 +137,7 @@ export const ORIGEN_CANAL_LABELS: Record<OrigenCanal, string> = {
   google:            'Google',
   cartel_local:      'Cartel / Local',
   whatsapp:          'WhatsApp',
+  web:               'Web',
   otro:              'Otro',
 }
  
@@ -392,7 +394,7 @@ export const TIPO_TRAMITE_LABELS: Record<TipoTramite, string> = {
   certificado_dominio:     'Certificado de Dominio',
   inscripcion_inicial:     'Inscripción Inicial',
   prenda:                  'Prenda',
-  descargo_multa:          'Descargo de Multas',
+  descargo_multa:          'Revisión de Multas',
   inhibicion:              'Inhibición',
   levantamiento_inhibicion:'Levantamiento de Inhibición',
   vtv:                     'VTV',

@@ -164,6 +164,12 @@ service cloud.firestore {
       allow delete: if isAdmin() && docDeMiGestoria();
     }
 
+    // ─── CONSULTAS DE INFRACCIONES (cola que consume la extensión) ──────────
+    match /consultasInfracciones/{consultaId} {
+      allow read:   if isStaff() && docDeMiGestoria();
+      allow create: if isStaff() && nuevaDocDeMiGestoria();
+      allow update: if isStaff() && docDeMiGestoria();
+    }
     // ─── AUDIT LOG ────────────────────────────────────────────────────────────
     match /audit_log/{logId} {
       allow read:   if (isAdmin() || esSuperAdmin()) && docDeMiGestoria();

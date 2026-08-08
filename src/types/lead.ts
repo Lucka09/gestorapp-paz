@@ -58,6 +58,7 @@ export interface Lead {
   telefono?: string          // formato E.164 preferido: 5491112345678
   email?: string
   documento?: string         // DNI / CUIT — se usa para deduplicación
+  patente?: string
   localidad?: string
 
   // Consulta
@@ -125,7 +126,32 @@ export interface LeadInput extends LeadInputPublico {
   asignadoA?: string
   prioridad?: PrioridadLead
 }
+export interface LeadInput {
+  // Contacto
+  nombre: string
+  apellido?: string
+  telefono?: string      // formato libre, se normaliza
+  email?: string
+  documento?: string     // DNI/CUIT, se normaliza
+  patente?: string       // se normaliza a mayúsculas
 
+  // Consulta
+  tipoTramite?: TipoTramite
+  consulta?: string
+
+  // Origen
+  canal: OrigenCanal
+  canalRespuesta?: 'whatsapp' | 'telefono' | 'email' | 'presencial'
+  origenSistema?: OrigenSistema
+  fuente?: string        // "Instagram DM", "Llamada telefónica", etc.
+
+  // Gestión
+  asignadoA?: string
+  prioridad?: PrioridadLead
+
+  // Metadata
+  notas?: string
+}
 // ─── LABELS ─────────────────────────────────────────────────────────────────
 
 export const ESTADO_LEAD_LABELS: Record<EstadoLead, string> = {

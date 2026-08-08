@@ -1,31 +1,23 @@
 // functions/src/infracciones/crearConsultaPublica.ts
 // ─── CAPTURA DE LEAD DESDE LA WEB PÚBLICA (gestoriapaz.com) ──────────────────
 //
-// Este endpoint es PÚBLICO: lo llama el navegador del visitante desde el sitio
-// estático, SIN token de usuario. Por eso:
-//   • el gestoriaId NO viene del cliente (sería un vector de spam) → está fijado
-//     en el server vía env GESTORIA_ID_WEB.
-//   • validamos y normalizamos el dato (patente o DNI) antes de escribir nada.
-//   • es idempotente: mismo dato el mismo día ⇒ mismo documento (no duplica
-//     consultas ni prospectos si el visitante manda dos veces).
-//   • incluye honeypot anti-bots y CORS acotado a los orígenes del sitio.
-//   • nunca devuelve datos internos: responde { ok:true } y listo.
+// [v2] Ahora además del pre-prospecto + la consulta en cola, crea un LEAD en
+//      la capa omnicanal (/leads) y emite el evento lead.creado, alimentando
+//      el stream de eventos (automatizaciones + IA).
 //
-// Qué hace en un solo movimiento (transacción):
-//   1) crea/recupera la consulta en `consultasInfracciones` (estado 'pendiente')
-//      → queda en la cola que consume la extensión.
-//   2) crea/recupera un pre-prospecto en `prospectos` (etapa 'nuevo', naranja).
+// Este endpoint es PÚBLICO: lo llama el navegador del visitante SIN token.
+//   • el gestoriaId NO viene del cliente → fijado server-side (env).
+//   • validamos y normalizamos patente/DNI antes de escribir.
+//   • idempotente: mismo dato el mismo día ⇒ mismo documento.
+//   • honeypot anti-bots + CORS acotado.
 //
-// El resto de la cadena ya existe: cola → captcha (humano) → guardarConsulta →
-// cotización → PresupuestoMultas → envío.
+// En una sola transacción crea/recupera:
+//   1) consulta en `consultasInfracciones` (estado 'pendiente') → cola extensión
+//   2) LEAD en `leads` (canal 'web', convertido a prospecto)
+//   3) pre-prospecto en `prospectos` (etapa 'nuevo', naranja)
+//   Y emite `lead.creado` (fuera de la transacción, fire-and-forget).
 //
 // Despliegue: firebase deploy --only functions:crearConsultaPublica
-// Env:        firebase functions:config no aplica en v2 → usar .env / secrets:
-//             GESTORIA_ID_WEB=<id de Gestoría Paz>
-//
-// ⚠️ Endurecimiento para producción: activar App Check (attestation del sitio)
-//    y/o rate-limit por IP. Ver nota al pie.
-
 import * as admin    from 'firebase-admin'
 import { onRequest } from 'firebase-functions/v2/https'
 import { logger }    from 'firebase-functions'
@@ -33,46 +25,37 @@ import { logger }    from 'firebase-functions'
 if (!admin.apps.length) admin.initializeApp()
 
 // ─── CONFIG ──────────────────────────────────────────────────────────────────
-
-// Fijado en el server. NO se acepta desde el cliente.
+// Fijado server-side. NUNCA lo manda el cliente.
 const GESTORIA_ID = process.env.GESTORIA_ID_WEB || 'gestoria-paz'
 
-// Orígenes desde los que se permite la llamada (CORS).
 const ORIGENES_OK = new Set<string>([
   'https://gestoriapaz.com',
   'https://www.gestoriapaz.com',
   'http://localhost:5173',
   'http://localhost:3000',
-  'http://127.0.0.1:5500', // Live Server (VS Code) para pruebas locales
+  'http://127.0.0.1:5500',
 ])
 
 // ─── TIPOS DE ENTRADA ────────────────────────────────────────────────────────
-
 type TipoConsulta = 'dominio' | 'dni'
-
 interface Payload {
   tipoConsulta?: TipoConsulta
-  valor?:        string          // patente o DNI
-  patente?:      string          // compat con el hook viejo { patente, origen }
+  valor?:        string
+  patente?:      string
   dni?:          string
   contacto?:     { nombre?: string; whatsapp?: string; email?: string }
-  genero?:       string          // solo DNI: Femenino | Masculino | No binario
-  hp?:           string          // honeypot: si viene con algo, es un bot
+  genero?:       string
+  hp?:           string
 }
 
 // ─── VALIDACIÓN / NORMALIZACIÓN ──────────────────────────────────────────────
-
-// Patentes AR: auto viejo (AAA123), auto Mercosur (AA123AA),
-// moto vieja (123ABC), moto Mercosur (A123BCD).
 const RE_DOMINIO = /^([A-Z]{3}\d{3}|[A-Z]{2}\d{3}[A-Z]{2}|\d{3}[A-Z]{3}|[A-Z]\d{3}[A-Z]{3})$/
 const RE_DNI     = /^\d{7,8}$/
 
-/** Deja solo A-Z0-9 y pasa a mayúsculas. */
 function limpiar(v: string): string {
   return (v || '').toUpperCase().replace(/[^A-Z0-9]/g, '')
 }
 
-/** Bucket de día en horario Argentina (UTC-3) para la clave de idempotencia. */
 function diaAR(): string {
   return new Date(Date.now() - 3 * 3600 * 1000).toISOString().slice(0, 10).replace(/-/g, '')
 }
@@ -89,21 +72,21 @@ function setCors(req: any, res: any): void {
 }
 
 // ─── FUNCIÓN ─────────────────────────────────────────────────────────────────
-
 export const crearConsultaPublica = onRequest(
-  { cors: false }, // manejamos CORS a mano para acotar orígenes
+  { cors: false },
   async (req, res) => {
     setCors(req, res)
+
     if (req.method === 'OPTIONS') { res.status(204).send(''); return }
     if (req.method !== 'POST')    { res.status(405).json({ ok: false }); return }
 
     try {
       const body = (req.body || {}) as Payload
 
-      // 1) Honeypot: si un bot llenó el campo trampa, fingimos éxito y no escribimos.
+      // 1) Honeypot: bot llenó el campo trampa → fingimos éxito, no escribimos.
       if (body.hp && body.hp.trim() !== '') { res.status(200).json({ ok: true }); return }
 
-      // 2) Resolver el valor y el tipo (tolerante con el hook viejo).
+      // 2) Resolver valor y tipo (tolerante con el hook viejo).
       const bruto = body.valor ?? body.patente ?? body.dni ?? ''
       const valor = limpiar(bruto)
       if (!valor) { res.status(400).json({ ok: false, error: 'dato_invalido' }); return }
@@ -112,30 +95,36 @@ export const crearConsultaPublica = onRequest(
       if (body.tipoConsulta === 'dni' || body.tipoConsulta === 'dominio') {
         tipo = body.tipoConsulta
       } else {
-        tipo = RE_DNI.test(valor) ? 'dni' : 'dominio' // inferencia
+        tipo = RE_DNI.test(valor) ? 'dni' : 'dominio'
       }
 
       // 3) Validar según tipo.
       const valido = tipo === 'dni' ? RE_DNI.test(valor) : RE_DOMINIO.test(valor)
       if (!valido) { res.status(400).json({ ok: false, error: 'dato_invalido' }); return }
 
-      // 4) Contacto opcional (saneado y acotado).
+      // 4) Contacto opcional (saneado) + género.
       const contacto = {
         nombre:   (body.contacto?.nombre   || '').toString().trim().slice(0, 80),
         whatsapp: limpiarTel(body.contacto?.whatsapp || ''),
         email:    (body.contacto?.email    || '').toString().trim().slice(0, 120),
       }
-
-      // Género (solo relevante para DNI; el portal lo pide en el formulario).
       const genero = normalizarGenero(body.genero)
 
       const db  = admin.firestore()
       const now = admin.firestore.FieldValue.serverTimestamp()
 
+      // Descripción legible (la usan el lead, el prospecto y el evento).
+      const descripcion = tipo === 'dni'
+        ? `Consulta de infracciones por DNI ${valor} (web)`
+        : `Consulta de infracciones por dominio ${valor} (web)`
+
       // 5) Clave de idempotencia: mismo dato + mismo día ⇒ mismo doc.
-      const dedupeKey = `web_${GESTORIA_ID}_${tipo}_${valor}_${diaAR()}`.replace(/\//g, '_')
+      const dedupeKey    = `web_${GESTORIA_ID}_${tipo}_${valor}_${diaAR()}`.replace(/\//g, '_')
       const consultaRef  = db.collection('consultasInfracciones').doc(dedupeKey)
-      const prospectoRef = db.collection('prospectos').doc() // id reservado por si hay que crear
+      const prospectoRef = db.collection('prospectos').doc()
+      const leadRef      = db.collection('leads').doc()   // ← NUEVO: id reservado para el lead
+
+      let creoNuevoLead = false
 
       await db.runTransaction(async (t) => {
         const snap = await t.get(consultaRef)
@@ -148,7 +137,6 @@ export const crearConsultaPublica = onRequest(
           if (contacto.email    && !prev?.contacto?.email)    patch['contacto.email']    = contacto.email
           if (Object.keys(patch).length) t.update(consultaRef, patch)
 
-          // Reflejar contacto en el prospecto ya vinculado.
           if (prev?.prospectoId && (contacto.whatsapp || contacto.nombre || contacto.email)) {
             const pRef = db.collection('prospectos').doc(prev.prospectoId)
             const pPatch: any = { actualizadoEn: now }
@@ -160,11 +148,42 @@ export const crearConsultaPublica = onRequest(
           return
         }
 
-        // Nuevo: creamos pre-prospecto + consulta enlazados.
-        const descripcion = tipo === 'dni'
-          ? `Consulta de infracciones por DNI ${valor} (web)`
-          : `Consulta de infracciones por dominio ${valor} (web)`
+        // ── NUEVO: creamos LEAD + pre-prospecto + consulta, todo enlazado ──
+        creoNuevoLead = true
 
+        // 1) LEAD — alimenta la capa omnicanal + el motor de automatizaciones
+        const leadData: Record<string, unknown> = {
+          gestoriaId:         GESTORIA_ID,
+          nombre:             contacto.nombre || 'Consulta web',
+          telefono:           contacto.whatsapp || null,
+          email:              contacto.email || null,
+          documento:          tipo === 'dni' ? valor : null,
+          consulta:           descripcion,
+          tipoTramiteInteres: 'descargo_multa',
+          canal:              'web',
+          fuente:             'gestoriapaz-web',
+          origenSistema:      'web_form',
+          estado:             'convertido',   // se convierte en prospecto en esta misma transacción
+          prioridad:          'normal',
+          convertidoA:        'prospecto',
+          prospectoId:        prospectoRef.id,
+          utm_source:         null,
+          utm_medium:         null,
+          utm_campaign:       null,
+          utm_content:        null,
+          paginaUrl:          req.headers.referer || req.headers.origin || null,
+          ipOrigen:           req.ip || null,
+          creadoPor:          'system',
+          creadoEn:           now,
+          actualizadoEn:      now,
+          // Metadatos de la consulta de multas (los necesita el equipo para procesarla)
+          consultaTipo:       tipo,
+          consultaValor:      valor,
+          genero:             genero || null,
+        }
+        t.set(leadRef, leadData)
+
+        // 2) PRE-PROSPECTO (como antes) + vínculo al lead
         t.set(prospectoRef, {
           gestoriaId:   GESTORIA_ID,
           nombre:       contacto.nombre || 'Lead web',
@@ -184,11 +203,13 @@ export const crearConsultaPublica = onRequest(
           etiquetas:    ['consulta-multas', 'origen-web'],
           asignadoA:    '',
           creadoPor:    'web',
+          leadId:       leadRef.id,   // ← NUEVO: trazabilidad lead → prospecto
           orden:        Date.now(),
           creadoEn:     now,
           actualizadoEn: now,
         })
 
+        // 3) CONSULTA EN COLA (como antes) + vínculo al lead
         t.set(consultaRef, {
           gestoriaId:   GESTORIA_ID,
           tipoConsulta: tipo,
@@ -198,29 +219,46 @@ export const crearConsultaPublica = onRequest(
           origen:       'web',
           estado:       'pendiente',
           prospectoId:  prospectoRef.id,
+          leadId:       leadRef.id,   // ← NUEVO: trazabilidad lead → consulta
           creadaEn:     now,
         })
       })
 
-      logger.info('crearConsultaPublica', { gestoriaId: GESTORIA_ID, tipo, dedupeKey })
+      // ── Evento lead.creado (fuera de la transacción, fire-and-forget) ─────
+      if (creoNuevoLead) {
+        try {
+          await db.collection('eventos').add({
+            gestoriaId:   GESTORIA_ID,
+            tipo:         'lead.creado',
+            entidad:      'lead',
+            entidadId:    leadRef.id,
+            entidadLabel: contacto.nombre || 'Consulta web',
+            actor:        { id: 'system', tipo: 'sistema' },
+            payload:      { canal: 'web', tipoConsulta: tipo, valor },
+            resumen:      `Nuevo lead web: ${descripcion}`,
+            timestamp:    admin.firestore.FieldValue.serverTimestamp(),
+          })
+        } catch (e: any) {
+          logger.warn('No se pudo emitir evento lead.creado', { message: e?.message })
+        }
+      }
+
+      logger.info('crearConsultaPublica', { gestoriaId: GESTORIA_ID, tipo, dedupeKey, lead: creoNuevoLead })
       res.status(200).json({ ok: true })
+
     } catch (err: any) {
       logger.error('crearConsultaPublica error', { message: err?.message })
-      // No filtramos detalle al cliente público.
       res.status(500).json({ ok: false })
     }
   }
 )
 
-/** Deja solo dígitos y un + inicial opcional, acota longitud. */
 function limpiarTel(v: string): string {
   const s = (v || '').toString().trim()
   const plus = s.startsWith('+') ? '+' : ''
   return (plus + s.replace(/[^0-9]/g, '')).slice(0, 20)
 }
 
-/** Normaliza el género al carácter de un char que espera el portal (M/F/X).
- *  El portal usa: genero=M, genero=F (No binario no está confirmado — usamos X). */
 function normalizarGenero(v?: string): string {
   const s = (v || '').toString().trim().toUpperCase()
   if (!s) return ''

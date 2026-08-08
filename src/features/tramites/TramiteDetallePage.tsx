@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import {
   ArrowLeft, Pencil, DollarSign, User, Trash2,
   Car, Clock, FileText, CheckCircle, XCircle,
-  Scale, MapPin, ExternalLink, Navigation
+  Scale, MapPin, ExternalLink, Navigation, Copy, Check
 } from 'lucide-react'
 import { useTramite } from '@/hooks/useTramites'
 import { useCliente } from '@/hooks/useClientes'
@@ -32,6 +32,56 @@ import type { InscripcionWorkflow, GeoRegistro } from '@/torre_types'
 import { formatFecha, formatFechaHora, formatPesos, nombreCompleto } from '@/utils'
 import toast from 'react-hot-toast'
 import { usePageTitle } from '@/hooks/usePageTitle'
+
+// ─── BLOQUE "DATOS PARA COPIAR" (productividad operativa) ────────────────────
+function CopiarDatosCard({ nombre, dni, dominio }: { nombre: string; dni: string; dominio: string }) {
+  const [copiado, setCopiado] = useState<string | null>(null)
+  const copiar = async (label: string, valor: string) => {
+    if (!valor) return
+    try {
+      await navigator.clipboard.writeText(valor)
+      setCopiado(label)
+      setTimeout(() => setCopiado(null), 1500)
+    } catch { toast.error('No se pudo copiar') }
+  }
+  const copiarTodo = () =>
+    copiar('todo', `NOMBRE COMPLETO: ${nombre}\nDNI: ${dni}\nDOMINIO: ${dominio}`)
+  const filas = [
+    { label: 'NOMBRE COMPLETO', valor: nombre },
+    { label: 'DNI',            valor: dni },
+    { label: 'DOMINIO',        valor: dominio },
+  ]
+  return (
+    <Card className="p-5">
+      <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center gap-2">
+          <Copy size={14} className="text-gray-400" />
+          <p className="text-xs font-bold text-gray-400 uppercase tracking-wider">Datos para copiar</p>
+        </div>
+        <button onClick={copiarTodo}
+          className="flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1.5 rounded-lg
+                     bg-[#D4621A] text-white hover:bg-[#c05716] transition-colors">
+          {copiado === 'todo' ? <><Check size={13} /> Copiado</> : <><Copy size={13} /> Copiar todo</>}
+        </button>
+      </div>
+      <div className="space-y-1.5">
+        {filas.map(f => (
+          <button key={f.label} onClick={() => copiar(f.label, f.valor)}
+            className="w-full flex items-center justify-between gap-3 px-3 py-2 rounded-lg
+                       bg-gray-50 hover:bg-gray-100 border border-gray-100 transition-colors text-left group">
+            <div className="min-w-0">
+              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">{f.label}</p>
+              <p className="text-sm font-semibold text-gray-800 font-mono truncate">{f.valor || '—'}</p>
+            </div>
+            {copiado === f.label
+              ? <Check size={15} className="text-emerald-500 shrink-0" />
+              : <Copy size={15} className="text-gray-300 group-hover:text-[#D4621A] shrink-0" />}
+          </button>
+        ))}
+      </div>
+    </Card>
+  )
+}
 
 export default function TramiteDetallePage() {
   const { id }     = useParams<{ id: string }>()
@@ -447,6 +497,20 @@ export default function TramiteDetallePage() {
         </Card>
       </div>
 
+      {/* Datos para copiar + Notas arriba — solo multas (productividad operativa) */}
+      {esMulta && tramite && cliente && (
+        <CopiarDatosCard
+          nombre={nombreCompleto(cliente.nombre, cliente.apellido)}
+          dni={cliente.dni ?? ''}
+          dominio={vehiculo?.patente ?? tramite.patente ?? ''}
+        />
+      )}
+      {esMulta && tramite && (
+        <div className="bg-white border border-gray-100 rounded-2xl p-5 shadow-sm">
+          <PanelNotas entidad="tramite" entidadId={tramite.id} />
+        </div>
+      )}
+
       {/* ── WORKFLOW TRANSFERENCIA ────────────────────────────────────────── */}
       {esTransferencia && id && (
         <div className="rounded-2xl overflow-hidden border border-slate-200 shadow-sm">
@@ -579,8 +643,8 @@ export default function TramiteDetallePage() {
         <PanelDocumentacion tramiteId={tramite.id} tipo={tramite.tipo} />
       )}
 
-      {/* Notas internas */}
-      {tramite && (
+      {/* Notas internas (en multas se muestran arriba) */}
+      {tramite && !esMulta && (
         <div className="bg-white border border-gray-100 rounded-2xl p-5 shadow-sm">
           <PanelNotas entidad="tramite" entidadId={tramite.id} />
         </div>
@@ -620,7 +684,7 @@ export default function TramiteDetallePage() {
       {tramite.observacionesInternas && (
         <Card className="p-5 border-l-4 border-l-amber-400">
           <p className="text-xs font-bold text-amber-600 uppercase tracking-wider mb-2">Observaciones internas</p>
-          <p className="text-sm text-gray-600">{tramite.observacionesInternas}</p>
+          <p className="text-sm text-gray-600 whitespace-pre-wrap break-words">{tramite.observacionesInternas}</p>
         </Card>
       )}
 
@@ -652,8 +716,8 @@ export default function TramiteDetallePage() {
             <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider block mb-1.5">Observaciones internas</label>
             <textarea value={editForm.observacionesInternas}
               onChange={e => setEditForm(p => ({ ...p, observacionesInternas: e.target.value }))}
-              rows={2}
-              className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm outline-none focus:border-[#D4621A] resize-none"
+              rows={5}
+              className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm outline-none focus:border-[#D4621A] resize-y min-h-[7rem]"
               placeholder="Solo visible para el equipo..."
             />
           </div>

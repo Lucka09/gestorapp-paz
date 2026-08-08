@@ -41,6 +41,7 @@ export interface Prospecto {
   // Datos personales
   nombre:       string
   apellido:     string
+  documento?:    string
   telefono:     string
   email:        string
   localidad:    string

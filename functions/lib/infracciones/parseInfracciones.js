@@ -30,7 +30,7 @@ exports.DEFAULT_CONFIG_COTIZACION = {
     overrides: {
         excluirSiApremio: true,
         excluirSiVencida: false,
-        excluirSiTieneDescargo: false, // la matriz ya maneja "DESCARGO PENDIENTE VALIDACION"
+        excluirSiTieneDescargo: true, // la matriz ya maneja "DESCARGO PENDIENTE VALIDACION"
         excluirSiSinDI: true, // sin Deber de Informar → no se trabaja
     },
     honorarios: {
@@ -55,29 +55,47 @@ function epochToISO(ms) {
     return d.toISOString().slice(0, 10);
 }
 // ─── CLASIFICACIÓN ───────────────────────────────────────────────────────────
+// REGLAS DURAS DE NEGOCIO (confirmadas por Matías): NUNCA se trabajan actas
+// sin Deber de Informar, con descargo pendiente de validación, ni sentenciadas.
+// Van ANTES de cualquier otra regla y no son configurables.
 function clasificarActa(raw, config = exports.DEFAULT_CONFIG_COTIZACION) {
     var _a, _b, _c;
     const estado = ((_b = (_a = raw.estadoCausaPublico) === null || _a === void 0 ? void 0 : _a.descripcion) !== null && _b !== void 0 ? _b : '').trim().toUpperCase();
-    const base = (_c = config.matrizEstados[estado]) !== null && _c !== void 0 ? _c : config.reglaPorDefecto;
-    // Si la matriz ya lo excluye, respetamos ese motivo.
-    if (!base.trabajable) {
-        return { trabajable: false, motivoExclusion: base.motivo };
-    }
-    // Overrides por flag (solo pueden EXCLUIR, nunca habilitar).
-    const { overrides } = config;
-    if (overrides.excluirSiApremio && raw.conApremio) {
-        return { trabajable: false, motivoExclusion: 'En apremio (ejecución fiscal)' };
-    }
-    if (overrides.excluirSiVencida && raw.estaVencida) {
-        return { trabajable: false, motivoExclusion: 'Acta vencida' };
-    }
-    if (overrides.excluirSiTieneDescargo && raw.tieneDescargo) {
-        return { trabajable: false, motivoExclusion: 'Ya tiene descargo presentado' };
-    }
-    if (overrides.excluirSiSinDI && !raw.debeDI) {
+    // ── REGLAS DURAS DE NEGOCIO (confirmadas) ────────────────────────────────
+    // 1) SENTENCIADAS
+    if (estado.includes('SENTENCIA'))
+        return { trabajable: false, motivoExclusion: 'Causa con sentencia firme' };
+    // 2) DESCARGO PENDIENTE DE VALIDACION
+    if (estado.includes('DESCARGO'))
+        return { trabajable: false, motivoExclusion: 'Descargo presentado, pendiente de validación' };
+    // 3) SIN DI — VERIFICADO contra datos reales del portal:
+    //    debeDI=true ⇒ el acta DEBE el Deber de Informar (badge "Sin DI") ⇒ excluir.
+    if (config.overrides.excluirSiSinDI && raw.debeDI)
         return { trabajable: false, motivoExclusion: 'Sin Deber de Informar (sin DI)' };
+    // ── Exclusiones obvias por estado ────────────────────────────────────────
+    if (estado.includes('SIN DEUDA'))
+        return { trabajable: false, motivoExclusion: 'Sin deuda' };
+    if (estado.includes('PAGADA'))
+        return { trabajable: false, motivoExclusion: 'Ya abonada' };
+    // ── Overrides configurables (solo pueden EXCLUIR) ────────────────────────
+    if (config.overrides.excluirSiApremio && raw.conApremio)
+        return { trabajable: false, motivoExclusion: 'En apremio (ejecución fiscal)' };
+    if (config.overrides.excluirSiTieneDescargo && raw.tieneDescargo)
+        return { trabajable: false, motivoExclusion: 'Ya tiene descargo presentado' };
+    if (config.overrides.excluirSiVencida && raw.estaVencida)
+        return { trabajable: false, motivoExclusion: 'Acta vencida' };
+    // ── Matriz exacta para estados conocidos ─────────────────────────────────
+    const exacta = config.matrizEstados[estado];
+    if (exacta) {
+        return exacta.trabajable
+            ? { trabajable: true, motivoExclusion: null }
+            : { trabajable: false, motivoExclusion: exacta.motivo };
     }
-    return { trabajable: true, motivoExclusion: null };
+    // ── Habilitar: cualquier acta con deuda > 0 ──────────────────────────────
+    if (((_c = raw.importeTotal) !== null && _c !== void 0 ? _c : 0) > 0)
+        return { trabajable: true, motivoExclusion: null };
+    // ── Sin deuda ni estado reconocible ──────────────────────────────────────
+    return { trabajable: false, motivoExclusion: `Estado no clasificado (${estado || 'sin estado'})` };
 }
 // ─── PARSEO ──────────────────────────────────────────────────────────────────
 function parseActa(raw, config = exports.DEFAULT_CONFIG_COTIZACION) {

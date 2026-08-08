@@ -250,3 +250,4 @@ export const whatsappSend = onCall(
 export { crearConsultaPublica }      from './infracciones/crearConsultaPublica'
 export { guardarConsultaInfraccion } from './infracciones/guardarConsultaInfraccion'
 export { colaProximaConsulta }       from './infracciones/colaProximaConsulta'
+export { motorAlertasDiario } from './MotorAlertas'

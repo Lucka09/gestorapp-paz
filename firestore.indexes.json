@@ -16,6 +16,14 @@
       
     },
     {
+  "collectionGroup": "leads",
+  "queryScope": "COLLECTION",
+  "fields": [
+    { "fieldPath": "gestoriaId", "order": "ASCENDING" },
+    { "fieldPath": "creadoEn",  "order": "DESCENDING" }
+  ]
+},
+    {
   "collectionGroup": "eventos",
   "queryScope": "COLLECTION",
   "fields": [

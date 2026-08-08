@@ -1,10 +1,4 @@
-// src/pages/ConsultasMultasPage.tsx
-// ─── CONSULTAS DE MULTAS — vista de trabajo ─────────────────────────────────
-// Lista las consultas por estado. El foco son las COTIZADAS (ya pasaron por la
-// extensión): Jessica abre el presupuesto, ajusta si hace falta, y envía. Al
-// enviar, persiste el presupuesto exacto en la consulta (fuente única de verdad)
-// y abre WhatsApp con el mensaje al contacto.
-
+// src/features/multas/ConsultasMultasPage.tsx
 import { useState } from 'react'
 import toast from 'react-hot-toast'
 import Modal from '@/components/shared/Modal'
@@ -21,29 +15,44 @@ import type { ConsultaInfraccion } from '@/infraccion_types'
 import type { DatosPresupuesto } from '@/lib/armarDatosPresupuesto'
 
 const NARANJA = '#D4621A'
+type Tab = 'cola' | 'cotizadas' | 'sin_deuda'
 
 function valorConsulta(c: ConsultaInfraccion): string {
   return c.tipoConsulta === 'dni' ? (c.dni ?? '—') : (c.dominio ?? '—')
 }
-
 function waLink(whatsapp: string, mensaje: string): string {
   const num = (whatsapp || '').replace(/[^0-9]/g, '')
   return `https://wa.me/${num}?text=${encodeURIComponent(mensaje)}`
 }
+const trabajables = (c: ConsultaInfraccion) => c.cotizacion?.cantidadTrabajable ?? 0
 
 export default function ConsultasMultasPage() {
-  const { puede }   = usePermisos()
-  const puedeVer    = puede('verCRM')
+  const { puede } = usePermisos()
+  const puedeVer = puede('verCRM')
   const puedeEnviar = puede('responderWA')
-
   const { porEstado, paraEnviar, loading } = useConsultasInfracciones()
+  const [tab, setTab] = useState<Tab>('cola')
   const [abierta, setAbierta] = useState<ConsultaInfraccion | null>(null)
 
-  if (!puedeVer) {
-    return <div className="p-6 text-sm text-gray-500">No tenés acceso a esta sección.</div>
-  }
+  if (!puedeVer) return <div className="p-6 text-sm text-gray-500">No tenés acceso a esta sección.</div>
 
-  const enCola = [...porEstado.pendiente, ...porEstado.consultada]
+  // ── Grupos por pestaña ────────────────────────────────────────────────
+  const enCola = [...(porEstado.pendiente || []), ...(porEstado.consultada || [])]
+  const cotizadas = [
+    ...paraEnviar.filter(c => trabajables(c) > 0),
+    ...(porEstado.enviada || []).filter(c => trabajables(c) > 0),
+  ]
+  const sinDeuda = [
+    ...(porEstado.sin_deuda || []),
+    ...paraEnviar.filter(c => trabajables(c) === 0),
+    ...(porEstado.enviada || []).filter(c => trabajables(c) === 0),
+  ]
+
+  const tabs: { key: Tab; label: string; count: number }[] = [
+    { key: 'cola',      label: 'En cola',                  count: enCola.length },
+    { key: 'cotizadas', label: 'Cotizadas / trabajables',  count: cotizadas.length },
+    { key: 'sin_deuda', label: 'Sin deuda / sin trabajables', count: sinDeuda.length },
+  ]
 
   async function handleEnviar(consulta: ConsultaInfraccion, datos: DatosPresupuesto) {
     try {
@@ -53,11 +62,8 @@ export default function ConsultasMultasPage() {
       if (wa) window.open(waLink(wa, datos.mensajeWhatsapp), '_blank', 'noopener')
       toast.success('Presupuesto guardado. Abriendo WhatsApp…')
       setAbierta(null)
-    } catch (e: any) {
-      toast.error(e?.message ?? 'No se pudo enviar')
-    }
+    } catch (e: any) { toast.error(e?.message ?? 'No se pudo enviar') }
   }
-
   async function handleDescartar(id: string) {
     try { await descartarConsulta(id); toast('Consulta descartada') }
     catch (e: any) { toast.error(e?.message ?? 'Error al descartar') }
@@ -65,37 +71,64 @@ export default function ConsultasMultasPage() {
 
   return (
     <div className="p-4 md:p-6 max-w-3xl mx-auto">
-      <header className="mb-5">
+      <header className="mb-4">
         <h1 className="text-xl font-bold" style={{ color: NARANJA }}>Consultas de multas</h1>
-        <p className="text-sm text-gray-500">Presupuestos listos para revisar y enviar.</p>
+        <p className="text-sm text-gray-500">Cola de la extensión, cotizaciones y resultados sin deuda.</p>
       </header>
 
-      {loading && <div className="text-sm text-gray-400">Cargando…</div>}
+      {/* ── PESTAÑAS ─────────────────────────────────────────────────── */}
+      <div className="flex gap-2 mb-5 overflow-x-auto">
+        {tabs.map(t => (
+          <button
+            key={t.key}
+            onClick={() => setTab(t.key)}
+            className={`px-3.5 py-2 rounded-xl text-sm font-medium whitespace-nowrap transition-colors flex items-center gap-1.5
+              ${tab === t.key ? 'text-white shadow-sm' : 'bg-white border border-gray-100 text-gray-600 hover:border-orange-200'}`}
+            style={tab === t.key ? { background: NARANJA } : undefined}
+          >
+            {t.label}
+            <span className={`text-xs px-1.5 py-0.5 rounded-full font-bold ${tab === t.key ? 'bg-white/20' : 'bg-gray-100 text-gray-500'}`}>
+              {t.count}
+            </span>
+          </button>
+        ))}
+      </div>
 
-      {/* ── LISTAS PARA ENVIAR ─────────────────────────────────────────── */}
-      <section className="mb-8">
-        <h2 className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-2">
-          Para enviar ({paraEnviar.length})
-        </h2>
-        {paraEnviar.length === 0 && !loading && (
-          <p className="text-sm text-gray-400">Nada pendiente de envío por ahora.</p>
-        )}
+      {loading && <div className="text-sm text-gray-400 mb-4">Cargando…</div>}
+
+      {/* ── PESTAÑA: EN COLA ─────────────────────────────────────────── */}
+      {tab === 'cola' && (
+        <div className="grid gap-2">
+          {enCola.length === 0 && !loading && <p className="text-sm text-gray-400">Nada en cola por ahora.</p>}
+          {enCola.map(c => (
+            <div key={c.id} className="flex items-center justify-between rounded-lg border border-gray-100 bg-white px-3 py-2 text-sm">
+              <div>
+                <span className="font-medium text-gray-800">{valorConsulta(c)}</span>
+                <span className="text-gray-400 ml-2">{c.contacto?.nombre || 'Lead'}</span>
+              </div>
+              <span className="text-gray-400 text-xs">
+                {c.estado === 'consultada' ? 'procesando…' : c.tipoConsulta === 'dni' ? 'DNI · esperando extensión' : 'esperando extensión'}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* ── PESTAÑA: COTIZADAS / TRABAJABLES ─────────────────────────── */}
+      {tab === 'cotizadas' && (
         <div className="grid gap-3">
-          {paraEnviar.map(c => (
+          {cotizadas.length === 0 && !loading && <p className="text-sm text-gray-400">No hay cotizaciones con actas trabajables.</p>}
+          {cotizadas.map(c => (
             <article key={c.id} className="rounded-xl border border-gray-200 bg-white p-4">
               <div className="flex items-start justify-between gap-3">
                 <div>
                   <div className="font-semibold text-gray-900">{valorConsulta(c)}</div>
-                  <div className="text-sm text-gray-500">
-                    {c.contacto?.nombre || 'Lead web'}
-                    {c.contacto?.whatsapp ? ` · ${c.contacto.whatsapp}` : ''}
-                  </div>
+                  <div className="text-sm text-gray-500">{c.contacto?.nombre || 'Lead'}{c.contacto?.whatsapp ? ` · ${c.contacto.whatsapp}` : ''}</div>
                 </div>
-                <span className="text-[11px] rounded-full px-2 py-0.5 bg-orange-50 text-orange-700 whitespace-nowrap">
-                  cotizada
+                <span className={`text-[11px] rounded-full px-2 py-0.5 whitespace-nowrap ${c.estado === 'enviada' ? 'bg-green-50 text-green-700' : 'bg-orange-50 text-orange-700'}`}>
+                  {c.estado === 'enviada' ? 'enviada' : 'cotizada'}
                 </span>
               </div>
-
               {c.cotizacion && (
                 <div className="mt-3 grid grid-cols-3 gap-2 text-center">
                   <Metric label="Trabajables" value={String(c.cotizacion.cantidadTrabajable)} />
@@ -103,60 +136,53 @@ export default function ConsultasMultasPage() {
                   <Metric label="Honorarios" value={money(c.cotizacion.honorariosGestoria)} />
                 </div>
               )}
-
               <div className="mt-4 flex gap-2">
-                <button
-                  onClick={() => setAbierta(c)}
-                  className="flex-1 rounded-lg py-2 text-sm font-semibold text-white"
-                  style={{ background: NARANJA }}
-                >
+                <button onClick={() => setAbierta(c)} className="flex-1 rounded-lg py-2 text-sm font-semibold text-white" style={{ background: NARANJA }}>
                   Ver presupuesto
                 </button>
-                <button
-                  onClick={() => handleDescartar(c.id)}
-                  className="rounded-lg px-3 py-2 text-sm text-gray-500 bg-gray-100"
-                >
-                  Descartar
-                </button>
+                {c.estado !== 'enviada' && (
+                  <button onClick={() => handleDescartar(c.id)} className="rounded-lg px-3 py-2 text-sm text-gray-500 bg-gray-100">
+                    Descartar
+                  </button>
+                )}
               </div>
             </article>
           ))}
         </div>
-      </section>
+      )}
 
-      {/* ── EN COLA (esperando la extensión) ───────────────────────────── */}
-      {enCola.length > 0 && (
-        <section className="mb-8">
-          <h2 className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-2">
-            En cola ({enCola.length})
-          </h2>
-          <div className="grid gap-2">
-            {enCola.map(c => (
-              <div key={c.id} className="flex items-center justify-between rounded-lg border border-gray-100 bg-white px-3 py-2 text-sm">
-                <span className="font-medium text-gray-800">{valorConsulta(c)}</span>
-                <span className="text-gray-400">
-                  {c.tipoConsulta === 'dni' ? 'DNI · manual' : 'esperando consulta'}
-                </span>
+      {tab === 'sin_deuda' && (
+  <div className="grid gap-3">
+    {sinDeuda.length === 0 && !loading && <p className="text-sm text-gray-400">Sin consultas en esta categoría.</p>}
+    {sinDeuda.map(c => (
+      <article key={c.id} className="rounded-xl border border-gray-200 bg-white p-4">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <div className="font-semibold text-gray-900">{valorConsulta(c)}</div>
+            <div className="text-sm text-gray-500">{c.contacto?.nombre || 'Lead'}</div>
+          </div>
+          <span className="text-[11px] rounded-full px-2 py-0.5 bg-gray-100 text-gray-500 whitespace-nowrap">
+            {c.cotizacion ? `${c.cotizacion.cantidadExcluida} excluida(s)` : 'sin deuda'}
+          </span>
+        </div>
+        {c.cotizacion && c.cotizacion.actasExcluidas.length > 0 && (
+          <div className="mt-3 space-y-1">
+            {c.cotizacion.actasExcluidas.map(a => (
+              <div key={a.nroActa} className="flex items-center justify-between gap-2 text-xs text-gray-500 bg-gray-50 rounded-lg px-2 py-1.5">
+                <span className="font-mono shrink-0">{a.nroActa}</span>
+                <span className="flex-1 truncate">{a.estadoCausa}</span>
+                <span className="text-gray-400 flex-1 truncate">{a.clasificacion.motivoExclusion}</span>
+                <span className="shrink-0">{money(a.importeTotal)}</span>
               </div>
             ))}
           </div>
-        </section>
-      )}
-
-      {/* ── ENVIADAS / SIN DEUDA (resumen) ─────────────────────────────── */}
-      <section className="text-sm text-gray-400">
-        {porEstado.enviada.length > 0 && <div>Enviadas: {porEstado.enviada.length}</div>}
-        {porEstado.sin_deuda.length > 0 && <div>Sin deuda: {porEstado.sin_deuda.length}</div>}
-      </section>
-
-      {/* ── MODAL PRESUPUESTO ──────────────────────────────────────────── */}
-      <Modal
-        open={!!abierta}
-        onClose={() => setAbierta(null)}
-        title="Presupuesto de multas"
-        subtitle={abierta ? valorConsulta(abierta) : undefined}
-        size="lg"
-      >
+        )}
+      </article>
+    ))}
+  </div>
+)}
+      {/* ── MODAL PRESUPUESTO ─────────────────────────────────────────── */}
+      <Modal open={!!abierta} onClose={() => setAbierta(null)} title="Presupuesto de multas" subtitle={abierta ? valorConsulta(abierta) : undefined} size="lg">
         {abierta?.cotizacion && (
           <PresupuestoMultas
             dominio={valorConsulta(abierta)}

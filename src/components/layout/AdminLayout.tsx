@@ -4,7 +4,7 @@ import {
   CalendarDays, LogOut, Radar, Menu, X, MessageCircle,
   AlertTriangle, Ban, WifiOff, TrendingUp, CheckSquare, UserCog,
   Calculator, Upload, Settings, DollarSign, BarChart2,
-  Megaphone, Trophy, Building2, Search,
+  Megaphone, Trophy, Building2, Search, Target,
 } from 'lucide-react'
 import { useState } from 'react'
 import { signOut }     from 'firebase/auth'
@@ -36,9 +36,11 @@ const PREFETCH_MAP: Record<string, () => Promise<unknown>> = {
   '/admin/equipo':            () => import('@/features/equipo/EquipoPage'),           // ← nuevo
   '/admin/calculadora':       () => import('@/features/calculadora/CalculadoraPage'), // ← nuevo
   '/admin/importar':          () => import('@/features/importar/ImportarPage'),       // ← nuevo
+  '/admin/leads':              () => import('@/features/leads/LeadsPage').then(m => ({ default: m.default })),
   '/admin/bandeja':            () => import('@/features/bandeja/BandejaWAPage'),
   '/admin/premios':            () => import('@/features/premios/PremiosPage'),
   '/admin/referidos':          () => import('@/features/referidos/ReferidosPage'),
+  '/admin/revision-multas':    () => import('@/features/revision-multas/RevisionMultasPage'),
 }
 
 const NAV_ITEMS_ALL = [
@@ -49,7 +51,7 @@ const NAV_ITEMS_ALL = [
   { to: '/admin/torre-de-control', icon: Radar,           label: 'Torre de Control', permiso: 'verTramites'    },
   { to: '/admin/turnos',           icon: CalendarDays,    label: 'Turnos',           permiso: 'verTurnos'      },
   { to: '/admin/pipeline',         icon: TrendingUp,      label: 'Pipeline',         permiso: 'verCRM'         },
-  { to: '/admin/consultas-multas', icon: Search,         label: 'Consultas de multas', permiso: 'verCRM'        },
+  { to: '/admin/leads',            icon: Target,          label: 'Leads',            permiso: 'verCRM'         },
   { to: '/admin/bandeja', icon: MessageCircle, label: 'WhatsApp', permiso: 'verBandejaWA' },
   { to: '/admin/cobranzas',        icon: DollarSign,      label: 'Cobranzas',        permiso: 'verCobranzas'   },
   { to: '/admin/reportes',         icon: BarChart2,       label: 'Reportes',         permiso: 'verReportes'    },
@@ -61,6 +63,12 @@ const NAV_ITEMS_ALL = [
   { to: '/admin/importar',         icon: Upload,          label: 'Importar',         permiso: 'verClientes'    },
   { to: '/admin/configuracion',    icon: Settings,        label: 'Configuración',    permiso: 'verConfiguracion' },
   { to: '/admin/campanas', icon: Megaphone, label: 'Campañas', permiso: 'verBandejaWA' },
+] as const
+
+// Módulo MULTAS — agrupado y fuera del flujo de Trámites
+const NAV_MULTAS = [
+  { to: '/admin/revision-multas',  icon: AlertTriangle, label: 'Revisión de Multas',  permiso: 'verTramites' },
+  { to: '/admin/consultas-multas', icon: Search,        label: 'Consultas de Multas', permiso: 'verCRM'      },
 ] as const
 
 // ─── PANTALLAS DE ESTADO DEL TENANT ──────────────────────────────────────────
@@ -287,6 +295,34 @@ export default function AdminLayout() {
      </span>)}
               </NavLink>
             ))}
+            {/* ── Grupo MULTAS (fuera de Trámites) ── */}
+            {NAV_MULTAS.some(i => puede(i.permiso as Parameters<typeof puede>[0])) && (
+              <div className="pt-3 mt-2 border-t border-white/10">
+                <p className="px-3 pb-1 text-[10px] font-bold uppercase tracking-wider text-gray-500">
+                  Multas
+                </p>
+                {NAV_MULTAS
+                  .filter(item => puede(item.permiso as Parameters<typeof puede>[0]))
+                  .map(({ to, icon: Icon, label }) => (
+                    <NavLink
+                      key={to}
+                      to={to}
+                      onMouseEnter={() => PREFETCH_MAP[to]?.()}
+                      className={({ isActive }) =>
+                        `flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium
+                         transition-all border-l-2 ${
+                          isActive
+                            ? 'bg-[#D4621A]/20 text-[#F4936A] border-[#D4621A]'
+                            : 'text-gray-400 hover:bg-white/5 hover:text-white border-transparent'
+                        }`
+                      }
+                    >
+                      <Icon size={17} />
+                      <span style={{ flex: 1 }}>{label}</span>
+                    </NavLink>
+                  ))}
+              </div>
+            )}
           </nav>
 
           {/* User footer */}

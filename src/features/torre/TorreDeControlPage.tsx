@@ -45,6 +45,16 @@ const NIVEL_RAW = {
   naranja:  { bg: 'rgba(249,115,22,0.04)', border: '#f97316', text: '#c2410c', badge: 'rgba(249,115,22,0.11)', badgeText: '#c2410c' },
   amarillo: { bg: 'rgba(234,179,8,0.04)',  border: '#d97706', text: '#92400e', badge: 'rgba(234,179,8,0.11)',  badgeText: '#92400e' },
   info:     { bg: 'rgba(59,130,246,0.04)', border: '#3b82f6', text: '#1d4ed8', badge: 'rgba(59,130,246,0.11)', badgeText: '#1d4ed8' },
+}
+
+// Paleta saturada SOLO para el monitor (tabla). Colores puros estilo Excel,
+// aislada de NIVEL_RAW para no recargar el feed de alertas.
+const NIVEL_MONITOR = {
+  critico:  { bg: 'rgba(220,38,38,0.22)',  border: '#dc2626', text: '#991b1b', badge: 'rgba(220,38,38,0.16)',  badgeText: '#991b1b' },
+  rojo:     { bg: 'rgba(239,68,68,0.16)',  border: '#ef4444', text: '#b91c1c', badge: 'rgba(239,68,68,0.14)',  badgeText: '#b91c1c' },
+  naranja:  { bg: 'rgba(249,115,22,0.18)', border: '#f97316', text: '#9a3412', badge: 'rgba(249,115,22,0.16)', badgeText: '#9a3412' },
+  amarillo: { bg: 'rgba(250,204,21,0.28)', border: '#ca8a04', text: '#854d0e', badge: 'rgba(234,179,8,0.20)',  badgeText: '#854d0e' },
+  info:     { bg: 'rgba(59,130,246,0.14)', border: '#3b82f6', text: '#1e40af', badge: 'rgba(59,130,246,0.14)', badgeText: '#1e40af' },
 } as const
 
 const NIVEL_ICON: Record<NivelAlerta, string> = {
@@ -616,11 +626,11 @@ export default function TorreDeControlPage() {
             </div>
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full">
+              <table className="w-full border-collapse">
                 <thead>
-                  <tr className="bg-gray-50 border-b border-gray-100">
+                  <tr className="bg-gray-100 border-b-2 border-gray-300">
                     {['#', '', 'Patente / Cliente', 'Estado', 'Gestor', 'Días', 'Nivel'].map(h => (
-                      <th key={h} className="px-3 py-2.5 text-left text-[9px] font-bold text-gray-400 uppercase tracking-widest whitespace-nowrap">
+                      <th key={h} className="px-2 py-1.5 text-left text-[9px] font-bold text-gray-500 uppercase tracking-widest whitespace-nowrap border-r border-gray-200">
                         {h}
                       </th>
                     ))}
@@ -634,39 +644,39 @@ export default function TorreDeControlPage() {
                       </td>
                     </tr>
                   ) : tramitesFiltrados.map(t => {
-                    const nr = NIVEL_RAW[t.alertLevel]
+                    const nr = NIVEL_MONITOR[t.alertLevel]
                     return (
                       <tr
                         key={t.id}
                         onClick={() => (t.tipo === 'descargo_multa' || t.tipo === 'transferencia') ? navigate(`/admin/tramites/${t.id}`) : setDetalle(t)}
-                        className="cursor-pointer transition-all hover:brightness-95"
-                        style={{ background: nr.bg, borderLeft: `3px solid ${nr.border}`, borderBottom: `1px solid ${nr.border}18` }}
+                        className="cursor-pointer hover:brightness-95"
+                        style={{ background: nr.bg, borderLeft: `4px solid ${nr.border}`, borderBottom: '1px solid #cbd5e1' }}
                       >
-                        <td className="px-3 py-3 font-mono text-[10px] font-bold" style={{ color: nr.text }}>
+                        <td className="px-2 py-1 font-mono text-[10px] font-bold border-r border-gray-200" style={{ color: nr.text }}>
                           {t.numero ?? t.id.slice(-8)}
                         </td>
-                        <td className="px-2 py-3" style={{ color: nr.text, opacity: 0.8 }}>{TIPO_ICON[t.tipo]}</td>
-                        <td className="px-3 py-3 whitespace-nowrap">
-                          <p className="text-xs font-bold text-gray-900">{t.patente || '—'}</p>
+                        <td className="px-1.5 py-1 text-center border-r border-gray-200" style={{ color: nr.text, opacity: 0.85 }}>{TIPO_ICON[t.tipo]}</td>
+                        <td className="px-2 py-1 whitespace-nowrap border-r border-gray-200">
+                          <span className="text-xs font-bold text-gray-900">{t.patente || '—'}</span>
                           {(t as any).clienteNombre && (
-                            <p className="text-[10px] mt-0.5 text-gray-400 truncate max-w-[120px]">{(t as any).clienteNombre}</p>
+                            <span className="text-[10px] text-gray-500"> · {(t as any).clienteNombre}</span>
                           )}
                         </td>
-                        <td className="px-3 py-3">
-                          <span className={`inline-block text-[9px] font-bold px-2 py-0.5 rounded-full border ${ESTADO_COLOR[t.estado] ?? 'bg-gray-100 text-gray-600 border-gray-200'}`}>
+                        <td className="px-2 py-1 border-r border-gray-200">
+                          <span className={`inline-block text-[9px] font-bold px-1.5 py-0.5 rounded border ${ESTADO_COLOR[t.estado] ?? 'bg-gray-100 text-gray-600 border-gray-200'}`}>
                             {ESTADO_LABEL[t.estado] ?? t.estado}
                           </span>
                         </td>
-                        <td className="px-3 py-3 text-[11px] text-gray-600 whitespace-nowrap">
+                        <td className="px-2 py-1 text-[11px] text-gray-700 whitespace-nowrap border-r border-gray-200">
                           {nombreGestor(t.asignadoA)}
                         </td>
-                        <td className="px-3 py-3 text-center">
+                        <td className="px-2 py-1 text-center border-r border-gray-200">
                           <span className="text-xs font-extrabold" style={{ color: nr.text }}>
                             {t.diasSinMovimiento.toFixed(0)}d
                           </span>
                         </td>
-                        <td className="px-3 py-3">
-                          <span className="inline-flex items-center gap-1 text-[9px] font-extrabold px-2 py-1 rounded-full"
+                        <td className="px-2 py-1">
+                          <span className="inline-flex items-center gap-1 text-[9px] font-extrabold px-1.5 py-0.5 rounded"
                             style={{ background: nr.badge, color: nr.badgeText }}>
                             {NIVEL_ICON[t.alertLevel]} {t.alertLevel.toUpperCase()}
                           </span>

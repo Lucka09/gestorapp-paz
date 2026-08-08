@@ -2,6 +2,7 @@
 import {
   doc, setDoc, collection, addDoc, updateDoc, getDoc,
   serverTimestamp, Timestamp, arrayUnion,
+  onSnapshot, query, where,
   type CollectionReference,
 } from 'firebase/firestore'
 import { db }           from '@/lib/firebase'
@@ -12,7 +13,7 @@ import type {
   MultaWorkflow, MultaPaso1Data, MultaPaso2Data,
   MultaPaso3Data, MultaReboteResolucion,
   MultaPaso4Data, MultaPaso5Data, MultaPaso6Data, MultaPaso7Data,
-  EstadoMultaWorkflow, RegistroPago,
+  EstadoMultaWorkflow, RegistroPago, EstadoMulta, DocumentoAdicional,
 } from '@/multa_types'
 import { crearRecibo, generarNumeroRecibo } from '@/lib/firestore/recibos'
 import { notificarRecibo } from '@/lib/firestore/alertas'
@@ -21,6 +22,66 @@ import { notificarRecibo } from '@/lib/firestore/alertas'
  
 const workflowsCol = collection(db, 'multaWorkflow') as CollectionReference<MultaWorkflow>
 const workflowDoc  = (id: string) => doc(workflowsCol, id)
+
+// ─── LISTA DE MULTAS POR GESTORÍA (para "Revisión de Multas") ─────────────────
+// Suscripción en tiempo real a todos los workflows de multa de la gestoría.
+// El orden se resuelve en el cliente (por fecha de entrega) para no exigir un
+// índice compuesto en Firestore.
+export function subscribeMultaWorkflows(
+  gestoriaId: string,
+  cb: (rows: MultaWorkflow[]) => void,
+): () => void {
+  const q = query(workflowsCol, where('gestoriaId', '==', gestoriaId))
+  return onSnapshot(
+    q,
+    snap => cb(snap.docs.map(d => ({ ...d.data(), id: d.id }) as MultaWorkflow)),
+    err => { console.warn('[subscribeMultaWorkflows]', err.code ?? err.message); cb([]) },
+  )
+}
+
+// ─── ESTADO OPERATIVO MANUAL ──────────────────────────────────────────────────
+// Override del estado visible de la multa. estado=null limpia el override y
+// vuelve al estado derivado del workflow (ver estadoMultaEfectivo).
+export async function setEstadoMultaManual(
+  tramiteId: string,
+  estado:    EstadoMulta | null,
+  uid:       string,
+  nombre:    string,
+): Promise<void> {
+  await updateDoc(workflowDoc(tramiteId), {
+    estadoMultaManual:       estado,
+    estadoMultaManualPor:    estado ? uid : null,
+    estadoMultaManualNombre: estado ? nombre : null,
+    estadoMultaManualEn:     estado ? serverTimestamp() : null,
+    actualizadoEn:           serverTimestamp(),
+  } as any)
+}
+
+// ─── DOCUMENTACIÓN ADICIONAL (multi-DNI / cargas libres) ──────────────────────
+// Append-only: agrega un documento SIN pisar los ya cargados. Se pasa el array
+// existente (mismo patrón que agregarPagoMulta) para evitar problemas de
+// igualdad exacta de arrayUnion con objetos que llevan timestamp.
+export async function agregarDocumentoAdicional(
+  tramiteId:  string,
+  nuevo:      DocumentoAdicional,
+  existentes: DocumentoAdicional[],
+): Promise<void> {
+  await updateDoc(workflowDoc(tramiteId), {
+    documentosAdicionales: [...existentes, nuevo],
+    actualizadoEn:         serverTimestamp(),
+  } as any)
+}
+
+export async function eliminarDocumentoAdicional(
+  tramiteId:  string,
+  docId:      string,
+  existentes: DocumentoAdicional[],
+): Promise<void> {
+  await updateDoc(workflowDoc(tramiteId), {
+    documentosAdicionales: existentes.filter(d => d.id !== docId),
+    actualizadoEn:         serverTimestamp(),
+  } as any)
+}
  
 // ─── CREAR WORKFLOW ───────────────────────────────────────────────────────────
  

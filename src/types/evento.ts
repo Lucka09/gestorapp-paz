@@ -164,15 +164,10 @@ export function crearEvento(
   }
 ): EventoInput {
   const { actorId, actorNombre, actorRol, actorTipo = 'usuario', ...rest } = params
-  return {
-    ...rest,
-    actor: {
-      id: actorId,
-      nombre: actorNombre,
-      rol: actorRol,
-      tipo: actorTipo,
-    },
-  }
+  const actor: Actor = { id: actorId, tipo: actorTipo }
+  if (actorNombre !== undefined) actor.nombre = actorNombre
+  if (actorRol   !== undefined) actor.rol   = actorRol
+  return { ...rest, actor }
 }
 
 /**

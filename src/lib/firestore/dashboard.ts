@@ -217,7 +217,7 @@ export async function getTiposTramiteFrecuentes(gestoriaId: string): Promise<Tip
     baja: 'Baja', formulario_08: 'Form. 08', duplicado_titulo: 'Dup. Título',
     duplicado_cedula: 'Dup. Cédula', cambio_radicacion: 'Cambio Radicación',
     informe_dominio: 'Informe Dominio', certificado_dominio: 'Cert. Dominio',
-    prenda: 'Prenda', descargo_multa: 'Descargo Multas PBA', vtv: 'VTV',
+    prenda: 'Prenda', descargo_multa: 'Revisión de Multas', vtv: 'VTV',
     inhibicion: 'Inhibición', levantamiento_inhibicion: 'Lev. Inhibición',
   }
   return Object.entries(conteo)

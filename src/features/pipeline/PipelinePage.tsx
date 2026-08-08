@@ -271,6 +271,7 @@ function ProspectoForm({
   const [form, setForm] = useState({
     nombre:      initial?.nombre      ?? '',
     apellido:    initial?.apellido    ?? '',
+    documento:  initial?.documento  ?? '',
     telefono:    initial?.telefono    ?? '',
     email:       initial?.email       ?? '',
     localidad:   initial?.localidad   ?? '',
@@ -326,20 +327,24 @@ function ProspectoForm({
           <input className={inputCls} type="email" value={form.email} onChange={set('email')} placeholder="juan@mail.com" />
         </div>
       </div>
-      <div className="grid grid-cols-2 gap-3">
-        <div>
-          <label className={labelCls}>Tipo de trámite</label>
-          <select className={inputCls} value={form.tipoTramite} onChange={set('tipoTramite')}>
-            {(Object.entries(TIPO_TRAMITE_LABELS) as [TipoTramite, string][]).map(([v, l]) => (
-              <option key={v} value={v}>{l}</option>
-            ))}
-          </select>
-        </div>
-        <div>
-          <label className={labelCls}>Patente</label>
-          <input className={`${inputCls} uppercase`} value={form.patente} onChange={set('patente')} placeholder="AB123CD" />
-        </div>
-      </div>
+      <div className="grid grid-cols-3 gap-3">
+  <div>
+    <label className={labelCls}>Tipo de trámite</label>
+    <select className={inputCls} value={form.tipoTramite} onChange={set('tipoTramite')}>
+      {(Object.entries(TIPO_TRAMITE_LABELS) as [TipoTramite, string][]).map(([v, l]) => (
+        <option key={v} value={v}>{l}</option>
+      ))}
+    </select>
+  </div>
+  <div>
+    <label className={labelCls}>Patente</label>
+    <input className={`${inputCls} uppercase`} value={form.patente} onChange={set('patente')} placeholder="AB123CD" />
+  </div>
+  <div>
+    <label className={labelCls}>DNI / Doc</label>
+    <input className={inputCls} value={form.documento} onChange={set('documento')} placeholder="30111222" inputMode="numeric" />
+  </div>
+</div>
       <div>
         <label className={labelCls}>Localidad</label>
         <input className={inputCls} value={form.localidad} onChange={set('localidad')} placeholder="San Martín" />

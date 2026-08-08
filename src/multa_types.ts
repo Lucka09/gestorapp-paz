@@ -176,6 +176,23 @@ export interface MultaPaso7Data {
   completadoEn:        Timestamp
 }
 
+// ─── DOCUMENTOS ADICIONALES ───────────────────────────────────────────────────
+// Para patentes con multas a nombre de MÁS DE UN DNI: cada carga es un ítem
+// aparte que se suma a los documentos base del paso 2, sin sobrescribirlos.
+
+export interface DocumentoAdicional {
+  id:        string          // id local (uuid)
+  etiqueta:  string          // ej: "DNI 2do titular", "DNI infractor", "Informe persona"
+  dni?:      string
+  nombre?:   string
+  frente?:   FotoWorkflow
+  dorso?:    FotoWorkflow
+  extra?:    FotoWorkflow[]  // por si hace falta más de 2 imágenes
+  agregadoPor:       string
+  agregadoPorNombre: string
+  agregadoEn:        Timestamp
+}
+
 // ─── DOCUMENTO PRINCIPAL ──────────────────────────────────────────────────────
 
 export interface MultaWorkflow {
@@ -208,6 +225,17 @@ export interface MultaWorkflow {
     modificadoEn:        Timestamp
     nota?:               string
   }[]
+
+  // ─── ESTADO OPERATIVO DE MULTA (visible para operadores) ──────────────────
+  // Override manual. Si existe, gana sobre el estado derivado del workflow.
+  estadoMultaManual?:      EstadoMulta
+  estadoMultaManualPor?:   string
+  estadoMultaManualNombre?:string
+  estadoMultaManualEn?:    Timestamp
+
+  // ─── DOCUMENTOS ADICIONALES (multi-DNI / cargas libres) ───────────────────
+  // Append-only: se agregan SIN pisar los ya cargados (botón "Agregar doc.").
+  documentosAdicionales?:  DocumentoAdicional[]
 
   creadoEn:      Timestamp
   actualizadoEn: Timestamp
@@ -337,4 +365,102 @@ export function documentacionCompleta(paso2: Partial<MultaPaso2Data>): boolean {
   const tituloOk  = !!paso2.fotoTituloFrente && !!paso2.fotoTituloDorso
   const docSecOk  = cedulaOk || tituloOk
   return dniOk && (docSecOk || !!(paso2.observacionDocumentacion?.trim()))
+}
+
+
+// ─── ESTADO OPERATIVO DE MULTA (VISIBLE) ──────────────────────────────────────
+// Set propio de "Revisión de Multas", distinto del EstadoMultaWorkflow interno.
+// Se usa en la lista de multas Y dentro del workflow. Híbrido: algunos derivan
+// del avance de pasos (AUTO), otros los setea el operador a mano (MANUAL).
+
+export type EstadoMulta =
+  | 'pendiente_revision'       // AUTO   — esperando pre-revisión del admin
+  | 'revision_ok'              // AUTO   — admin marcó "ok", proceder
+  | 'en_proceso'               // AUTO   — gestión en curso
+  | 'docs_requerida'           // AUTO   — falta doc (informe persona / DNI ajeno)
+  | 'p_envio_renaper'          // MANUAL — listo para enviar a RENAPER (a la mañana)
+  | 'esperando_renaper'        // MANUAL — enviado, esperando respuesta
+  | 'esperando_fecha_cliente'  // MANUAL — cliente aún no confirmó fecha (SIN alertas)
+  | 'listo_presentar'          // MANUAL — todo listo, esperando la fecha de entrega
+  | 'entregado'                // AUTO   — completado
+  | 'cancelado'                // MANUAL
+
+export const ESTADO_MULTA_OP_ORDER: EstadoMulta[] = [
+  'pendiente_revision', 'revision_ok', 'en_proceso', 'docs_requerida',
+  'p_envio_renaper', 'esperando_renaper', 'esperando_fecha_cliente',
+  'listo_presentar', 'entregado', 'cancelado',
+]
+
+export const ESTADO_MULTA_OP_LABELS: Record<EstadoMulta, string> = {
+  pendiente_revision:      'Pendiente Revisión',
+  revision_ok:             'Revisión OK, proceder',
+  en_proceso:              'En Proceso',
+  docs_requerida:          'Docs. Requerida',
+  p_envio_renaper:         'P/ Envío RENAPER',
+  esperando_renaper:       'Esperando RENAPER',
+  esperando_fecha_cliente: 'Esperando Fecha (Cliente)',
+  listo_presentar:         'Listo p/ Presentar',
+  entregado:               'Entregado',
+  cancelado:               'Cancelado',
+}
+
+// Badges (Tailwind) para lista y workflow
+export const ESTADO_MULTA_OP_COLORS: Record<EstadoMulta, string> = {
+  pendiente_revision:      'bg-gray-100 text-gray-700 border border-gray-200',
+  revision_ok:             'bg-sky-100 text-sky-700 border border-sky-200',
+  en_proceso:              'bg-blue-100 text-blue-700 border border-blue-200',
+  docs_requerida:          'bg-amber-100 text-amber-800 border border-amber-200',
+  p_envio_renaper:         'bg-violet-100 text-violet-700 border border-violet-200',
+  esperando_renaper:       'bg-purple-100 text-purple-700 border border-purple-200',
+  esperando_fecha_cliente: 'bg-orange-100 text-orange-700 border border-orange-200',
+  listo_presentar:         'bg-teal-100 text-teal-700 border border-teal-200',
+  entregado:               'bg-green-100 text-green-700 border border-green-200',
+  cancelado:               'bg-red-100 text-red-700 border border-red-200',
+}
+
+// Estados que setea el operador a mano (no salen del avance de pasos)
+export const ESTADOS_MULTA_MANUALES: EstadoMulta[] = [
+  'p_envio_renaper', 'esperando_renaper', 'esperando_fecha_cliente',
+  'listo_presentar', 'cancelado',
+]
+
+// Mientras esperamos que el cliente confirme fecha NO deben sonar alertas de fecha
+export const ESTADOS_MULTA_SIN_ALERTA_FECHA: EstadoMulta[] = [
+  'esperando_fecha_cliente',
+]
+
+// ─── DERIVACIÓN AUTOMÁTICA (parte AUTO del híbrido) ───────────────────────────
+// Estado operativo por defecto según el avance del workflow interno.
+export function derivarEstadoMulta(
+  w: Pick<MultaWorkflow, 'pasoActual' | 'estadoWorkflow' | 'paso3'>,
+): EstadoMulta {
+  switch (w.estadoWorkflow) {
+    case 'recepcion':
+    case 'en_revision':
+      return 'pendiente_revision'
+    case 'rebotado':
+    case 'en_espera_mesa':
+      return 'docs_requerida'
+    case 'en_gestion':
+      return w.paso3?.resultado === 'ok' && w.pasoActual === 4
+        ? 'revision_ok'
+        : 'en_proceso'
+    case 'borradores_listos':
+    case 'descargo_subido':
+      return 'en_proceso'
+    case 'suats_generado':
+    case 'resuelto_sin_suats':
+      return 'listo_presentar'
+    case 'completado':
+      return 'entregado'
+    default:
+      return 'pendiente_revision'
+  }
+}
+
+// Estado efectivo: manual si existe, si no el derivado del workflow.
+export function estadoMultaEfectivo(
+  w: Pick<MultaWorkflow, 'pasoActual' | 'estadoWorkflow' | 'paso3' | 'estadoMultaManual'>,
+): EstadoMulta {
+  return w.estadoMultaManual ?? derivarEstadoMulta(w)
 }
