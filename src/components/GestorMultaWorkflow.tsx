@@ -240,6 +240,9 @@ export default function GestorMultaWorkflow({ tramiteId, numeroLITExterno }: Pro
 
   const esAdmin           = puede('editarConfiguracion') || ['admin','propietario','admin_gral'].includes(user?.rol ?? '')
   const esAsesorComercial = user?.rol === 'asesor_comercial'
+  const esAsistenteMultas = user?.rol === 'asistente_multas'
+// El asistente de multas ejecuta el workflow COMPLETO (paso 1 a 7):
+// opera como admin en los pasos 3-6 y como asesor en 1-2 y 7.
   const esAsesor          = esAsesorComercial || ['vendedor','operador'].includes(user?.rol ?? '') || !esAdmin
   const puedeAsignar      = esAsesorComercial || esAdmin
   const puedeCerrarPaso7  = ['propietario','admin_gral','admin'].includes(user?.rol ?? '')

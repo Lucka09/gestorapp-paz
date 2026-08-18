@@ -116,8 +116,8 @@ function ModalNuevoMiembro({
   const esPropietario = user?.rol === 'propietario'
   // Solo el propietario puede asignar el rol admin_gral (máx 1 por gestoría)
   const rolOpciones: Rol[] = esPropietario
-    ? ['admin_gral', 'admin', 'vendedor', 'operador', 'gestor', 'asesor_comercial']
-    : ['admin', 'vendedor', 'operador', 'gestor', 'asesor_comercial']
+    ? ['admin_gral', 'admin', 'vendedor', 'operador', 'gestor', 'asesor_comercial', 'asistente_multas']
+    : ['admin', 'vendedor', 'operador', 'gestor', 'asesor_comercial' , 'asistente_multas']
 
   const handleCrear = async () => {
     if (!nombre.trim() || !apellido.trim()) { setError('Completá nombre y apellido'); return }
@@ -537,7 +537,7 @@ export default function EquipoPage() {
 
       {/* Resumen por rol */}
       <div className="grid grid-cols-2 md:grid-cols-6 gap-3">
-        {(['propietario', 'admin_gral', 'admin', 'vendedor', 'operador', 'gestor', 'asesor_comercial'] as Rol[]).map(r => {
+        {(['propietario', 'admin_gral', 'admin', 'vendedor', 'operador', 'gestor', 'asesor_comercial' , "asesor_comercial"] as Rol[]).map(r => {
           const n = activos.filter(m => m.rol === r).length
           return (
             <div key={r} className="bg-white border border-gray-100 rounded-2xl p-4 shadow-sm">

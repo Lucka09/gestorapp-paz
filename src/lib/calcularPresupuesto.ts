@@ -33,9 +33,9 @@ export interface ConfigPresupuesto {
   cuotasLargaMonto: number
 }
 export const CONFIG_PRESUPUESTO_DEFAULT: ConfigPresupuesto = {
-  transfAuto: true, transfPct: 41,
+  transfAuto: true, transfPct: 40,
   suatsOn: true, suatsMonto: 20_000,
-  efvoManual: false, efvoMonto: 0, efvoPct: 10,
+  efvoManual: false, efvoMonto: 0, efvoPct: 35,
   mostrarCuotas: false, cuotasManual: false,
   nChica: 3, nLarga: 6, recargoChica: 15, recargoLarga: 35,
   cuotasChicaMonto: 0, cuotasLargaMonto: 0,
@@ -76,10 +76,12 @@ export function calcularPresupuesto(
     (f.transfModo ?? (config.transfAuto ? 'pct' : 'manual')) === 'pct'
       ? Math.round((f.deuda || 0) * (f.transfPct ?? config.transfPct) / 100)
       : (f.resol || 0))
-  const efvoFila = filas.map((f, i) =>
+  // Efectivo: pct = abona % de la DEUDA de la fila (simétrico a transferencia);
+  // manual = monto fijo. (Antes era un descuento sobre el monto de transferencia.)
+  const efvoFila = filas.map((f) =>
     (f.efvoModo ?? 'pct') === 'manual'
       ? (f.efvoMonto || 0)
-      : Math.round(quedaFila[i] * (1 - (f.efvoPct ?? config.efvoPct) / 100)))
+      : Math.round((f.deuda || 0) * (f.efvoPct ?? config.efvoPct) / 100))
 
   // SUATS: 1 solo por presupuesto, distribuido entre jurisdicciones
   const cuotaSuat = n > 0 ? Math.floor(S / n) : 0
@@ -138,8 +140,8 @@ Dominio: *${params.dominio}*
 
 Deuda total actual: ${money(c.D)}
 Ahorro con la gestión: *${money(c.ahorro)}*
-${conDesglose ? `\n*Desglose por Jurisdicción (Transferencia):*\n${desglose(c.quedaConSuats)}\n` : ''}▸ *TOTAL A ABONAR:* ${money(c.T)} (transferencia)
-${conDesglose ? `\n*Desglose en Efectivo (en nuestras oficinas):*\n${desglose(c.efvoConSuats)}\n` : ''}▸ *TOTAL EN EFECTIVO:* ${money(c.E)}${lineaCuotas}${lineaSuats}
+${conDesglose ? `\n*Desglose por Jurisdicción (Transferencia):*\n${desglose(c.quedaConSuats)}\n` : ''}▸ *Pago por transferencia:* ${money(c.T)}
+${conDesglose ? `\n*Desglose en Efectivo (en nuestra oficina):*\n${desglose(c.efvoConSuats)}\n` : ''}▸ *Pago en efectivo en nuestra oficina:* ${money(c.E)}${lineaCuotas}${lineaSuats}
 
 Incluye la gestión de las infracciones visibles en las plataformas oficiales al día de la fecha.
 El informe de multas sale limpio en ${plazo}. Ideal para renovar el registro, transferir el vehículo o presentar la baja al seguro.

@@ -4,7 +4,6 @@ import { TIPO_TRAMITE_LABELS, ESTADO_TRAMITE_LABELS, ESTADO_TRAMITE_EMOJI } from
 import type { Seguimiento } from '@/lib/firestore/seguimientos'
 import { TIPO_CONTACTO_LABELS } from '@/lib/firestore/seguimientos'
 import { formatFecha } from '@/utils'
-
 // ─── HELPERS ──────────────────────────────────────────────────────────────────
 
 function descargar(XLSX: any, wb: any, nombre: string) {

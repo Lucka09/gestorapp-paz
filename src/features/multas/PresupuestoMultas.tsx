@@ -97,8 +97,8 @@ export default function PresupuestoMultas({
   const [config, setConfig] = useState<ConfigPresupuesto>({ ...CONFIG_PRESUPUESTO_DEFAULT, ...configInicial })
   const [meta, setMeta] = useState({ fecha: hoyISO(), cliente: clienteNombre ?? '', plazo: '72 hs hábiles promedio', validez: 5 })
   const [defaults, setDefaults] = useState({
-    transfModo: 'pct' as 'manual' | 'pct', transfPct: 41,
-    efvoModo: 'pct' as 'pct' | 'manual', efvoPct: 10,
+    transfModo: 'pct' as 'manual' | 'pct', transfPct: 40,
+efvoModo: 'pct' as 'pct' | 'manual', efvoPct: 35,
     recargoChica: 15, recargoLarga: 35,
   })
   const nuevaFila = (): FilaPresupuesto => ({
@@ -111,8 +111,8 @@ export default function PresupuestoMultas({
     jur: 'Pag. Provincia de Buenos Aires',
     cant: cotizacion.cantidadTrabajable,
     deuda: cotizacion.importeTotalDeuda,
-    resol: Math.round(cotizacion.importeTotalDeuda * 41 / 100),
-    transfModo: 'pct', transfPct: 41, efvoModo: 'pct', efvoPct: 10, efvoMonto: 0,
+    resol: Math.round(cotizacion.importeTotalDeuda * 40 / 100),
+transfModo: 'pct', transfPct: 40, efvoModo: 'pct', efvoPct: 35, efvoMonto: 0,
     recargoChica: 15, recargoLarga: 35,
   }])
 

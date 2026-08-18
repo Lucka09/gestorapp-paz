@@ -17,13 +17,13 @@ service cloud.firestore {
       return usuarioAutenticado() && miPerfil().rol == 'superadmin';
     }
     function isStaff() {
-      return usuarioAutenticado() &&
-        miPerfil().gestoriaId != null &&
-        miPerfil().rol in [
-          'propietario','admin_gral','admin','gestor',
-          'operador','vendedor','asesor_comercial'
-        ];
-    }
+  return usuarioAutenticado() &&
+    miPerfil().gestoriaId != null &&
+    miPerfil().rol in [
+      'propietario','admin_gral','admin','gestor',
+      'operador','vendedor','asesor_comercial','asistente_multas'
+    ];
+}
     function isAdmin() {
       return usuarioAutenticado() &&
         miPerfil().rol in ['propietario','admin_gral','admin'];
@@ -32,12 +32,12 @@ service cloud.firestore {
       return usuarioAutenticado() && miPerfil().rol == 'propietario';
     }
     function puedeCambiarEstado() {
-      return usuarioAutenticado() &&
-        miPerfil().rol in [
-          'propietario','admin_gral','admin','gestor',
-          'operador','asesor_comercial','superadmin'
-        ];
-    }
+  return usuarioAutenticado() &&
+    miPerfil().rol in [
+      'propietario','admin_gral','admin','gestor',
+      'operador','asesor_comercial','superadmin','asistente_multas'
+    ];
+}
 
     // ─── USERS ───────────────────────────────────────────────────────────────
     match /users/{uid} {

@@ -5,10 +5,14 @@ import Modal from '@/components/shared/Modal'
 import PresupuestoMultas from '@/features/multas/PresupuestoMultas'
 import { usePermisos } from '@/hooks/usePermisos'
 import { useConsultasInfracciones } from '@/hooks/useConsultasInfracciones'
+import { useEquipo } from '@/hooks/useEquipo'
+import { useAuthStore } from '@/store/authStore'
 import {
   persistirDatosPresupuesto,
   marcarConsultaEnviada,
   descartarConsulta,
+  asignarConsulta,
+  reclamarConsultaSiLibre,
 } from '@/lib/firestore/consultasInfracciones'
 import { money } from '@/lib/calcularPresupuesto'
 import type { ConsultaInfraccion } from '@/infraccion_types'
@@ -16,6 +20,9 @@ import type { DatosPresupuesto } from '@/lib/armarDatosPresupuesto'
 
 const NARANJA = '#D4621A'
 type Tab = 'cola' | 'cotizadas' | 'sin_deuda'
+
+// Roles que pueden asignar y ver todas las consultas.
+const ROLES_ADMIN = ['propietario', 'admin', 'admin_gral', 'superadmin']
 
 function valorConsulta(c: ConsultaInfraccion): string {
   return c.tipoConsulta === 'dni' ? (c.dni ?? '—') : (c.dominio ?? '—')
@@ -28,8 +35,11 @@ const trabajables = (c: ConsultaInfraccion) => c.cotizacion?.cantidadTrabajable 
 
 export default function ConsultasMultasPage() {
   const { puede } = usePermisos()
-  const puedeVer = puede('verCRM')
+  const user = useAuthStore(s => s.user)
+  const { activos } = useEquipo()
+  const puedeVer = puede('verConsultasMultas')
   const puedeEnviar = puede('responderWA')
+  const esAdmin = ROLES_ADMIN.includes(user?.rol ?? '')
   const { porEstado, paraEnviar, loading } = useConsultasInfracciones()
   const [tab, setTab] = useState<Tab>('cola')
   const [abierta, setAbierta] = useState<ConsultaInfraccion | null>(null)
@@ -54,10 +64,25 @@ export default function ConsultasMultasPage() {
     { key: 'sin_deuda', label: 'Sin deuda / sin trabajables', count: sinDeuda.length },
   ]
 
+  async function handleAsignar(consultaId: string, uid: string) {
+    try {
+      if (!uid) { await asignarConsulta(consultaId, null); toast('Consulta liberada'); return }
+      const m = activos.find(x => x.uid === uid)
+      await asignarConsulta(consultaId, { uid, nombre: m ? `${m.nombre} ${m.apellido}` : '—' })
+      toast.success('Consulta asignada')
+    } catch (e: any) { toast.error(e?.message ?? 'No se pudo asignar') }
+  }
+
   async function handleEnviar(consulta: ConsultaInfraccion, datos: DatosPresupuesto) {
     try {
       await persistirDatosPresupuesto(consulta.id, datos)
       await marcarConsultaEnviada(consulta.id)
+      // Auto-claim: quien la trabaja/envía queda asignado si estaba libre.
+      if (!consulta.asignadoA && user) {
+        await reclamarConsultaSiLibre(consulta.id, {
+          uid: user.uid, nombre: `${user.nombre ?? ''} ${user.apellido ?? ''}`.trim() || (user.email ?? '—'),
+        })
+      }
       const wa = consulta.contacto?.whatsapp
       if (wa) window.open(waLink(wa, datos.mensajeWhatsapp), '_blank', 'noopener')
       toast.success('Presupuesto guardado. Abriendo WhatsApp…')
@@ -69,11 +94,38 @@ export default function ConsultasMultasPage() {
     catch (e: any) { toast.error(e?.message ?? 'Error al descartar') }
   }
 
+  // ── Sub-componentes ────────────────────────────────────────────────────
+  const AsignarSelect = ({ c }: { c: ConsultaInfraccion }) => {
+    if (!esAdmin) return null
+    return (
+      <select
+        value={c.asignadoA ?? ''}
+        onClick={e => e.stopPropagation()}
+        onChange={e => handleAsignar(c.id, e.target.value)}
+        className="text-[11px] border border-gray-200 rounded-lg px-2 py-1 bg-white text-gray-600 outline-none focus:border-orange-300"
+      >
+        <option value="">Sin asignar</option>
+        {activos.map(m => (
+          <option key={m.uid} value={m.uid}>{m.nombre} {m.apellido}</option>
+        ))}
+      </select>
+    )
+  }
+
+  const BadgeAsignado = ({ c }: { c: ConsultaInfraccion }) =>
+    c.asignadoANombre
+      ? <span className="text-[10px] rounded-full px-2 py-0.5 bg-blue-50 text-blue-700 whitespace-nowrap">{c.asignadoANombre}</span>
+      : null
+
   return (
     <div className="p-4 md:p-6 max-w-3xl mx-auto">
       <header className="mb-4">
         <h1 className="text-xl font-bold" style={{ color: NARANJA }}>Consultas de multas</h1>
-        <p className="text-sm text-gray-500">Cola de la extensión, cotizaciones y resultados sin deuda.</p>
+        <p className="text-sm text-gray-500">
+          {esAdmin
+            ? 'Cola de la extensión, cotizaciones y resultados sin deuda.'
+            : 'Tus consultas asignadas.'}
+        </p>
       </header>
 
       {/* ── PESTAÑAS ─────────────────────────────────────────────────── */}
@@ -101,14 +153,18 @@ export default function ConsultasMultasPage() {
         <div className="grid gap-2">
           {enCola.length === 0 && !loading && <p className="text-sm text-gray-400">Nada en cola por ahora.</p>}
           {enCola.map(c => (
-            <div key={c.id} className="flex items-center justify-between rounded-lg border border-gray-100 bg-white px-3 py-2 text-sm">
-              <div>
+            <div key={c.id} className="flex items-center justify-between gap-2 rounded-lg border border-gray-100 bg-white px-3 py-2 text-sm">
+              <div className="min-w-0">
                 <span className="font-medium text-gray-800">{valorConsulta(c)}</span>
                 <span className="text-gray-400 ml-2">{c.contacto?.nombre || 'Lead'}</span>
               </div>
-              <span className="text-gray-400 text-xs">
-                {c.estado === 'consultada' ? 'procesando…' : c.tipoConsulta === 'dni' ? 'DNI · esperando extensión' : 'esperando extensión'}
-              </span>
+              <div className="flex items-center gap-2 shrink-0">
+                <BadgeAsignado c={c} />
+                <AsignarSelect c={c} />
+                <span className="text-gray-400 text-xs whitespace-nowrap">
+                  {c.estado === 'consultada' ? 'procesando…' : c.tipoConsulta === 'dni' ? 'DNI · esperando extensión' : 'esperando extensión'}
+                </span>
+              </div>
             </div>
           ))}
         </div>
@@ -125,9 +181,12 @@ export default function ConsultasMultasPage() {
                   <div className="font-semibold text-gray-900">{valorConsulta(c)}</div>
                   <div className="text-sm text-gray-500">{c.contacto?.nombre || 'Lead'}{c.contacto?.whatsapp ? ` · ${c.contacto.whatsapp}` : ''}</div>
                 </div>
-                <span className={`text-[11px] rounded-full px-2 py-0.5 whitespace-nowrap ${c.estado === 'enviada' ? 'bg-green-50 text-green-700' : 'bg-orange-50 text-orange-700'}`}>
-                  {c.estado === 'enviada' ? 'enviada' : 'cotizada'}
-                </span>
+                <div className="flex items-center gap-2">
+                  <BadgeAsignado c={c} />
+                  <span className={`text-[11px] rounded-full px-2 py-0.5 whitespace-nowrap ${c.estado === 'enviada' ? 'bg-green-50 text-green-700' : 'bg-orange-50 text-orange-700'}`}>
+                    {c.estado === 'enviada' ? 'enviada' : 'cotizada'}
+                  </span>
+                </div>
               </div>
               {c.cotizacion && (
                 <div className="mt-3 grid grid-cols-3 gap-2 text-center">
@@ -136,10 +195,11 @@ export default function ConsultasMultasPage() {
                   <Metric label="Honorarios" value={money(c.cotizacion.honorariosGestoria)} />
                 </div>
               )}
-              <div className="mt-4 flex gap-2">
+              <div className="mt-4 flex items-center gap-2">
                 <button onClick={() => setAbierta(c)} className="flex-1 rounded-lg py-2 text-sm font-semibold text-white" style={{ background: NARANJA }}>
                   Ver presupuesto
                 </button>
+                <AsignarSelect c={c} />
                 {c.estado !== 'enviada' && (
                   <button onClick={() => handleDescartar(c.id)} className="rounded-lg px-3 py-2 text-sm text-gray-500 bg-gray-100">
                     Descartar
@@ -161,9 +221,12 @@ export default function ConsultasMultasPage() {
             <div className="font-semibold text-gray-900">{valorConsulta(c)}</div>
             <div className="text-sm text-gray-500">{c.contacto?.nombre || 'Lead'}</div>
           </div>
-          <span className="text-[11px] rounded-full px-2 py-0.5 bg-gray-100 text-gray-500 whitespace-nowrap">
-            {c.cotizacion ? `${c.cotizacion.cantidadExcluida} excluida(s)` : 'sin deuda'}
-          </span>
+          <div className="flex items-center gap-2">
+            <BadgeAsignado c={c} />
+            <span className="text-[11px] rounded-full px-2 py-0.5 bg-gray-100 text-gray-500 whitespace-nowrap">
+              {c.cotizacion ? `${c.cotizacion.cantidadExcluida} excluida(s)` : 'sin deuda'}
+            </span>
+          </div>
         </div>
         {c.cotizacion && c.cotizacion.actasExcluidas.length > 0 && (
           <div className="mt-3 space-y-1">

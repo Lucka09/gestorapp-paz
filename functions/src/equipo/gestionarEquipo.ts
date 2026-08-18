@@ -30,16 +30,16 @@ if (!admin.apps.length) admin.initializeApp()
 
 type Rol =
   | 'propietario' | 'admin_gral' | 'admin' | 'vendedor' | 'operador'
-  | 'gestor' | 'asesor_comercial' | 'superadmin' | 'cliente'
+  | 'gestor' | 'asesor_comercial' | 'asistente_multas' | 'superadmin' | 'cliente'
 
 // Quién puede gestionar equipo. admin_gral queda AFUERA a propósito:
 // tiene gestionarEquipo:false en permisos.ts.
 const ROLES_QUE_GESTIONAN: Rol[] = ['propietario', 'admin', 'superadmin']
 
 // Roles que se pueden asignar por esta vía. NO incluye propietario/superadmin
-// (anti-escalada) ni cliente. Cuando exista, agregar 'asistente_multas' acá.
+// (anti-escalada) ni cliente.
 const ROLES_ASIGNABLES: Rol[] = [
-  'admin_gral', 'admin', 'vendedor', 'operador', 'gestor', 'asesor_comercial',
+  'admin_gral', 'admin', 'vendedor', 'operador', 'gestor', 'asesor_comercial', 'asistente_multas',
 ]
 
 // Roles que solo un propietario/superadmin puede asignar.

@@ -7,7 +7,7 @@
 
 import { useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Search, AlertTriangle, FileWarning, X, ChevronRight } from 'lucide-react'
+import { Search, AlertTriangle, FileWarning, X, ChevronRight, Download } from 'lucide-react'
 import { useMultaWorkflows } from '@/hooks/useMultaWorkflow'
 import { useTramites } from '@/hooks/useTramites'
 import { usePageTitle } from '@/hooks/usePageTitle'
@@ -21,6 +21,8 @@ import {
   type MultaWorkflow,
 } from '@/types/multa_types'
 import type { Tramite } from '@/types'
+import { usePermisos } from '@/hooks/usePermisos'
+import { exportarMultas } from '@/utils/exportarMultas'   // ajustá la ruta a la real de exportar.ts
 
 // ─── HELPERS ──────────────────────────────────────────────────────────────────
 
@@ -89,6 +91,13 @@ export default function RevisionMultasPage() {
   usePageTitle('Revisión de Multas')
   const navigate = useNavigate()
   const { multas, loading } = useMultaWorkflows()
+  const { puede } = usePermisos()
+const [exportando, setExportando] = useState(false)
+const handleExportar = async () => {
+  setExportando(true)
+  try { await exportarMultas(rows.map(r => r.w), tramites) }
+  finally { setExportando(false) }
+}
   const { tramites } = useTramites()
 
   const [search, setSearch] = useState('')
@@ -150,6 +159,12 @@ export default function RevisionMultasPage() {
   return (
     <div>
       {/* Encabezado */}
+      {puede('exportarDatos') && (
+  <button onClick={handleExportar} disabled={exportando}
+    className="ml-auto inline-flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-semibold bg-[var(--gp-orange)] text-white disabled:opacity-50">
+    <Download size={15} /> {exportando ? 'Exportando…' : 'Exportar'}
+  </button>
+)}
       <div className="flex items-center gap-3 mb-5">
         <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ background: 'var(--gp-orange)' }}>
           <FileWarning size={18} className="text-white" />

@@ -11,7 +11,7 @@
 // el volumen de leads es bajo y se ordena en memoria en el hook.
 
 import {
-  collection, doc, query, where, onSnapshot, updateDoc,
+  collection, doc, query, where, onSnapshot, updateDoc, getDoc,
   serverTimestamp, type Unsubscribe,
 } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
@@ -23,7 +23,7 @@ const consultaDoc  = (id: string) => doc(db, 'consultasInfracciones', id)
 
 // ─── READ ─────────────────────────────────────────────────────────────────────
 
-/** Todas las consultas de la gestoría (el hook ordena por fecha en memoria). */
+/** Todas las consultas de la gestoría (el hook ordena y filtra por privacidad). */
 export function subscribeConsultas(
   gestoriaId: string,
   callback:   (items: ConsultaInfraccion[]) => void,
@@ -34,11 +34,49 @@ export function subscribeConsultas(
   )
 }
 
+// ─── ASIGNACIÓN (privacidad) ────────────────────────────────────────────────
+
+/**
+ * Asigna (o desasigna con null) una consulta a un usuario. La visibilidad de la
+ * consulta sigue a `asignadoA`: solo la ven el asignado + los admins.
+ */
+export async function asignarConsulta(
+  consultaId: string,
+  asignado:   { uid: string; nombre: string } | null,
+): Promise<void> {
+  await updateDoc(consultaDoc(consultaId), {
+    asignadoA:       asignado?.uid ?? null,
+    asignadoANombre: asignado?.nombre ?? null,
+    asignadaEn:      serverTimestamp(),
+  })
+}
+
+/**
+ * Auto-claim: asigna la consulta al usuario SOLO si todavía no tiene dueño.
+ * Se usa cuando alguien trabaja/envía una consulta del pool: queda a su nombre.
+ * No pisa una asignación existente.
+ */
+export async function reclamarConsultaSiLibre(
+  consultaId: string,
+  usuario:    { uid: string; nombre: string },
+): Promise<void> {
+  const snap = await getDoc(consultaDoc(consultaId))
+  const data = snap.data() as ConsultaInfraccion | undefined
+  if (data?.asignadoA) return   // ya tiene dueño → no tocar
+  await updateDoc(consultaDoc(consultaId), {
+    asignadoA:       usuario.uid,
+    asignadoANombre: usuario.nombre,
+    creadoPor:       data?.creadoPor ?? usuario.uid,
+    creadoPorNombre: data?.creadoPorNombre ?? usuario.nombre,
+    asignadaEn:      serverTimestamp(),
+  })
+}
+
 // ─── WRITE ────────────────────────────────────────────────────────────────────
 
 /**
  * Persiste el presupuesto calculado en el frontend (filas + totales + mensaje).
- * Se llama desde PresupuestoMultas cuando Jessica genera/ajusta la cotización.
+ * Se llama desde PresupuestoMultas cuando se genera/ajusta la cotización.
  */
 export async function persistirDatosPresupuesto(
   consultaId: string,

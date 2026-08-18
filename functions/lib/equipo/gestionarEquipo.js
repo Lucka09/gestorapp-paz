@@ -54,9 +54,9 @@ if (!admin.apps.length)
 // tiene gestionarEquipo:false en permisos.ts.
 const ROLES_QUE_GESTIONAN = ['propietario', 'admin', 'superadmin'];
 // Roles que se pueden asignar por esta vía. NO incluye propietario/superadmin
-// (anti-escalada) ni cliente. Cuando exista, agregar 'asistente_multas' acá.
+// (anti-escalada) ni cliente.
 const ROLES_ASIGNABLES = [
-    'admin_gral', 'admin', 'vendedor', 'operador', 'gestor', 'asesor_comercial',
+    'admin_gral', 'admin', 'vendedor', 'operador', 'gestor', 'asesor_comercial', 'asistente_multas',
 ];
 // Roles que solo un propietario/superadmin puede asignar.
 const ROLES_SOLO_PROPIETARIO = ['admin_gral'];

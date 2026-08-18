@@ -53,6 +53,10 @@ export interface Permisos {
   verCobranzas:         boolean   // página de cobranzas completa
   verReportes:          boolean   // reportes contables / financieros
 
+  // Multas — módulo de descargos / Revisión de Multas
+  gestionarMultas:      boolean   // acceso al módulo de multas y su workflow
+  verConsultasMultas:   boolean   // Consultas de Multas (búsqueda de infracciones) — visible a todo el staff
+
   // WhatsApp Bandeja — acceso por rol
   verBandejaWA:         boolean   // ver bandeja de mensajes WhatsApp
   responderWA:          boolean   // enviar mensajes desde la bandeja
@@ -76,7 +80,7 @@ export interface Permisos {
 
 const PERMISOS: Record<Rol, Permisos> = {
 
-  // ── PROPIETARIO — acceso total + financiero ───────────────────────────────
+  // ── PROPIETARIO (label: CEO) — acceso total + financiero ──────────────────
   propietario: {
     verClientes: true, crearClientes: true, editarClientes: true,
     eliminarClientes: true, darAccesoPortal: true,
@@ -89,6 +93,8 @@ const PERMISOS: Record<Rol, Permisos> = {
     verConfiguracion: true, editarConfiguracion: true,
     verEquipo: true, gestionarEquipo: true,
     verCobranzas: true, verReportes: true,  // ← acceso financiero total
+    gestionarMultas: true,
+    verConsultasMultas: true,
     verBandejaWA: true, responderWA: true,
     verTorreCompleta: true, verTorreSoloPropia: false, requiereGeo: false,
     verPremios: true, verPremiosTorre: true,
@@ -96,7 +102,6 @@ const PERMISOS: Record<Rol, Permisos> = {
   },
 
   // ── ADMIN — operaciones completas, SIN finanzas ni eliminar clientes ───────
-  // Solo el propietario tiene acceso financiero total y puede eliminar registros.
   admin: {
     verClientes: true, crearClientes: true, editarClientes: true,
     eliminarClientes: false, darAccesoPortal: true,
@@ -109,6 +114,8 @@ const PERMISOS: Record<Rol, Permisos> = {
     verConfiguracion: true, editarConfiguracion: true,
     verEquipo: true, gestionarEquipo: true,
     verCobranzas: false, verReportes: false,  // ← sin acceso financiero
+    gestionarMultas: true,
+    verConsultasMultas: true,
     verBandejaWA: true, responderWA: true,
     verTorreCompleta: true, verTorreSoloPropia: false, requiereGeo: false,
     verPremios: true, verPremiosTorre: true,
@@ -116,9 +123,6 @@ const PERMISOS: Record<Rol, Permisos> = {
   },
 
   // ── ADMIN GENERAL — igual a admin + acceso financiero, solo 1 por gestoría ──
-  // Pensado para el director de operaciones / encargado general.
-  // Puede ver cobranzas, honorarios, reportes y el rendimiento de cada gestor.
-  // NO puede eliminar clientes. Solo el propietario puede crear este rol.
   admin_gral: {
     verClientes: true, crearClientes: true, editarClientes: true,
     eliminarClientes: false, darAccesoPortal: true,
@@ -131,6 +135,8 @@ const PERMISOS: Record<Rol, Permisos> = {
     verConfiguracion: true, editarConfiguracion: false,  // ← no puede cambiar config
     verEquipo: true, gestionarEquipo: false,             // ← no puede crear/eliminar miembros
     verCobranzas: true, verReportes: true,               // ← acceso financiero elevado
+    gestionarMultas: true,
+    verConsultasMultas: true,
     verBandejaWA: true, responderWA: true,
     verTorreCompleta: true, verTorreSoloPropia: false, requiereGeo: false,
     verPremios: true, verPremiosTorre: true,
@@ -150,6 +156,8 @@ const PERMISOS: Record<Rol, Permisos> = {
     verConfiguracion: false, editarConfiguracion: false,
     verEquipo: false, gestionarEquipo: false,
     verCobranzas: false, verReportes: false,
+    gestionarMultas: false,
+    verConsultasMultas: true,
     verBandejaWA: true, responderWA: true,
     verTorreCompleta: false, verTorreSoloPropia: false, requiereGeo: false,
     verPremios: false, verPremiosTorre: false,
@@ -169,6 +177,8 @@ const PERMISOS: Record<Rol, Permisos> = {
     verConfiguracion: false, editarConfiguracion: false,
     verEquipo: false, gestionarEquipo: false,
     verCobranzas: false, verReportes: false,
+    gestionarMultas: false,
+    verConsultasMultas: true,
     verBandejaWA: false, responderWA: false,
     verTorreCompleta: false, verTorreSoloPropia: false, requiereGeo: false,
     verPremios: false, verPremiosTorre: false,
@@ -186,6 +196,8 @@ const PERMISOS: Record<Rol, Permisos> = {
     verMetricasFinancieras: true, verSeguimiento: true, crearSeguimiento: true,
     verConfiguracion: true, verEquipo: true, gestionarEquipo: true,
     verCobranzas: true, verReportes: true,
+    gestionarMultas: true,
+    verConsultasMultas: true,
     verBandejaWA: true, responderWA: true,
     verTorreCompleta: true, verTorreSoloPropia: false, requiereGeo: false,
     verPremios: true, verPremiosTorre: true,
@@ -193,10 +205,6 @@ const PERMISOS: Record<Rol, Permisos> = {
   },
 
   // ── GESTOR (mandatario) — carga y gestión propia, sin finanzas ni WA ────────
-  // Crea y gestiona sus propios clientes, vehículos y trámites.
-  // También trabaja con trámites que le sean asignados.
-  // Torre de Control limitada a sus propias gestiones.
-  // Sin acceso a Dashboard general, WhatsApp, honorarios, cobranzas ni reportes.
   gestor: {
     verClientes: true,  crearClientes: true,  editarClientes: true,
     eliminarClientes: false, darAccesoPortal: false,
@@ -209,13 +217,15 @@ const PERMISOS: Record<Rol, Permisos> = {
     verConfiguracion: false, editarConfiguracion: false,
     verEquipo: false, gestionarEquipo: false,
     verCobranzas: false, verReportes: false,
+    gestionarMultas: true,
+    verConsultasMultas: true,
     verBandejaWA: false, responderWA: false,
     verTorreCompleta: false, verTorreSoloPropia: true, requiereGeo: true,
     verPremios: false, verPremiosTorre: false,
     verRendimientoGestores: false,
   },
 
-  // ── ASESOR COMERCIAL — CRM + Trámites + Torre completa + Premios ────────────
+  // ── ASESOR COMERCIAL (label: Secretario Comercial) ──────────────────────────
   asesor_comercial: {
     verClientes: true, crearClientes: true, editarClientes: true,
     eliminarClientes: false, darAccesoPortal: false,
@@ -228,9 +238,39 @@ const PERMISOS: Record<Rol, Permisos> = {
     verConfiguracion: false, editarConfiguracion: false,
     verEquipo: false, gestionarEquipo: false,
     verCobranzas: false, verReportes: false,        // ← sin acceso financiero
+    gestionarMultas: true,
+    verConsultasMultas: true,
     verBandejaWA: true, responderWA: true,
     verTorreCompleta: true, verTorreSoloPropia: false, requiereGeo: false,
     verPremios: true, verPremiosTorre: true,         // ← exclusivo de este rol
+    verRendimientoGestores: false,
+  },
+
+  // ── ASISTENTE DE MULTAS — módulo de multas + básico, nada financiero ────────
+  // Recibe multas asignadas y ejecuta el workflow COMPLETO (paso 1 a 7).
+  // Ve Trámites (para abrir la multa) y Torre solo-propia. Sin clientes/vehículos,
+  // turnos, cobranzas, reportes, config, equipo, pipeline, WhatsApp ni premios.
+  asistente_multas: {
+    verClientes: false, crearClientes: false, editarClientes: false,
+    eliminarClientes: false, darAccesoPortal: false,
+    verVehiculos: false, crearVehiculos: false, editarVehiculos: false,
+    // verTramites: false → NO ve la lista general de Trámites/Torre/Tareas en el
+    // menú. El detalle de la multa se abre igual desde Revisión de Multas (la ruta
+    // /admin/tramites/:id no está guardada por permiso) y el workflow corre porque
+    // usa cambiarEstadoTramite, no verTramites.
+    verTramites: false, crearTramites: true, cambiarEstadoTramite: true,
+    verHonorariosDetalle: false, marcarPagado: false, verObsInternas: false,
+    verTurnos: false, crearTurnos: false, confirmarTurnos: false, cancelarTurnos: false,
+    verDashboard: true, verMetricasFinancieras: false, verCRM: false,
+    exportarDatos: false, verSeguimiento: false, crearSeguimiento: false,
+    verConfiguracion: false, editarConfiguracion: false,
+    verEquipo: false, gestionarEquipo: false,
+    verCobranzas: false, verReportes: false,
+    gestionarMultas: true,                          // ← acceso al módulo de multas
+    verConsultasMultas: true,
+    verBandejaWA: false, responderWA: false,
+    verTorreCompleta: false, verTorreSoloPropia: true, requiereGeo: false,
+    verPremios: false, verPremiosTorre: false,
     verRendimientoGestores: false,
   },
 
@@ -247,6 +287,8 @@ const PERMISOS: Record<Rol, Permisos> = {
     verConfiguracion: false, editarConfiguracion: false,
     verEquipo: false, gestionarEquipo: false,
     verCobranzas: false, verReportes: false,
+    gestionarMultas: false,
+    verConsultasMultas: false,
     verBandejaWA: false, responderWA: false,
     verTorreCompleta: false, verTorreSoloPropia: false, requiereGeo: false,
     verPremios: false, verPremiosTorre: false,
@@ -264,8 +306,12 @@ export function puedeHacer(rol: Rol, permiso: keyof Permisos): boolean {
   return getPermisos(rol)[permiso] ?? false
 }
 
+// ─── LABELS DE DISPLAY ─────────────────────────────────────────────────────────
+// IMPORTANTE: solo cambian la etiqueta visible. Las KEYS internas
+// (propietario, asesor_comercial) se preservan para no romper historial en
+// Firestore, reglas de seguridad ni queries. NO renombrar las keys.
 export const ROL_LABELS: Record<Rol, string> = {
-  propietario:      'Propietario',
+  propietario:      'CEO',
   admin_gral:       'Administrador General',
   admin:            'Administrador',
   vendedor:         'Vendedor / Closer',
@@ -273,7 +319,8 @@ export const ROL_LABELS: Record<Rol, string> = {
   superadmin:       'Super Admin',
   cliente:          'Cliente',
   gestor:           'Gestor / Mandatario',
-  asesor_comercial: 'Asesor Comercial',
+  asesor_comercial: 'Secretario Comercial',
+  asistente_multas: 'Asistente de Multas',
 }
 
 export const ROL_COLORS: Record<Rol, string> = {
@@ -286,7 +333,8 @@ export const ROL_COLORS: Record<Rol, string> = {
   cliente:          'bg-gray-100 text-gray-600',
   gestor:           'bg-cyan-100 text-cyan-700',
   asesor_comercial: 'bg-amber-100 text-amber-700',
+  asistente_multas: 'bg-rose-100 text-rose-700',
 }
 
 // Roles que tienen acceso al panel admin
-export const ROLES_ADMIN: Rol[] = ['admin', 'admin_gral', 'propietario', 'vendedor', 'operador', 'gestor', 'asesor_comercial']
+export const ROLES_ADMIN: Rol[] = ['admin', 'admin_gral', 'propietario', 'vendedor', 'operador', 'gestor', 'asesor_comercial', 'asistente_multas']

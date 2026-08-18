@@ -101,7 +101,7 @@ export function subscribeEquipo(
   const q = query(
     usersCol,
     where('gestoriaId', '==', gestoriaId),
-    where('rol', 'in', ['propietario', 'admin_gral', 'admin', 'vendedor', 'operador', 'gestor', 'asesor_comercial']),
+    where('rol', 'in', ['propietario', 'admin_gral', 'admin', 'vendedor', 'operador', 'gestor', 'asesor_comercial', 'asistente_multas']),
     orderBy('creadoEn', 'asc')
   )
   return onSnapshot(q, snap =>
@@ -144,11 +144,11 @@ export function subscribeGestoresMulta(
   gestoriaId: string,
   callback:   (miembros: MiembroEquipo[]) => void
 ): Unsubscribe {
-  // Trae roles que pueden verificar y gestionar multas: admin_gral, admin, propietario, gestor
+  // Trae roles que pueden verificar y gestionar multas: admin_gral, admin, propietario, gestor, asistente_multas
   const q = query(
     usersCol,
     where('gestoriaId', '==', gestoriaId),
-    where('rol', 'in', ['propietario', 'admin_gral', 'admin', 'gestor']),
+    where('rol', 'in', ['propietario', 'admin_gral', 'admin', 'gestor', 'asistente_multas']),
     orderBy('creadoEn', 'asc')
   )
   return onSnapshot(q, snap =>
@@ -317,5 +317,14 @@ export const PERMISOS_POR_ROL: Record<Exclude<Rol, 'cliente'>, string[]> = {
     'Torre de Control completa (todos los trámites)',
     'Panel de Premios & Objetivos personal',
     'Sin acceso a honorarios, cobranzas ni reportes financieros',
+  ],
+  asistente_multas: [
+    'Acceso al módulo de Multas (Revisión de Multas)',
+    'Cargar y gestionar las multas asignadas',
+    'Ejecutar el workflow completo de multas (paso 1 al 7)',
+    'Ver Trámites y Torre de Control (solo sus propias gestiones)',
+    'Sin acceso a clientes, vehículos, turnos ni pipeline',
+    'Sin acceso a honorarios, cobranzas, reportes ni configuración',
+    'Sin acceso a equipo, WhatsApp ni premios',
   ],
 }

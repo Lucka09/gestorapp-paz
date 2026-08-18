@@ -2,9 +2,14 @@
 // ─── HOOK — CONSULTAS DE INFRACCIONES ───────────────────────────────────────
 // Suscribe las consultas de la gestoría, las ordena por fecha y las agrupa por
 // estado. Expone `paraEnviar` (cotizadas listas) para la vista de trabajo.
+//
+// PRIVACIDAD (UI): propietario/admin/admin_gral/superadmin ven TODAS. El resto
+// solo ve las que tienen asignadas (`asignadoA === su uid`). Las sin asignar
+// (pool de web/extensión) quedan solo para admins hasta que las repartan.
 
 import { useState, useEffect, useMemo } from 'react'
 import { useGestoriaId } from '@/context/GestoriaContext'
+import { useAuthStore } from '@/store/authStore'
 import { subscribeConsultas } from '@/lib/firestore/consultasInfracciones'
 import type { ConsultaInfraccion, EstadoConsulta } from '@/infraccion_types'
 
@@ -17,8 +22,12 @@ const ESTADOS_VACIO = (): Record<EstadoConsulta, ConsultaInfraccion[]> => ({
   pendiente: [], consultada: [], cotizada: [], enviada: [], sin_deuda: [], descartada: [],
 })
 
+// Roles con visibilidad total del pool de consultas.
+const ROLES_VEN_TODO = ['propietario', 'admin', 'admin_gral', 'superadmin']
+
 export function useConsultasInfracciones() {
   const gestoriaId                = useGestoriaId()
+  const user                      = useAuthStore(s => s.user)
   const [consultas, setConsultas] = useState<ConsultaInfraccion[]>([])
   const [loading, setLoading]     = useState(true)
 
@@ -33,13 +42,21 @@ export function useConsultasInfracciones() {
     return () => unsub()
   }, [gestoriaId])
 
+  // ── Filtro de privacidad ──────────────────────────────────────────────────
+  // Admins ven todo; el resto solo lo asignado a su uid.
+  const veTodo = ROLES_VEN_TODO.includes(user?.rol ?? '')
+  const visibles = useMemo(
+    () => veTodo ? consultas : consultas.filter(c => c.asignadoA === user?.uid),
+    [consultas, veTodo, user?.uid],
+  )
+
   const porEstado = useMemo(() => {
     const map = ESTADOS_VACIO()
-    consultas.forEach(c => { if (map[c.estado]) map[c.estado].push(c) })
+    visibles.forEach(c => { if (map[c.estado]) map[c.estado].push(c) })
     return map
-  }, [consultas])
+  }, [visibles])
 
-  // Cola de trabajo de Jessica: cotizadas listas para revisar y enviar.
+  // Cola de trabajo: cotizadas listas para revisar y enviar.
   const paraEnviar = useMemo(() => porEstado.cotizada, [porEstado])
   // Recién llegadas / en curso, para el badge del nav.
   const pendientes = useMemo(
@@ -47,5 +64,5 @@ export function useConsultasInfracciones() {
     [porEstado],
   )
 
-  return { consultas, porEstado, paraEnviar, pendientes, loading }
+  return { consultas: visibles, porEstado, paraEnviar, pendientes, loading }
 }

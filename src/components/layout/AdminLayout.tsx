@@ -32,15 +32,14 @@ const PREFETCH_MAP: Record<string, () => Promise<unknown>> = {
   '/admin/reportes':          () => import('@/features/reportes/ReportesPage'),
   '/admin/configuracion':     () => import('@/features/configuracion/ConfiguracionPage'),
   '/admin/dashboard':         () => import('@/features/dashboard/DashboardPage'),
-  '/admin/tareas':            () => import('@/features/tareas/TareasPage'),           // ← nuevo
-  '/admin/equipo':            () => import('@/features/equipo/EquipoPage'),           // ← nuevo
-  '/admin/calculadora':       () => import('@/features/calculadora/CalculadoraPage'), // ← nuevo
-  '/admin/importar':          () => import('@/features/importar/ImportarPage'),       // ← nuevo
-  '/admin/leads':              () => import('@/features/leads/LeadsPage').then(m => ({ default: m.default })),
-  '/admin/bandeja':            () => import('@/features/bandeja/BandejaWAPage'),
-  '/admin/premios':            () => import('@/features/premios/PremiosPage'),
-  '/admin/referidos':          () => import('@/features/referidos/ReferidosPage'),
-  '/admin/revision-multas':    () => import('@/features/revision-multas/RevisionMultasPage'),
+  '/admin/tareas':            () => import('@/features/tareas/TareasPage'),
+  '/admin/equipo':            () => import('@/features/equipo/EquipoPage'),
+  '/admin/calculadora':       () => import('@/features/calculadora/CalculadoraPage'),
+  '/admin/importar':          () => import('@/features/importar/ImportarPage'),
+  '/admin/leads':             () => import('@/features/leads/LeadsPage').then(m => ({ default: m.default })),
+  '/admin/bandeja':           () => import('@/features/bandeja/BandejaWAPage'),
+  '/admin/premios':           () => import('@/features/premios/PremiosPage'),
+  '/admin/referidos':         () => import('@/features/referidos/ReferidosPage'),
 }
 
 const NAV_ITEMS_ALL = [
@@ -52,7 +51,7 @@ const NAV_ITEMS_ALL = [
   { to: '/admin/turnos',           icon: CalendarDays,    label: 'Turnos',           permiso: 'verTurnos'      },
   { to: '/admin/pipeline',         icon: TrendingUp,      label: 'Pipeline',         permiso: 'verCRM'         },
   { to: '/admin/leads',            icon: Target,          label: 'Leads',            permiso: 'verCRM'         },
-  { to: '/admin/bandeja', icon: MessageCircle, label: 'WhatsApp', permiso: 'verBandejaWA' },
+  { to: '/admin/bandeja',          icon: MessageCircle,   label: 'WhatsApp',         permiso: 'verBandejaWA'  },
   { to: '/admin/cobranzas',        icon: DollarSign,      label: 'Cobranzas',        permiso: 'verCobranzas'   },
   { to: '/admin/reportes',         icon: BarChart2,       label: 'Reportes',         permiso: 'verReportes'    },
   { to: '/admin/referidos',        icon: Building2,       label: 'Referidos',        permiso: 'verReportes'    },
@@ -62,14 +61,14 @@ const NAV_ITEMS_ALL = [
   { to: '/admin/calculadora',      icon: Calculator,      label: 'Calculadora',      permiso: 'verDashboard'   },
   { to: '/admin/importar',         icon: Upload,          label: 'Importar',         permiso: 'verClientes'    },
   { to: '/admin/configuracion',    icon: Settings,        label: 'Configuración',    permiso: 'verConfiguracion' },
-  { to: '/admin/campanas', icon: Megaphone, label: 'Campañas', permiso: 'verBandejaWA' },
+  { to: '/admin/campanas',         icon: Megaphone,       label: 'Campañas',         permiso: 'verBandejaWA'  },
 ] as const
 
 // Módulo MULTAS — agrupado y fuera del flujo de Trámites
 const NAV_MULTAS = [
-  { to: '/admin/revision-multas',  icon: AlertTriangle, label: 'Revisión de Multas',  permiso: 'verTramites' },
-  { to: '/admin/consultas-multas', icon: Search,        label: 'Consultas de Multas', permiso: 'verCRM'      },
-] as const
+  { to: '/admin/revision-multas',  icon: AlertTriangle, label: 'Revisión de Multas',  permiso: 'gestionarMultas'    },  // solo quienes procesan multas
+  { to: '/admin/consultas-multas', icon: Search,        label: 'Consultas de Multas', permiso: 'verConsultasMultas' },  // todo el staff
+]
 
 // ─── PANTALLAS DE ESTADO DEL TENANT ──────────────────────────────────────────
 //

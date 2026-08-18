@@ -60,7 +60,7 @@ export async function contarUsuariosActivos(gestoriaId: string): Promise<number>
     query(
       usersCol,
       where('gestoriaId', '==', gestoriaId),
-      where('rol',    'in', ['propietario', 'admin', 'vendedor', 'operador']),
+      where('rol',    'in', ['propietario', 'admin_gral', 'admin', 'vendedor', 'operador', 'gestor', 'asesor_comercial', 'asistente_multas']),
       where('activo', '==', true),
     )
   )

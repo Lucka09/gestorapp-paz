@@ -46,7 +46,7 @@ export const PLAN_CONFIG: Record<PlanGestoria, {
 
 // ─── ENUMS ────────────────────────────────────────────────────────────────────
 
-export type Rol = 'propietario' | 'admin_gral' | 'admin' | 'vendedor' | 'operador' | 'superadmin' | 'gestor' | 'cliente' | 'asesor_comercial'
+export type Rol = 'propietario' | 'admin_gral' | 'admin' | 'vendedor' | 'operador' | 'superadmin' | 'gestor' | 'cliente' | 'asesor_comercial' | 'asistente_multas'
 
 export type TipoVehiculo = 'auto' | 'moto' | 'camion' | 'utilitario' | 'otro'
 
@@ -362,6 +362,7 @@ export interface Configuracion {
   // Financiero
   datosBancarios:   ConfiguracionBancaria
   // Contacto y RRSS
+  costosMulta?: { suats?: number; informePersona?: number }
   redesSociales:    ConfiguracionRRSS
   // Mensajes automáticos
   mensajeBienvenida:    string

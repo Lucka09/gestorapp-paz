@@ -192,6 +192,13 @@ export interface ConsultaInfraccion {
   // filas + totales + mensaje, para que imagen y texto nunca discrepen.
   datosPresupuesto?: DatosPresupuesto
 
+    // Asignación / privacidad:
+  creadoPor?:       string      // uid de quien la creó/cargó
+  creadoPorNombre?: string
+  asignadoA?:       string      // uid del responsable actual — la visibilidad sigue a este
+  asignadoANombre?: string
+  asignadaEn?:      Timestamp
+
   creadaEn:      Timestamp
   consultadaPor?:     string     // uid de quien la procesó (Jessica/Abigail)
   consultadaPorNombre?: string
