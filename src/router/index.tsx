@@ -10,6 +10,10 @@ import ClienteLayout from '@/components/layout/ClienteLayout'
 import LoginPage from '@/features/auth/LoginPage'
 
 import ConsultasMultasPage from '@/features/multas/ConsultasMultasPage'
+import { usePermisos } from '@/hooks/usePermisos'
+import AdminIndex from '@/features/admin/AdminIndex'
+
+
 
 // ─── LAZY PAGES — Admin ───────────────────────────────────────────────────────
 const DashboardPage            = lazy(() => import('@/features/dashboard/DashboardPage'))
@@ -62,6 +66,8 @@ const PortalNotificacionesPage = lazy(() => import('@/features/notificaciones/Po
 // ─── PÚBLICAS ─────────────────────────────────────────────────────────────────
 const SeguimientoPublicoPage   = lazy(() => import('@/features/tramites/SeguimientoPublicoPage'))
 
+
+
 // ─── SPINNER FALLBACK ─────────────────────────────────────────────────────────
 function PageLoader() {
   return (
@@ -89,7 +95,7 @@ export const router = createBrowserRouter([
     path: '/admin',
     element: <AdminLayout />,
     children: [
-      { index: true,               element: <Navigate to="/admin/dashboard" replace /> },
+      { index: true, element: <AdminIndex /> },
       { path: 'dashboard',         element: <L><DashboardPage /></L> },
 
       // Clientes

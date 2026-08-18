@@ -231,11 +231,11 @@ export function dibujarPresupuesto(
   ctx.fillStyle = NARANJA
   ctx.beginPath(); ctx.roundRect(PX, y, anchoCol, altCard, 16); ctx.fill()
   ls(ctx, '1.6px'); ctx.fillStyle = NEGRO
-  ajustar(ctx, 'TOTAL A ABONAR', anchoCol - 56, 700, 15, "'DM Sans',sans-serif", 11)
-  ctx.fillText('TOTAL A ABONAR', PX + 28, y + 44); ls(ctx, '0px')
+  ajustar(ctx, 'Pago por Transferencia', anchoCol - 56, 700, 15, "'DM Sans',sans-serif", 11)
+  ctx.fillText('Pago por Transferencia', PX + 28, y + 44); ls(ctx, '0px')
   ajustar(ctx, money(c.T), anchoCol - 56, 700, 52, "'JetBrains Mono',monospace", 26)
   ctx.fillText(money(c.T), PX + 28, y + 102)
-  ctx.font = "700 17px 'DM Sans',sans-serif"; ctx.fillText('Transferencia bancaria', PX + 28, y + 130)
+  ctx.font = "700 17px 'DM Sans',sans-serif";
   ctx.strokeStyle = 'rgba(18,18,18,0.2)'; ctx.lineWidth = 1.5
   ctx.beginPath(); ctx.moveTo(PX + 28, y + 144); ctx.lineTo(PX + anchoCol - 28, y + 144); ctx.stroke()
   ls(ctx, '1px'); ctx.font = "700 11px 'DM Sans',sans-serif"
@@ -254,13 +254,13 @@ export function dibujarPresupuesto(
   ctx.fillStyle = NEGRO
   ctx.beginPath(); ctx.roundRect(x2, y, anchoCol, altCard, 16); ctx.fill()
   ls(ctx, '1.6px'); ctx.fillStyle = NARANJA
-  ajustar(ctx, 'EN EFECTIVO', anchoCol - 56, 700, 15, "'DM Sans',sans-serif", 11)
-  ctx.fillText('EN EFECTIVO', x2 + 28, y + 44); ls(ctx, '0px')
+  ajustar(ctx, 'Pago en Efectivo', anchoCol - 56, 700, 15, "'DM Sans',sans-serif", 11)
+  ctx.fillText('Pago en Efectivo', x2 + 28, y + 44); ls(ctx, '0px')
   ctx.fillStyle = BLANCO
   ajustar(ctx, money(c.E), anchoCol - 56, 700, 52, "'JetBrains Mono',monospace", 26)
   ctx.fillText(money(c.E), x2 + 28, y + 102)
   ctx.fillStyle = GRIS; ctx.font = "700 17px 'DM Sans',sans-serif"
-  ctx.fillText('En nuestras oficinas · pago único', x2 + 28, y + 130)
+  ctx.fillText('En nuestra oficina', x2 + 28, y + 130)
   ctx.strokeStyle = 'rgba(255,255,255,0.15)'; ctx.lineWidth = 1.5
   ctx.beginPath(); ctx.moveTo(x2 + 28, y + 144); ctx.lineTo(x2 + anchoCol - 28, y + 144); ctx.stroke()
   ls(ctx, '1px'); ctx.fillStyle = NARANJA; ctx.font = "700 11px 'DM Sans',sans-serif"

@@ -31,6 +31,7 @@ export interface Permisos {
 
   // Dashboard
   verDashboard:         boolean
+  verPanelMando:        boolean   // Panel de Mando (dashboard de gestión) — solo CEO / Admin Gral
   verMetricasFinancieras: boolean
   verCRM:               boolean
 
@@ -88,7 +89,7 @@ const PERMISOS: Record<Rol, Permisos> = {
     verTramites: true, crearTramites: true, cambiarEstadoTramite: true,
     verHonorariosDetalle: true, marcarPagado: true, verObsInternas: true,
     verTurnos: true, crearTurnos: true, confirmarTurnos: true, cancelarTurnos: true,
-    verDashboard: true, verMetricasFinancieras: true, verCRM: true,
+    verDashboard: true, verPanelMando: true, verMetricasFinancieras: true, verCRM: true,
     exportarDatos: true, verSeguimiento: true, crearSeguimiento: true,
     verConfiguracion: true, editarConfiguracion: true,
     verEquipo: true, gestionarEquipo: true,
@@ -109,7 +110,7 @@ const PERMISOS: Record<Rol, Permisos> = {
     verTramites: true, crearTramites: true, cambiarEstadoTramite: true,
     verHonorariosDetalle: false, marcarPagado: false, verObsInternas: true,
     verTurnos: true, crearTurnos: true, confirmarTurnos: true, cancelarTurnos: true,
-    verDashboard: true, verMetricasFinancieras: false, verCRM: true,
+    verDashboard: true, verPanelMando: false, verMetricasFinancieras: false, verCRM: true,
     exportarDatos: false, verSeguimiento: true, crearSeguimiento: true,
     verConfiguracion: true, editarConfiguracion: true,
     verEquipo: true, gestionarEquipo: true,
@@ -130,7 +131,7 @@ const PERMISOS: Record<Rol, Permisos> = {
     verTramites: true, crearTramites: true, cambiarEstadoTramite: true,
     verHonorariosDetalle: true, marcarPagado: true, verObsInternas: true,
     verTurnos: true, crearTurnos: true, confirmarTurnos: true, cancelarTurnos: true,
-    verDashboard: true, verMetricasFinancieras: true, verCRM: true,
+    verDashboard: true, verPanelMando: true, verMetricasFinancieras: true, verCRM: true,
     exportarDatos: true, verSeguimiento: true, crearSeguimiento: true,
     verConfiguracion: true, editarConfiguracion: false,  // ← no puede cambiar config
     verEquipo: true, gestionarEquipo: false,             // ← no puede crear/eliminar miembros
@@ -151,7 +152,7 @@ const PERMISOS: Record<Rol, Permisos> = {
     verTramites: true, crearTramites: true, cambiarEstadoTramite: false,
     verHonorariosDetalle: false, marcarPagado: false, verObsInternas: false,
     verTurnos: true, crearTurnos: true, confirmarTurnos: false, cancelarTurnos: false,
-    verDashboard: true, verMetricasFinancieras: false, verCRM: true,
+    verDashboard: true, verPanelMando: false, verMetricasFinancieras: false, verCRM: true,
     exportarDatos: false, verSeguimiento: true, crearSeguimiento: true,
     verConfiguracion: false, editarConfiguracion: false,
     verEquipo: false, gestionarEquipo: false,
@@ -172,7 +173,7 @@ const PERMISOS: Record<Rol, Permisos> = {
     verTramites: true, crearTramites: true, cambiarEstadoTramite: true,
     verHonorariosDetalle: false, marcarPagado: false, verObsInternas: false,
     verTurnos: true, crearTurnos: true, confirmarTurnos: true, cancelarTurnos: true,
-    verDashboard: true, verMetricasFinancieras: false, verCRM: false,
+    verDashboard: true, verPanelMando: false, verMetricasFinancieras: false, verCRM: false,
     exportarDatos: false, verSeguimiento: false, crearSeguimiento: false,
     verConfiguracion: false, editarConfiguracion: false,
     verEquipo: false, gestionarEquipo: false,
@@ -192,7 +193,7 @@ const PERMISOS: Record<Rol, Permisos> = {
     verTramites: true, crearTramites: true, cambiarEstadoTramite: true,
     verHonorariosDetalle: true, marcarPagado: true, verObsInternas: true,
     verTurnos: true, crearTurnos: true, confirmarTurnos: true, cancelarTurnos: true,
-    exportarDatos: true, verDashboard: true, verCRM: true, editarConfiguracion: true,
+    exportarDatos: true, verDashboard: true, verPanelMando: true, verCRM: true, editarConfiguracion: true,
     verMetricasFinancieras: true, verSeguimiento: true, crearSeguimiento: true,
     verConfiguracion: true, verEquipo: true, gestionarEquipo: true,
     verCobranzas: true, verReportes: true,
@@ -212,7 +213,7 @@ const PERMISOS: Record<Rol, Permisos> = {
     verTramites: true,  crearTramites: true,  cambiarEstadoTramite: true,
     verHonorariosDetalle: false, marcarPagado: false, verObsInternas: false,
     verTurnos: true, crearTurnos: true, confirmarTurnos: true, cancelarTurnos: false,
-    verDashboard: false, verMetricasFinancieras: false, verCRM: false,
+    verDashboard: false, verPanelMando: false, verMetricasFinancieras: false, verCRM: false,
     exportarDatos: false, verSeguimiento: true, crearSeguimiento: true,
     verConfiguracion: false, editarConfiguracion: false,
     verEquipo: false, gestionarEquipo: false,
@@ -233,7 +234,7 @@ const PERMISOS: Record<Rol, Permisos> = {
     verTramites: true, crearTramites: true, cambiarEstadoTramite: true,
     verHonorariosDetalle: false, marcarPagado: false, verObsInternas: false,
     verTurnos: true, crearTurnos: true, confirmarTurnos: true, cancelarTurnos: true,
-    verDashboard: true, verMetricasFinancieras: false, verCRM: true,
+    verDashboard: true, verPanelMando: false, verMetricasFinancieras: false, verCRM: true,
     exportarDatos: false, verSeguimiento: true, crearSeguimiento: true,
     verConfiguracion: false, editarConfiguracion: false,
     verEquipo: false, gestionarEquipo: false,
@@ -261,7 +262,7 @@ const PERMISOS: Record<Rol, Permisos> = {
     verTramites: false, crearTramites: true, cambiarEstadoTramite: true,
     verHonorariosDetalle: false, marcarPagado: false, verObsInternas: false,
     verTurnos: false, crearTurnos: false, confirmarTurnos: false, cancelarTurnos: false,
-    verDashboard: true, verMetricasFinancieras: false, verCRM: false,
+    verDashboard: true, verPanelMando: false, verMetricasFinancieras: false, verCRM: false,
     exportarDatos: false, verSeguimiento: false, crearSeguimiento: false,
     verConfiguracion: false, editarConfiguracion: false,
     verEquipo: false, gestionarEquipo: false,
@@ -282,7 +283,7 @@ const PERMISOS: Record<Rol, Permisos> = {
     verTramites: false, crearTramites: false, cambiarEstadoTramite: false,
     verHonorariosDetalle: false, marcarPagado: false, verObsInternas: false,
     verTurnos: false, crearTurnos: false, confirmarTurnos: false, cancelarTurnos: false,
-    verDashboard: false, verMetricasFinancieras: false, verCRM: false,
+    verDashboard: false, verPanelMando: false, verMetricasFinancieras: false, verCRM: false,
     exportarDatos: false, verSeguimiento: false, crearSeguimiento: false,
     verConfiguracion: false, editarConfiguracion: false,
     verEquipo: false, gestionarEquipo: false,

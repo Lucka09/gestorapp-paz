@@ -12,7 +12,7 @@
  *                                   → perdido / descartado
  */
 import type { Timestamp } from 'firebase/firestore'
-import type { OrigenCanal, TipoTramite } from './index'
+import type { OrigenCanal, TipoTramite } from '@/types'
 
 // ─── ENUMS ──────────────────────────────────────────────────────────────────
 
