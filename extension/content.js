@@ -241,3 +241,188 @@ if (document.body) {
     cargarSiguiente()
   })
 }
+async function descargarCupon(nroCausa) {
+  const res = await fetch(`/rest/generar-cupon?nroCausa=${nroCausa}`, {
+    credentials: 'include' // usa la JSESSIONID
+  })
+  const blob = await res.blob()
+  const base64 = await blobToBase64(blob)
+  return { nroCausa, pdf: base64 }
+}
+// ─── ESCUCHA DE MENSAJES DESDE BACKGROUND (cola de cupones) ───
+chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+  if (msg.tipo === 'GP_PROGRESO_CUPON') {
+    // Actualizar UI de progreso (si existe el panel flotante)
+    actualizarProgresoCupones(msg)
+    return
+  }
+  return false
+})
+
+function actualizarProgresoCupones(data) {
+  const panel = document.getElementById('gestorapp-panel-cupones')
+  if (!panel) return
+
+  const barra = panel.querySelector('.progreso-barra')
+  const texto = panel.querySelector('.progreso-texto')
+  if (barra && texto) {
+    const porcentaje = (data.procesados / data.total) * 100
+    barra.style.width = `${porcentaje}%`
+    texto.textContent = `${data.procesados} / ${data.total} cupones procesados`
+  }
+
+  if (data.estado === 'ok') {
+    console.log(`[GestorApp] Cupón ${data.nroCausa} procesado OK`)
+  } else if (data.estado === 'error') {
+    console.error(`[GestorApp] Error en cupón ${data.nroCausa}:`, data.error)
+  }
+}
+// ─── DESCARGA DE CUPONES (F2.2) ──────────────────────────────────────────────
+// Los comandos llegan vía chrome.storage.local (escritos por bridge.js en la app).
+
+const URL_SUBIR_CUPON = 'https://us-central1-gestorapp-paz.cloudfunctions.net/subirCuponInfraccion'
+
+let descargaCuponesActiva = false
+let descargaCuponesPausada = false
+const procesadasOkEstaSesion = new Set()
+
+chrome.storage.onChanged.addListener((changes, area) => {
+  if (area !== 'local' || !changes.gpComandoDescarga) return
+  manejarComandoDescarga(changes.gpComandoDescarga.newValue)
+})
+
+function manejarComandoDescarga(cmd) {
+  if (!cmd || !cmd.tipo) return
+  if (cmd.tipo === 'GP_INICIAR_DESCARGA_CUPONES') {
+    iniciarDescargaCupones(cmd.tramiteId, cmd.nroCausas || [])
+    return
+  }
+  if (cmd.tipo === 'GP_PAUSAR_DESCARGA_CUPONES') {
+    descargaCuponesPausada = true
+    renderEstadoDescarga('⏸️ Pausado')
+    return
+  }
+  if (cmd.tipo === 'GP_REANUDAR_DESCARGA_CUPONES') {
+    if (!descargaCuponesPausada) return
+    descargaCuponesPausada = false
+    renderEstadoDescarga('▶️ Reanudando…')
+    procesarColaDescarga(cmd.tramiteId, cmd.nroCausas || [])
+    return
+  }
+  if (cmd.tipo === 'GP_CANCELAR_DESCARGA_CUPONES') {
+    descargaCuponesActiva = false
+    descargaCuponesPausada = false
+    renderEstadoDescarga('❌ Cancelado')
+  }
+}
+
+async function iniciarDescargaCupones(tramiteId, nroCausas) {
+  if (descargaCuponesActiva) {
+    renderEstadoDescarga('⚠️ Ya hay una descarga en progreso')
+    return
+  }
+  descargaCuponesActiva = true
+  descargaCuponesPausada = false
+  renderEstadoDescarga(`Descargando ${nroCausas.length} cupones…`)
+  await procesarColaDescarga(tramiteId, nroCausas)
+  descargaCuponesActiva = false
+}
+
+async function procesarColaDescarga(tramiteId, nroCausas) {
+  const total = nroCausas.length
+  let procesados = 0
+
+  for (const item of nroCausas) {
+    if (!descargaCuponesActiva || descargaCuponesPausada) break
+    if (procesadasOkEstaSesion.has(item.nroCausa)) { procesados++; continue }
+    try {
+      await descargarYSubirCupon(tramiteId, item)
+      procesadasOkEstaSesion.add(item.nroCausa)
+      procesados++
+      renderEstadoDescarga(`✅ ${procesados}/${total} procesados`)
+    } catch (err) {
+      procesados++
+      renderEstadoDescarga(`⚠️ ${procesados}/${total} (error en ${item.nroCausa})`)
+      console.error('[GestorApp] Error en cupón', item.nroCausa, err)
+    }
+    await sleep(2000)
+  }
+
+  if (descargaCuponesActiva && !descargaCuponesPausada && procesados === total) {
+    renderEstadoDescarga(`✅ Completado: ${total} cupones`)
+  }
+}
+
+async function descargarYSubirCupon(tramiteId, item) {
+  // 1. PDF del portal (cookies de sesión del operador)
+  const url = `https://infraccionesba.gba.gob.ar/rest/generar-cupon?nroCausa=${encodeURIComponent(item.nroCausa)}`
+  const res = await fetch(url, { credentials: 'include', headers: { Accept: 'application/pdf' } })
+  if (!res.ok) throw new Error(`Portal HTTP ${res.status}`)
+
+  const blob = await res.blob()
+  const base64 = await blobToBase64(blob)
+
+  // 2. Subida a GestorApp con el token que publicó la app
+  const token = await getToken()
+  if (!token) throw new Error('Token de GestorApp no disponible (logueate en la app)')
+
+  const subirRes = await fetch(URL_SUBIR_CUPON, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify({
+      data: { tramiteId, nroCausa: item.nroCausa, nroActa: item.nroActa, pdfBase64: base64 },
+    }),
+  })
+  if (!subirRes.ok) {
+    const errText = await subirRes.text()
+    throw new Error(`subirCuponInfraccion HTTP ${subirRes.status}: ${errText}`)
+  }
+  return await subirRes.json()
+}
+
+function getToken() {
+  return new Promise((resolve) => {
+    chrome.storage.local.get('gpToken', (r) => resolve(r.gpToken || null))
+  })
+}
+
+function blobToBase64(blob) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onloadend = () => resolve(reader.result.split(',')[1])
+    reader.onerror = reject
+    reader.readAsDataURL(blob)
+  })
+}
+
+function renderEstadoDescarga(texto) {
+  const panel = document.getElementById('gp-panel-descarga')
+  if (!panel) return
+  const estado = panel.querySelector('#gp-estado-descarga')
+  if (estado) estado.textContent = texto
+}
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
+function montarPanelDescarga() {
+  if (document.getElementById('gp-panel-descarga')) return
+  const panel = document.createElement('div')
+  panel.id = 'gp-panel-descarga'
+  panel.style.cssText = [
+    'position:fixed', 'bottom:20px', 'left:20px', 'z-index:2147483647',
+    'width:300px', 'background:#fff', 'border:1px solid #e5e5e5',
+    'border-radius:12px', 'box-shadow:0 4px 16px rgba(0,0,0,.12)',
+    'font-family:system-ui,sans-serif', 'font-size:13px', 'color:#1a1a1a',
+    'padding:14px', 'line-height:1.5',
+  ].join(';')
+  panel.innerHTML = `
+    <div style="font-weight:600;color:#D4621A;margin-bottom:8px">GestorApp · Descarga de cupones</div>
+    <div id="gp-estado-descarga" style="color:#777;font-size:12px">Esperando inicio…</div>
+  `
+  document.body.appendChild(panel)
+}
+
+if (document.body) montarPanelDescarga()
+else document.addEventListener('DOMContentLoaded', montarPanelDescarga)

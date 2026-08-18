@@ -16,8 +16,6 @@ import * as admin from 'firebase-admin'
 import { onRequest } from 'firebase-functions/v2/https'
 import { logger }    from 'firebase-functions'
 
-if (!admin.apps.length) admin.initializeApp()
-
 const BLOQUEO_MS = 10 * 60 * 1000 // 10 min: si no se procesa, vuelve a la cola
 
 export const colaProximaConsulta = onRequest(async (req, res) => {

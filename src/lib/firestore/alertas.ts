@@ -9,7 +9,7 @@ import { tramitesCol, turnosCol, clientesCol } from './collections'
 import { getVencimientosProximos, calcularEstado, diasRestantes } from './vencimientos'
 import { VENCIMIENTO_LABELS } from '@/types'
 import type { Tramite, Turno, Cliente } from '@/types'
-import { estadoMultaEfectivo, ESTADOS_MULTA_SIN_ALERTA_FECHA } from '@/multa_types'
+import { estadoMultaEfectivo, ESTADOS_MULTA_SIN_ALERTA_FECHA } from '@/types/multa_types'
 
 // ─── COLECCIÓN MULTA WORKFLOW (para alertas de fecha) ─────────────────────────
 const multaWorkflowCol = collection(db, 'multaWorkflow')

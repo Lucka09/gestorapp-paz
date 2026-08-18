@@ -1,5 +1,6 @@
 import { initializeApp, getApps, getApp } from 'firebase/app'
 import { getAuth }       from 'firebase/auth'
+import { getFunctions }  from 'firebase/functions'
 import { getFirestore, initializeFirestore, persistentLocalCache, persistentMultipleTabManager } from 'firebase/firestore'
 import { getStorage }    from 'firebase/storage'
 import { ENV }           from './env'

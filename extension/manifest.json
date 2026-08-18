@@ -6,17 +6,26 @@
   "permissions": ["storage", "activeTab", "scripting"],
   "host_permissions": [
     "https://infraccionesba.gba.gob.ar/",
+    "https://*.googleapis.com/*",
+    "https://*.cloudfunctions.net/*",
     "https://crearconsultapublica-jgbhipicma-uc.a.run.app/",
     "https://colaproximaconsulta-jgbhipicma-uc.a.run.app/",
     "https://guardarconsultainfraccion-jgbhipicma-uc.a.run.app/",
     "https://gestorapp-tau.vercel.app/",
     "https://gestorapp-paz.web.app/"
   ],
+   "background": {
+    "service_worker": "background.js"
+  },
   "content_scripts": [
     {
       "matches": ["https://infraccionesba.gba.gob.ar/consulta-infraccion*"],
       "js": ["content.js"],
       "run_at": "document_start"
+    },{
+      "matches": ["https://infraccionesba.gba.gob.ar/*"],
+      "js": ["content.js", "interceptor.js", "bridge.js"],
+      "run_at": "document_idle"
     },
     {
       "matches": [

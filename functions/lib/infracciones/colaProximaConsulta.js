@@ -41,8 +41,6 @@ exports.colaProximaConsulta = void 0;
 const admin = __importStar(require("firebase-admin"));
 const https_1 = require("firebase-functions/v2/https");
 const firebase_functions_1 = require("firebase-functions");
-if (!admin.apps.length)
-    admin.initializeApp();
 const BLOQUEO_MS = 10 * 60 * 1000; // 10 min: si no se procesa, vuelve a la cola
 exports.colaProximaConsulta = (0, https_1.onRequest)(async (req, res) => {
     var _a, _b;

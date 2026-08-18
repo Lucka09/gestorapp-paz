@@ -51,3 +51,45 @@ function publicar(token: string | null): void {
   try { if (localStorage.getItem('gp_ext') !== '1') return } catch { return }
   window.postMessage({ source: SRC_TOKEN, token }, window.location.origin)
 }
+// ─── DESCARGA DE CUPONES (F2.2) ──────────────────────────────────────────────
+
+export interface CuponParaDescargar {
+  nroCausa: string
+  nroActa?: string
+}
+
+export async function iniciarDescargaCuponesEnExtension(
+  tramiteId: string,
+  nroCausas: CuponParaDescargar[],
+): Promise<void> {
+  window.postMessage(
+    {
+      tipo: 'GP_INICIAR_DESCARGA_CUPONES',
+      tramiteId,
+      nroCausas,
+    },
+    window.location.origin,
+  )
+}
+
+export async function pausarDescargaCuponesEnExtension(): Promise<void> {
+  window.postMessage({ tipo: 'GP_PAUSAR_DESCARGA_CUPONES' }, window.location.origin)
+}
+
+export async function reanudarDescargaCuponesEnExtension(
+  tramiteId: string,
+  nroCausas: CuponParaDescargar[],
+): Promise<void> {
+  window.postMessage(
+    {
+      tipo: 'GP_REANUDAR_DESCARGA_CUPONES',
+      tramiteId,
+      nroCausas,
+    },
+    window.location.origin,
+  )
+}
+
+export async function cancelarDescargaCuponesEnExtension(): Promise<void> {
+  window.postMessage({ tipo: 'GP_CANCELAR_DESCARGA_CUPONES' }, window.location.origin)
+}

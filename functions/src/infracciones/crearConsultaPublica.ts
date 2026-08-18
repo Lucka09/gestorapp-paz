@@ -22,8 +22,6 @@ import * as admin    from 'firebase-admin'
 import { onRequest } from 'firebase-functions/v2/https'
 import { logger }    from 'firebase-functions'
 
-if (!admin.apps.length) admin.initializeApp()
-
 // ─── CONFIG ──────────────────────────────────────────────────────────────────
 // Fijado server-side. NUNCA lo manda el cliente.
 const GESTORIA_ID = process.env.GESTORIA_ID_WEB || 'gestoria-paz'

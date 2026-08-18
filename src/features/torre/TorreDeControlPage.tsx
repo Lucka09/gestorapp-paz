@@ -22,7 +22,7 @@ import { usePageTitle }  from '@/hooks/usePageTitle'
 import { formatRelativo, formatFecha } from '@/utils'
 import type { TramiteEnriquecido, AlertaTorre, NivelAlerta } from '@/torre_types'
 import { PASOS_INSCRIPCION }   from '@/torre_types'
-import { PASOS_MULTA_CONFIG }  from '@/multa_types'
+import { PASOS_MULTA_CONFIG }  from '@/types/multa_types'
 import { PASOS_TRANSFERENCIA } from '@/transferencia_types'
 import PanelPremiosAsesor      from '@/components/shared/PanelPremiosAsesor'
 

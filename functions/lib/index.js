@@ -23,7 +23,7 @@ var __importStar = (this && this.__importStar) || function (mod) {
     return result;
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.motorAlertasDiario = exports.colaProximaConsulta = exports.guardarConsultaInfraccion = exports.crearConsultaPublica = exports.whatsappSend = exports.whatsappWebhook = exports.claudeProxy = void 0;
+exports.gestionarEquipo = exports.kommoRecibirLead = exports.iniciarDescargaCupones = exports.subirCuponInfraccion = exports.seedAutomatizaciones = exports.motorAutomatizaciones = exports.motorAlertasDiario = exports.colaProximaConsulta = exports.guardarConsultaInfraccion = exports.crearConsultaPublica = exports.whatsappSend = exports.whatsappWebhook = exports.claudeProxy = void 0;
 // functions/src/index.ts
 // ─── PROXY SEGURO PARA LA API DE CLAUDE ──────────────────────────────────────
 // La API key de Anthropic NUNCA llega al cliente.
@@ -212,4 +212,15 @@ var colaProximaConsulta_1 = require("./infracciones/colaProximaConsulta");
 Object.defineProperty(exports, "colaProximaConsulta", { enumerable: true, get: function () { return colaProximaConsulta_1.colaProximaConsulta; } });
 var MotorAlertas_1 = require("./MotorAlertas");
 Object.defineProperty(exports, "motorAlertasDiario", { enumerable: true, get: function () { return MotorAlertas_1.motorAlertasDiario; } });
+var motor_1 = require("./automatizaciones/motor");
+Object.defineProperty(exports, "motorAutomatizaciones", { enumerable: true, get: function () { return motor_1.motorAutomatizaciones; } });
+Object.defineProperty(exports, "seedAutomatizaciones", { enumerable: true, get: function () { return motor_1.seedAutomatizaciones; } });
+var subirCuponInfraccion_1 = require("./cupones/subirCuponInfraccion");
+Object.defineProperty(exports, "subirCuponInfraccion", { enumerable: true, get: function () { return subirCuponInfraccion_1.subirCuponInfraccion; } });
+var iniciarDescargaCupones_1 = require("./cupones/iniciarDescargaCupones");
+Object.defineProperty(exports, "iniciarDescargaCupones", { enumerable: true, get: function () { return iniciarDescargaCupones_1.iniciarDescargaCupones; } });
+var kommoRecibirLead_1 = require("./kommo/kommoRecibirLead");
+Object.defineProperty(exports, "kommoRecibirLead", { enumerable: true, get: function () { return kommoRecibirLead_1.kommoRecibirLead; } });
+var gestionarEquipo_1 = require("./equipo/gestionarEquipo");
+Object.defineProperty(exports, "gestionarEquipo", { enumerable: true, get: function () { return gestionarEquipo_1.gestionarEquipo; } });
 //# sourceMappingURL=index.js.map

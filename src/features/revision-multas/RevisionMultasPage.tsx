@@ -19,7 +19,7 @@ import {
   ESTADOS_MULTA_SIN_ALERTA_FECHA,
   type EstadoMulta,
   type MultaWorkflow,
-} from '@/multa_types'
+} from '@/types/multa_types'
 import type { Tramite } from '@/types'
 
 // ─── HELPERS ──────────────────────────────────────────────────────────────────

@@ -223,6 +223,10 @@ export interface Tramite {
   pagado: boolean
   fechaPago: Timestamp | null
   formaPago?: string
+  totalCobradoCliente?: number   // total que pagó el cliente (honorarios + SUATS + informe)
+  costosSUATS?: number           // 0 o monto SUATS abonado (no es ingreso)
+  costosInformePersona?: number  // 0 o costo del informe de persona (no es ingreso)
+  cuotasTarjeta?: number         // cantidad de cuotas si formaPago === 'tarjeta'
   notasPago?: string
   turnoId: string | null
   asignadoA: string | null

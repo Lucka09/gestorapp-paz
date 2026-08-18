@@ -25,6 +25,7 @@ import {
 import { Button } from '@/components/ui'
 import Modal from '@/components/shared/Modal'
 import toast from 'react-hot-toast'
+import { getFunctions, httpsCallable } from 'firebase/functions'
 
 // ─── CONSTANTES DE UI ─────────────────────────────────────────────────────────
 
@@ -599,6 +600,18 @@ export default function LeadsPage() {
     ? { id: user.uid, nombre: `${user.nombre} ${user.apellido}`, rol: user.rol }
     : undefined
 
+  const activarAutomatizaciones = async () => {
+    try {
+      const fn = httpsCallable(getFunctions(), 'seedAutomatizaciones')
+      const res: any = await fn({})
+      toast.success(res.data.creadas > 0
+        ? `Automatizaciones activadas (${res.data.creadas})`
+        : 'Las automatizaciones ya estaban activadas')
+    } catch (e: any) {
+      toast.error(e?.message ?? 'No se pudieron activar')
+    }
+  }
+
   // ── Filtrado por tab + búsqueda ──────────────────────────────────────────
   const leadsFiltrados = useMemo(() => {
     let base = leads
@@ -753,9 +766,14 @@ export default function LeadsPage() {
             {metricas.nuevos} nuevos · {metricas.sinAsignar} sin asignar · {metricas.convertidos} convertidos
           </p>
         </div>
-        <Button onClick={() => setModalNuevo(true)}>
-          <Plus size={16} /> Nuevo lead
-        </Button>
+        <div className="flex items-center gap-2 flex-wrap">
+          <Button variant="secondary" onClick={activarAutomatizaciones}>
+            ⚙ Automatizaciones
+          </Button>
+          <Button onClick={() => setModalNuevo(true)}>
+            <Plus size={16} /> Nuevo lead
+          </Button>
+        </div>
       </div>
 
       {/* Métricas rápidas */}

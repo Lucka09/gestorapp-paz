@@ -3,7 +3,7 @@
 // v2 — limpieza semántica, tema claro coherente, sin estilos duplicados
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { useState, useRef, useCallback } from 'react'
+import { useState, useRef, useCallback, useEffect } from 'react'
 import toast from 'react-hot-toast'
 import { useMultaWorkflow }               from '@/hooks/useMultaWorkflow'
 import { useAuthStore }                   from '@/store/authStore'
@@ -16,14 +16,18 @@ import {
   estadoMultaEfectivo, derivarEstadoMulta,
   ESTADO_MULTA_OP_LABELS, ESTADO_MULTA_OP_COLORS,
   ESTADO_MULTA_OP_ORDER, ESTADOS_MULTA_MANUALES,
-} from '@/multa_types'
-import type { MetodoPago, RegistroPago, EstadoMulta } from '@/multa_types'
+} from '@/types/multa_types'
+import type { MetodoPago, RegistroPago, EstadoMulta } from '@/types/multa_types'
 import {
   AlertTriangle, CheckCircle2, Clock, RotateCcw,
   Upload, X, Eye, ChevronDown, ChevronUp,
   DollarSign, User, FileText, Camera, Download, ZoomIn,
   PlusCircle, CreditCard, Pencil, History, ShieldCheck,
 } from 'lucide-react'
+import { PanelDescargaCupones } from '@/components/cupones/PanelDescargaCupones'
+import { getFunctions, httpsCallable } from 'firebase/functions'
+import { app } from '@/lib/firebase'
+import { iniciarDescargaCuponesEnExtension } from '@/lib/puenteExtension'
 
 // ─── HELPERS ─────────────────────────────────────────────────────────────────
 
@@ -324,6 +328,32 @@ export default function GestorMultaWorkflow({ tramiteId, numeroLITExterno }: Pro
   const [mostrarHistFecha,   setMostrarHistFecha]    = useState(false)
 
   const [confirmAsignacion, setConfirmAsignacion] = useState<{ uid: string; nombre: string } | null>(null)
+  const descargaCuponesIniciada = useRef(false)
+
+  useEffect(() => {
+    if (workflow?.pasoActual !== 4) {
+      descargaCuponesIniciada.current = false
+      return
+    }
+
+    if (!workflow?.actasTrabajadas?.length || !workflow.id || descargaCuponesIniciada.current) return
+
+    descargaCuponesIniciada.current = true
+
+    const nroCausas = workflow.actasTrabajadas.map((a) => ({
+      nroCausa: a.nroCausa,
+      nroActa: a.nroActa,
+    }))
+
+    const functions = getFunctions(app, 'us-central1')
+const iniciarJob = httpsCallable(functions, 'iniciarDescargaCupones')
+    iniciarJob({ tramiteId: workflow.id, nroCausas })
+      .then(() => iniciarDescargaCuponesEnExtension(workflow.id, nroCausas))
+      .catch((err) => {
+        console.error('Error iniciando descarga de cupones:', err)
+        toast.error('No se pudo iniciar la descarga de cupones')
+      })
+  }, [workflow?.pasoActual, workflow?.actasTrabajadas, workflow?.id])
 
   // Agregar pago local (antes de guardar en el paso 2)
   const agregarPagoLocal = () => {
@@ -1077,8 +1107,9 @@ export default function GestorMultaWorkflow({ tramiteId, numeroLITExterno }: Pro
       {/* ── PASO 4 — Revisión profunda ── */}
       {pasoActual >= 4 && !esMesa && renderPasoHeader(4, pasoActual, pasosColapsados, toggle)}
       {pasoActual >= 4 && !esMesa && !pasosColapsados[4] && (
-        <div className="bg-white border border-gray-100 rounded-2xl p-5 space-y-4">
-          {pasoActual === 4 && esAdmin ? (
+        <>
+          <div className="bg-white border border-gray-100 rounded-2xl p-5 space-y-4">
+            {pasoActual === 4 && esAdmin ? (
             <>
               <div>
                 <label className="text-xs font-semibold text-gray-500 mb-1 block">Notas de revisión multa x multa *</label>
@@ -1110,7 +1141,14 @@ export default function GestorMultaWorkflow({ tramiteId, numeroLITExterno }: Pro
             ]} />
           )}
         </div>
-      )}
+        {pasoActual === 4 && workflow?.id && (workflow.actasTrabajadas ?? []).length > 0 && (
+          <PanelDescargaCupones
+            tramiteId={workflow.id}
+            nroCausas={(workflow.actasTrabajadas ?? []).map(a => ({ nroCausa: a.nroCausa, nroActa: a.nroActa }))}
+          />
+        )}
+          </>
+        )}
 
       {/* ── PASO 5 — Carga del descargo ── */}
       {pasoActual >= 5 && renderPasoHeader(5, pasoActual, pasosColapsados, toggle)}

@@ -236,6 +236,7 @@ export interface MultaWorkflow {
   // ─── DOCUMENTOS ADICIONALES (multi-DNI / cargas libres) ───────────────────
   // Append-only: se agregan SIN pisar los ya cargados (botón "Agregar doc.").
   documentosAdicionales?:  DocumentoAdicional[]
+  actasTrabajadas?: { nroCausa: string; nroActa?: string }[]
 
   creadoEn:      Timestamp
   actualizadoEn: Timestamp

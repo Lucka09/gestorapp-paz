@@ -14,7 +14,7 @@ import type {
   MultaPaso3Data, MultaReboteResolucion,
   MultaPaso4Data, MultaPaso5Data, MultaPaso6Data, MultaPaso7Data,
   EstadoMultaWorkflow, RegistroPago, EstadoMulta, DocumentoAdicional,
-} from '@/multa_types'
+} from '@/types/multa_types'
 import { crearRecibo, generarNumeroRecibo } from '@/lib/firestore/recibos'
 import { notificarRecibo } from '@/lib/firestore/alertas'
  

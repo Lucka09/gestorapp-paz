@@ -26,7 +26,7 @@ import type {
   MultaPaso3Data, MultaReboteResolucion,
   MultaPaso4Data, MultaPaso5Data, MultaPaso6Data, MultaPaso7Data,
   DocumentoAdicional,
-} from '@/multa_types'
+} from '@/types/multa_types'
 import type { FotoWorkflow } from '@/torre_types'
 import toast from 'react-hot-toast'
 
@@ -408,13 +408,13 @@ export function useMultaWorkflow(tramiteId: string) {
   // ── AGREGAR PAGO POST-CONFIRMACIÓN ──────────────────────────────────────
   const agregarPagoFn = useCallback(async (
     monto:      number,
-    metodoPago: import('@/multa_types').MetodoPago,
+    metodoPago: import('@/types/multa_types').MetodoPago,
     nota?:      string,
   ) => {
     if (!user || !workflow) return
     setGuardando(true)
     try {
-      const pago: import('@/multa_types').RegistroPago = {
+      const pago: import('@/types/multa_types').RegistroPago = {
         monto,
         metodoPago,
         nota,
@@ -480,7 +480,7 @@ export function useMultaWorkflow(tramiteId: string) {
 
   // ── Estado operativo manual (Revisión de Multas) ──────────────────────────
   const cambiarEstadoManual = useCallback(async (
-    estado: import('@/multa_types').EstadoMulta | null,
+    estado: import('@/types/multa_types').EstadoMulta | null,
   ) => {
     if (!user) return
     try {

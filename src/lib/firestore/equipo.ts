@@ -1,19 +1,25 @@
+// src/lib/firestore/equipo.ts
+// ─── GESTIÓN DE EQUIPO (CLIENTE) ─────────────────────────────────────────────
+// Las escrituras (crear / actualizar / cambiar rol / activar / desactivar) van
+// ahora por la Cloud Function `gestionarEquipo`, que valida server-side quién
+// llama y toma el gestoriaId del perfil del que llama (nunca del cliente).
+//
+// Antes esto usaba secondaryAuth + setDoc, que quedaba bloqueado por la regla
+// `allow create, update: if esSuperAdmin()` de users/{uid}. Con la función +
+// Admin SDK NO hace falta tocar firestore.rules.
+//
+// Las lecturas (subscribe*) siguen siendo Firestore directo — el read de staff
+// dentro de la misma gestoría sí está permitido por las reglas.
+
+import { sendPasswordResetEmail } from 'firebase/auth'
 import {
-  createUserWithEmailAndPassword,
-  sendPasswordResetEmail,
-  fetchSignInMethodsForEmail,
-  signOut,
-  deleteUser,
-} from 'firebase/auth'
-import {
-  setDoc, updateDoc, query,
-  where, orderBy, onSnapshot, serverTimestamp,
-  doc, collection,
+  query, where, orderBy, onSnapshot,
   type Unsubscribe,
 } from 'firebase/firestore'
-import { auth, secondaryAuth, secondaryDb } from '../firebase'
-import { userDoc, usersCol } from './collections'
-import { verificarLimiteUsuarios } from './planlimits'
+import { getFunctions, httpsCallable } from 'firebase/functions'
+import { auth, app } from '../firebase'
+import { usersCol } from './collections'
+import { LimitePlanError } from './planlimits'
 import type { Usuario, Rol, PlanGestoria } from '@/types'
 
 // ─── TIPOS ────────────────────────────────────────────────────────────────────
@@ -23,8 +29,8 @@ export interface MiembroEquipo extends Usuario {
 }
 
 export interface NuevoMiembroInput {
-  gestoriaId: string      // requerido — tenant scope + para asignar al nuevo usuario
-  nombre:     string
+  gestoriaId: string      // se mantiene por compatibilidad de firma; el servidor
+  nombre:     string      // usa el gestoriaId del perfil de quien llama, no este.
   apellido:   string
   email:      string
   password:   string
@@ -32,10 +38,61 @@ export interface NuevoMiembroInput {
   rol:        Rol
 }
 
+// ─── CALLABLE ──────────────────────────────────────────────────────────────────
+
+type AccionEquipo =
+  | {
+      accion:   'crear'
+      nombre:   string
+      apellido: string
+      email:    string
+      password: string
+      telefono: string
+      rol:      Rol
+    }
+  | {
+      accion:    'actualizar'
+      targetUid: string
+      nombre?:   string
+      apellido?: string
+      telefono?: string
+      rol?:      Rol
+      activo?:   boolean
+    }
+
+function callGestionarEquipo(payload: AccionEquipo) {
+  const fns = getFunctions(app, 'us-central1')
+  const fn  = httpsCallable<AccionEquipo, { ok: boolean; uid?: string }>(fns, 'gestionarEquipo')
+  return fn(payload)
+}
+
+// Traduce el error de la callable a los tipos que EquipoPage ya espera
+// (LimitePlanError → mensajeUpgrade, y Error('EMAIL_EN_USO')).
+function traducirError(err: any): Error {
+  const msg     = String(err?.message ?? '')
+  const code    = String(err?.code ?? '')
+  const details = err?.details
+
+  if (msg.includes('EMAIL_EN_USO') || code === 'functions/already-exists') {
+    return new Error('EMAIL_EN_USO')
+  }
+  if (
+    (code === 'functions/resource-exhausted' || msg.includes('LIMITE_USUARIOS')) &&
+    details?.tipo === 'usuarios'
+  ) {
+    return new LimitePlanError(
+      'usuarios',
+      Number(details.actual ?? 0),
+      Number(details.maximo ?? 0),
+      (details.plan as PlanGestoria) ?? 'starter',
+    )
+  }
+  return err instanceof Error ? err : new Error(msg || 'ERROR_EQUIPO')
+}
+
 // ─── READ ─────────────────────────────────────────────────────────────────────
 //
 // Filtra por gestoriaId para evitar que una gestoría vea usuarios de otra.
-// Bug original: no filtraba por gestoriaId → cross-tenant data leak.
 
 export function subscribeEquipo(
   gestoriaId: string,
@@ -83,8 +140,6 @@ export function subscribeGestores(
   )
 }
 
-// ─── CREATE ───────────────────────────────────────────────────────────────────
-
 export function subscribeGestoresMulta(
   gestoriaId: string,
   callback:   (miembros: MiembroEquipo[]) => void
@@ -109,55 +164,29 @@ export function subscribeGestoresMulta(
   )
 }
 
+// ─── CREATE ───────────────────────────────────────────────────────────────────
+// Firma preservada. `creadoPor` y `limites` ya no se usan: el servidor deriva
+// todo del auth de quien llama y valida el límite server-side.
+
 export async function crearMiembro(
-  data:        NuevoMiembroInput,
-  creadoPor:   string,
-  limites?:    { maxUsuarios: number; plan: PlanGestoria }
+  data:       NuevoMiembroInput,
+  _creadoPor?: string,
+  _limites?:   { maxUsuarios: number; plan: PlanGestoria }
 ): Promise<string> {
-  // 1. Verificar límite de plan (si se pasan los límites)
-  if (limites) {
-    await verificarLimiteUsuarios(
-      data.gestoriaId,
-      limites.maxUsuarios,
-      limites.plan
-    )
-  }
-
-  // 2. Verificar email disponible
-  const methods = await fetchSignInMethodsForEmail(auth, data.email)
-  if (methods.length > 0) throw new Error('EMAIL_EN_USO')
-
-  // 3. Crear en Firebase Auth (usando instancia secundaria para no cerrar la sesión del propietario)
-  const cred = await createUserWithEmailAndPassword(secondaryAuth, data.email, data.password)
-  const uid  = cred.user.uid
-
-  // 4. Crear perfil en Firestore usando el secondaryDb
-  //    → request.auth.uid == uid pasa directamente sin necesitar get() anidado en las reglas
   try {
-    const docRef = doc(collection(secondaryDb, 'users'), uid)
-    await setDoc(docRef, {
-      uid,
-      email:        data.email,
-      nombre:       data.nombre,
-      apellido:     data.apellido,
-      telefono:     data.telefono,
-      rol:          data.rol,
-      gestoriaId:   data.gestoriaId,
-      clienteId:    null,
-      activo:       true,
-      creadoEn:     serverTimestamp(),
-      ultimoAcceso: serverTimestamp(),
+    const res = await callGestionarEquipo({
+      accion:   'crear',
+      nombre:   data.nombre,
+      apellido: data.apellido,
+      email:    data.email.trim(),
+      password: data.password,
+      telefono: data.telefono,
+      rol:      data.rol,
     })
-  } catch (firestoreError) {
-    // Si falla el Firestore, eliminar el usuario de Auth para evitar cuentas huérfanas
-    await deleteUser(cred.user).catch(() => {})
-    throw firestoreError
+    return (res.data?.uid ?? '') as string
+  } catch (err) {
+    throw traducirError(err)
   }
-
-  // 5. Cerrar sesión secundaria
-  await signOut(secondaryAuth)
-
-  return uid
 }
 
 // ─── UPDATE ───────────────────────────────────────────────────────────────────
@@ -166,31 +195,35 @@ export async function actualizarMiembro(
   uid:  string,
   data: Partial<Pick<Usuario, 'nombre' | 'apellido' | 'telefono' | 'rol' | 'activo'>>
 ): Promise<void> {
-  await updateDoc(userDoc(uid), {
-    ...data,
-    actualizadoEn: serverTimestamp(),
-  })
+  try {
+    await callGestionarEquipo({ accion: 'actualizar', targetUid: uid, ...data })
+  } catch (err) {
+    throw traducirError(err)
+  }
 }
 
 export async function cambiarRol(uid: string, rol: Rol): Promise<void> {
-  await updateDoc(userDoc(uid), {
-    rol,
-    actualizadoEn: serverTimestamp(),
-  })
+  try {
+    await callGestionarEquipo({ accion: 'actualizar', targetUid: uid, rol })
+  } catch (err) {
+    throw traducirError(err)
+  }
 }
 
 export async function desactivarMiembro(uid: string): Promise<void> {
-  await updateDoc(userDoc(uid), {
-    activo:        false,
-    actualizadoEn: serverTimestamp(),
-  })
+  try {
+    await callGestionarEquipo({ accion: 'actualizar', targetUid: uid, activo: false })
+  } catch (err) {
+    throw traducirError(err)
+  }
 }
 
 export async function activarMiembro(uid: string): Promise<void> {
-  await updateDoc(userDoc(uid), {
-    activo:        true,
-    actualizadoEn: serverTimestamp(),
-  })
+  try {
+    await callGestionarEquipo({ accion: 'actualizar', targetUid: uid, activo: true })
+  } catch (err) {
+    throw traducirError(err)
+  }
 }
 
 // ─── RESET PASSWORD ───────────────────────────────────────────────────────────

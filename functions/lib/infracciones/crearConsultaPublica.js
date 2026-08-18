@@ -47,8 +47,6 @@ exports.crearConsultaPublica = void 0;
 const admin = __importStar(require("firebase-admin"));
 const https_1 = require("firebase-functions/v2/https");
 const firebase_functions_1 = require("firebase-functions");
-if (!admin.apps.length)
-    admin.initializeApp();
 // ─── CONFIG ──────────────────────────────────────────────────────────────────
 // Fijado server-side. NUNCA lo manda el cliente.
 const GESTORIA_ID = process.env.GESTORIA_ID_WEB || 'gestoria-paz';
