@@ -284,7 +284,7 @@ function PanelChat({
           {conv.prospectoId && (
             <a
               href={`/admin/pipeline`}
-              title="Ver en Pipeline"
+              title="Ver en Prospectos"
               style={{
                 background: '#8B5CF622', border: '1px solid #8B5CF644',
                 color: '#A78BFA', borderRadius: 8, padding: '4px 8px',
@@ -293,7 +293,7 @@ function PanelChat({
                 textDecoration: 'none',
               }}
             >
-              <Tag size={14} /> Pipeline
+              <Tag size={14} /> Prospectos
             </a>
           )}
         </div>

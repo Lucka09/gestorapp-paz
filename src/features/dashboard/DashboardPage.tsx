@@ -279,7 +279,7 @@ export default function DashboardPage() {
   onClick={() => navigate('/admin/cobranzas?periodo=semana')} />
           <KpiCard label="Ingresos del mes" value={formatPesos(metricas?.ingresosMes ?? 0)}    icon={Activity}   color="#059669" />
           <KpiCard label="Clientes"         value={metricas?.totalClientes ?? 0}                icon={Users}      color="#7C3AED" onClick={() => navigate('/admin/clientes')} />
-          <KpiCard label="Pipeline"         value={`${metPipeline.conversion}%`}               icon={Target}     color="#F97316" sub={`${metPipeline.cerrados} cerrados`} onClick={() => navigate('/admin/pipeline')} />
+          <KpiCard label="Prospectos"         value={`${metPipeline.conversion}%`}               icon={Target}     color="#F97316" sub={`${metPipeline.cerrados} cerrados`} onClick={() => navigate('/admin/pipeline')} />
         </div>
       </div>
       )}

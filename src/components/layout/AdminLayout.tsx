@@ -50,7 +50,7 @@ const NAV_ITEMS_ALL = [
   { to: '/admin/tramites',         icon: FileText,        label: 'Trámites',         permiso: 'verTramites'    },
   { to: '/admin/torre-de-control', icon: Radar,           label: 'Torre de Control', permiso: 'verTramites'    },
   { to: '/admin/turnos',           icon: CalendarDays,    label: 'Turnos',           permiso: 'verTurnos'      },
-  { to: '/admin/pipeline',         icon: TrendingUp,      label: 'Pipeline',         permiso: 'verCRM'         },
+  { to: '/admin/pipeline',         icon: TrendingUp,      label: 'Prospectos',       permiso: 'verCRM'         },
   { to: '/admin/leads',            icon: Target,          label: 'Leads',            permiso: 'verCRM'         },
   { to: '/admin/bandeja',          icon: MessageCircle,   label: 'WhatsApp',         permiso: 'verBandejaWA'  },
   { to: '/admin/cobranzas',        icon: DollarSign,      label: 'Cobranzas',        permiso: 'verCobranzas'   },

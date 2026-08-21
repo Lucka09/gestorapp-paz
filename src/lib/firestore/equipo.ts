@@ -313,7 +313,7 @@ export const PERMISOS_POR_ROL: Record<Exclude<Rol, 'cliente'>, string[]> = {
     'Crear y gestionar clientes, vehículos y trámites',
     'Cambiar estado de trámites (baja, transferencia, multas, etc.)',
     'Gestionar turnos, tareas y seguimientos',
-    'Pipeline CRM y bandeja WhatsApp',
+    'Prospectos y bandeja WhatsApp',
     'Torre de Control completa (todos los trámites)',
     'Panel de Premios & Objetivos personal',
     'Sin acceso a honorarios, cobranzas ni reportes financieros',

@@ -652,7 +652,7 @@ function ModalDetalle({
 
 export default function PipelinePage() {
   const { user } = useAuth()
-  usePageTitle('Pipeline CRM')
+  usePageTitle('Prospectos')
   const actor: ActorInfo | undefined = user
     ? { id: user.uid, nombre: `${user.nombre} ${user.apellido}`, rol: user.rol }
     : undefined
@@ -714,7 +714,7 @@ const handleCrear = async (data: Partial<Prospecto>) => {
       {/* Header */}
       <div className="flex items-start justify-between mb-5 flex-wrap gap-3">
         <div>
-          <h1 className="text-xl font-bold text-gray-900">Pipeline CRM</h1>
+          <h1 className="text-xl font-bold text-gray-900">Prospectos</h1>
           <p className="text-sm text-gray-500 mt-0.5">
             {metricas.activos} activos · {metricas.cerrados} cerrados · {formatPesos(metricas.ingresos)} facturado
           </p>
