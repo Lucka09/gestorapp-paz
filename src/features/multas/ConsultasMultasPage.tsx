@@ -21,7 +21,7 @@ import type { DatosPresupuesto } from '@/lib/armarDatosPresupuesto'
 const NARANJA = '#D4621A'
 type Tab = 'cola' | 'cotizadas' | 'sin_deuda'
 
-// Roles que pueden asignar y ver todas las consultas.
+// Roles que pueden asignar/reasignar a terceros y ver TODAS las consultas.
 const ROLES_ADMIN = ['propietario', 'admin', 'admin_gral', 'superadmin']
 
 function valorConsulta(c: ConsultaInfraccion): string {
@@ -73,6 +73,18 @@ export default function ConsultasMultasPage() {
     } catch (e: any) { toast.error(e?.message ?? 'No se pudo asignar') }
   }
 
+  // Reclamar del pool libre para sí mismo (secretario comercial). No pisa dueño.
+  async function handleReclamar(consultaId: string) {
+    if (!user) return
+    try {
+      await reclamarConsultaSiLibre(consultaId, {
+        uid: user.uid,
+        nombre: `${user.nombre ?? ''} ${user.apellido ?? ''}`.trim() || (user.email ?? '—'),
+      })
+      toast.success('Consulta reclamada')
+    } catch (e: any) { toast.error(e?.message ?? 'No se pudo reclamar') }
+  }
+
   async function handleEnviar(consulta: ConsultaInfraccion, datos: DatosPresupuesto) {
     try {
       await persistirDatosPresupuesto(consulta.id, datos)
@@ -95,6 +107,7 @@ export default function ConsultasMultasPage() {
   }
 
   // ── Sub-componentes ────────────────────────────────────────────────────
+  // Reasignar a terceros: solo admins.
   const AsignarSelect = ({ c }: { c: ConsultaInfraccion }) => {
     if (!esAdmin) return null
     return (
@@ -112,6 +125,20 @@ export default function ConsultasMultasPage() {
     )
   }
 
+  // Reclamar del pool: solo no-admins, y solo sobre consultas libres.
+  const ReclamarBtn = ({ c }: { c: ConsultaInfraccion }) => {
+    if (esAdmin || c.asignadoA) return null
+    return (
+      <button
+        onClick={e => { e.stopPropagation(); handleReclamar(c.id) }}
+        className="text-[11px] rounded-lg px-2.5 py-1 font-semibold text-white whitespace-nowrap"
+        style={{ background: NARANJA }}
+      >
+        Reclamar
+      </button>
+    )
+  }
+
   const BadgeAsignado = ({ c }: { c: ConsultaInfraccion }) =>
     c.asignadoANombre
       ? <span className="text-[10px] rounded-full px-2 py-0.5 bg-blue-50 text-blue-700 whitespace-nowrap">{c.asignadoANombre}</span>
@@ -124,7 +151,7 @@ export default function ConsultasMultasPage() {
         <p className="text-sm text-gray-500">
           {esAdmin
             ? 'Cola de la extensión, cotizaciones y resultados sin deuda.'
-            : 'Tus consultas asignadas.'}
+            : 'Tus consultas y las disponibles para reclamar.'}
         </p>
       </header>
 
@@ -161,6 +188,7 @@ export default function ConsultasMultasPage() {
               <div className="flex items-center gap-2 shrink-0">
                 <BadgeAsignado c={c} />
                 <AsignarSelect c={c} />
+                <ReclamarBtn c={c} />
                 <span className="text-gray-400 text-xs whitespace-nowrap">
                   {c.estado === 'consultada' ? 'procesando…' : c.tipoConsulta === 'dni' ? 'DNI · esperando extensión' : 'esperando extensión'}
                 </span>
@@ -200,6 +228,7 @@ export default function ConsultasMultasPage() {
                   Ver presupuesto
                 </button>
                 <AsignarSelect c={c} />
+                <ReclamarBtn c={c} />
                 {c.estado !== 'enviada' && (
                   <button onClick={() => handleDescartar(c.id)} className="rounded-lg px-3 py-2 text-sm text-gray-500 bg-gray-100">
                     Descartar

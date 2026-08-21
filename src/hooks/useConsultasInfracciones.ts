@@ -4,8 +4,8 @@
 // estado. Expone `paraEnviar` (cotizadas listas) para la vista de trabajo.
 //
 // PRIVACIDAD (UI): propietario/admin/admin_gral/superadmin ven TODAS. El resto
-// solo ve las que tienen asignadas (`asignadoA === su uid`). Las sin asignar
-// (pool de web/extensión) quedan solo para admins hasta que las repartan.
+// (secretario comercial) ve las suyas (`asignadoA === su uid`) + las libres
+// (sin asignar) para poder reclamarlas; nunca ve las asignadas a otro secretario.
 
 import { useState, useEffect, useMemo } from 'react'
 import { useGestoriaId } from '@/context/GestoriaContext'
@@ -43,10 +43,13 @@ export function useConsultasInfracciones() {
   }, [gestoriaId])
 
   // ── Filtro de privacidad ──────────────────────────────────────────────────
-  // Admins ven todo; el resto solo lo asignado a su uid.
+  // Admins ven todo. El resto ve lo asignado a su uid + el pool libre (sin
+  // asignar) para poder reclamarlo; nunca ve lo asignado a otro secretario.
   const veTodo = ROLES_VEN_TODO.includes(user?.rol ?? '')
   const visibles = useMemo(
-    () => veTodo ? consultas : consultas.filter(c => c.asignadoA === user?.uid),
+    () => veTodo
+      ? consultas
+      : consultas.filter(c => c.asignadoA === user?.uid || !c.asignadoA),
     [consultas, veTodo, user?.uid],
   )
 
