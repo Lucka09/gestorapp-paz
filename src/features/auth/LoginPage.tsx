@@ -67,17 +67,13 @@ export default function LoginPage() {
   const { user }            = useAuthStore()
   const navigate            = useNavigate()
 
-  // Redirigir al panel si el usuario ya está autenticado
-  useEffect(() => {
+   useEffect(() => {
     if (!user) return
-    const dest = user.rol === 'cliente'
-      ? '/portal/inicio'
-      : user.rol === 'gestor'
-      ? '/admin/gestor'
-      : '/admin/dashboard'
+    // El cliente va a su portal; el resto entra a /admin y AdminIndex
+    // decide el destino por rol (única fuente de verdad del aterrizaje).
+    const dest = user.rol === 'cliente' ? '/portal/inicio' : '/admin'
     navigate(dest, { replace: true })
   }, [user, navigate])
-
 
   // Actualizar <title> con el nombre del tenant detectado
   useEffect(() => {
