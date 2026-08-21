@@ -34,9 +34,23 @@ async function actualizarAsignado(ctx: CtxAutomatizacion, uid: string, nombre: s
 }
 
 // ── ASIGNACIÓN ROTATIVA (round-robin estable) ────────────────────────────────
-const ROLES_DEFAULT = ['asesor_comercial', 'vendedor', 'operador']
+// Roles que entran en la rotación por defecto (cuando la automatización no
+// especifica `params.roles`). En la taxonomía real solo el Secretario Comercial
+// (asesor_comercial) trabaja el pool de leads. Para incluir otros roles en una
+// regla puntual, pasá `params.roles` en esa acción.
+const ROLES_DEFAULT = ['asesor_comercial']
 
 const ejecutarAsignarRotativo: Ejecutor = async (accion, ctx) => {
+  // Respetar dueño existente: si el lead ya nació asignado (p.ej. carga manual
+  // de un secretario), el rotativo NO lo pisa. También lo vuelve idempotente.
+  const yaAsignado = ctx.entidadDoc?.asignadoA || ctx.evento?.payload?.asignadoA
+  if (yaAsignado) {
+    logger.info('[motor] rotativo omitido: entidad ya asignada', {
+      entidadId: ctx.evento?.entidadId, asignadoA: yaAsignado,
+    })
+    return
+  }
+
   const roles: string[] = accion.params?.roles
     ?? (accion.params?.rol ? [accion.params.rol] : ROLES_DEFAULT)
 
