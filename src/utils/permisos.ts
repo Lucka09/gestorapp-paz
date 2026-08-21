@@ -123,25 +123,26 @@ const PERMISOS: Record<Rol, Permisos> = {
     verRendimientoGestores: false,
   },
 
-  // ── ADMIN GENERAL — igual a admin + acceso financiero, solo 1 por gestoría ──
+  // ── ADMIN GENERAL — acceso a TODO menos finanzas (cobranzas/reportes/métricas) ──
+  //    Diferencia con admin: admin_gral SÍ ve Panel de Mando; ambos sin finanzas.
   admin_gral: {
     verClientes: true, crearClientes: true, editarClientes: true,
     eliminarClientes: false, darAccesoPortal: true,
     verVehiculos: true, crearVehiculos: true, editarVehiculos: true,
     verTramites: true, crearTramites: true, cambiarEstadoTramite: true,
-    verHonorariosDetalle: true, marcarPagado: true, verObsInternas: true,
+    verHonorariosDetalle: true, marcarPagado: true, verObsInternas: true,  // ← dinero operativo del trámite (no es "finanzas")
     verTurnos: true, crearTurnos: true, confirmarTurnos: true, cancelarTurnos: true,
-    verDashboard: true, verPanelMando: true, verMetricasFinancieras: true, verCRM: true,
+    verDashboard: true, verPanelMando: true, verMetricasFinancieras: false, verCRM: true,  // ← ve Panel de Mando, sin métricas financieras
     exportarDatos: true, verSeguimiento: true, crearSeguimiento: true,
-    verConfiguracion: true, editarConfiguracion: false,  // ← no puede cambiar config
-    verEquipo: true, gestionarEquipo: false,             // ← no puede crear/eliminar miembros
-    verCobranzas: true, verReportes: true,               // ← acceso financiero elevado
+    verConfiguracion: true, editarConfiguracion: true,   // ← ahora SÍ edita config
+    verEquipo: true, gestionarEquipo: true,              // ← ahora SÍ gestiona equipo
+    verCobranzas: false, verReportes: false,             // ← sin finanzas
     gestionarMultas: true,
     verConsultasMultas: true,
     verBandejaWA: true, responderWA: true,
     verTorreCompleta: true, verTorreSoloPropia: false, requiereGeo: false,
     verPremios: true, verPremiosTorre: true,
-    verRendimientoGestores: true,                        // ← puede ver % por gestor en Torre
+    verRendimientoGestores: true,                        // ← % por gestor en Torre (operativo, no financiero)
   },
 
   // ── VENDEDOR — NO gestiona equipo ─────────────────────────────────────────
