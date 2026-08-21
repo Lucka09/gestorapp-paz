@@ -9,7 +9,8 @@
 
 import {
   collection, doc, addDoc, getDoc, getDocs, query, where, orderBy,
-  serverTimestamp, runTransaction, updateDoc, type Timestamp,
+  serverTimestamp, runTransaction, updateDoc, onSnapshot, limit,
+  type Timestamp, type Unsubscribe,
 } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
 import { emitirEventoSilencioso } from './eventos'
@@ -132,4 +133,19 @@ export async function generarNumeroRecibo(gestoriaId: string): Promise<string> {
   })
 
   return `REC-${anio}-${String(n).padStart(4, '0')}`
+}
+// ─── BANDEJA: stream de todos los recibos de la gestoría ──────────────────────
+export function subscribeRecibos(
+  gestoriaId: string,
+  callback:   (recibos: Recibo[]) => void,
+): Unsubscribe {
+  const q = query(
+    recibosCol,
+    where('gestoriaId', '==', gestoriaId),
+    orderBy('creadoEn', 'desc'),
+    limit(500),
+  )
+  return onSnapshot(q, snap =>
+    callback(snap.docs.map(d => ({ ...d.data(), id: d.id }) as Recibo))
+  )
 }

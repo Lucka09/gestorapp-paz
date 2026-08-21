@@ -24,6 +24,7 @@ import { TIPO_TRAMITE_LABELS } from '@/types'
 import type { Tramite } from '@/types'
 import { formatFecha, formatPesos } from '@/utils'
 import toast from 'react-hot-toast'
+import BandejaRecibos from './BandejaRecibos'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import { generarComprobantePago, descargarRecibo } from '@/utils/comprobantePago'
 
@@ -352,12 +353,14 @@ export default function CobranzasPage() {
   usePageTitle('Cobranzas')
   const { clientes }                 = useClientes()
 
+
   // ── Período (lee ?periodo=semana de la URL — click desde el Panel de Mando) ──
   const [searchParams, setSearchParams] = useSearchParams()
   const periodoInicial = (searchParams.get('periodo') as PeriodoCobranza) ?? 'mes'
   const [periodo, setPeriodo] = useState<PeriodoCobranza>(
     ['semana', 'mes', 'todos'].includes(periodoInicial) ? periodoInicial : 'mes'
   )
+  const [tab, setTab] = useState<'cobranzas' | 'recibos'>('cobranzas')
   const cambiarPeriodo = (p: PeriodoCobranza) => {
     setPeriodo(p)
     setSearchParams(p === 'mes' ? {} : { periodo: p })
@@ -580,6 +583,25 @@ export default function CobranzasPage() {
         ))}
       </div>
 
+      {/* Switcher de pestañas */}
+      <div className="flex gap-2 mb-4">
+        {([['cobranzas', 'Por cobrar'], ['recibos', 'Recibos emitidos']] as const).map(([k, label]) => (
+          <button
+            key={k}
+            onClick={() => setTab(k)}
+            className={`px-4 py-2 rounded-xl text-sm font-semibold transition-colors ${
+              tab === k
+                ? 'bg-gp-orange text-white shadow-sm'
+                : 'bg-white border border-gray-100 text-gray-600 hover:border-gp-orange/30'
+            }`}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {tab === 'recibos' ? <BandejaRecibos /> : (
+      <>
       {/* Filtros */}
       <Card className="p-4">
         <div className="flex gap-3 flex-wrap">
@@ -675,6 +697,8 @@ export default function CobranzasPage() {
           </div>
         )}
       </Card>
+      </>
+      )}
 
       {modalPago && (
         <ModalPago
