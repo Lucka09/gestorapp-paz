@@ -187,6 +187,10 @@ export default function DashboardPage() {
   const { metricas: metPipeline }    = useProspectos()
   const { alertas, nivelMax } = useAlertas()
 
+    // Los recibos/cobranzas no van al feed del Panel de Mando: tienen su propia
+  // bandeja de supervisión. Filtramos para no inundar el dashboard.
+  const alertasFeed = alertas.filter(a => a.categoria !== 'cobranzas')
+
   // Programar recordatorios para turnos del día
   useEffect(() => {
     if (!turnosHoy.length) return
@@ -248,10 +252,10 @@ export default function DashboardPage() {
       <BannerPushNotifications />
 
       {/* Alertas inteligentes */}
-      {alertas.length > 0 && (
+      {alertasFeed.length > 0 && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          {alertas.map(a => (
-            <AlertaCard key={a.id} alerta={a} onClick={() => (a.link ?? a.link) && navigate(a.link ?? a.link)} />
+          {alertasFeed.map(a => (
+            <AlertaCard key={a.id} alerta={a} onClick={() => a.link && navigate(a.link)} />
           ))}
         </div>
       )}
