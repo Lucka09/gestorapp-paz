@@ -7,8 +7,12 @@
 
 import { useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Search, AlertTriangle, FileWarning, X, ChevronRight, Download } from 'lucide-react'
+import { Search, AlertTriangle, FileWarning, X, ChevronRight, Download, CreditCard, ShieldAlert, RotateCcw } from 'lucide-react'
 import { useMultaWorkflows } from '@/hooks/useMultaWorkflow'
+import ModalOtrosPagos from '@/components/multas/ModalOtrosPagos'
+import ModalReporteControl from '@/components/multas/ModalReporteControl'
+import { resolverReporteControlMulta } from '@/lib/firestore/MultaWorwflow'
+import toast from 'react-hot-toast'
 import { useTramites } from '@/hooks/useTramites'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import {
@@ -85,13 +89,14 @@ function TileEntrega({ fechaStr, dias, sinAlerta }: { fechaStr?: string; dias: n
 
 // ─── PÁGINA ───────────────────────────────────────────────────────────────────
 
-type Tab = 'activas' | 'vencidas' | 'archivadas'
+type Tab = 'activas' | 'vencidas' | 'archivadas' | 'a_controlar'
 
 export default function RevisionMultasPage() {
   usePageTitle('Revisión de Multas')
   const navigate = useNavigate()
   const { multas, loading } = useMultaWorkflows()
-  const { puede } = usePermisos()
+  const { puede, rol } = usePermisos()
+  const esControl = ['propietario','admin_gral','admin'].includes(rol)
 const [exportando, setExportando] = useState(false)
 const handleExportar = async () => {
   setExportando(true)
@@ -101,6 +106,12 @@ const handleExportar = async () => {
   const { tramites } = useTramites()
 
   const [search, setSearch] = useState('')
+  const [otrosPagosOpen, setOtrosPagos] = useState(false)
+  const [reporteModal, setReporteModal] = useState<MultaWorkflow | null>(null)
+  const resolverControl = async (id: string) => {
+    try { await resolverReporteControlMulta(id); toast.success('Multa devuelta al flujo') }
+    catch { toast.error('No se pudo resolver') }
+  }
   const [tab, setTab]       = useState<Tab>('activas')
   const [refine, setRefine] = useState<EstadoMulta | 'todas'>('todas')
 
@@ -121,12 +132,13 @@ const handleExportar = async () => {
     const dias      = diasHasta(fecha)
     const sinAlerta = ESTADOS_MULTA_SIN_ALERTA_FECHA.includes(est)
     const vencida   = !esArchivada(est) && !sinAlerta && dias !== null && dias < -DIAS_VENCIDA
-    const grupo: Tab = esArchivada(est) ? 'archivadas' : vencida ? 'vencidas' : 'activas'
+    const reportada = !!w.reporteControl
+    const grupo: Tab = esArchivada(est) ? 'archivadas' : reportada ? 'a_controlar' : vencida ? 'vencidas' : 'activas'
     return { w, t, est, fecha, dias, sinAlerta, grupo }
   }), [multas, tramiteMap])
 
   const counts = useMemo(() => {
-    const c = { activas: 0, vencidas: 0, archivadas: 0 }
+    const c = { activas: 0, vencidas: 0, archivadas: 0, a_controlar: 0 }
     for (const r of enriquecidas) c[r.grupo]++
     return c
   }, [enriquecidas])
@@ -154,17 +166,28 @@ const handleExportar = async () => {
     ['activas',    'En gestión',    counts.activas],
     ['vencidas',   'Vencidas +10d', counts.vencidas],
     ['archivadas', 'Archivadas',    counts.archivadas],
+    ['a_controlar', 'A Controlar',  counts.a_controlar],
   ]
 
   return (
     <div>
       {/* Encabezado */}
-      {puede('exportarDatos') && (
-  <button onClick={handleExportar} disabled={exportando}
-    className="ml-auto inline-flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-semibold bg-[var(--gp-orange)] text-white disabled:opacity-50">
-    <Download size={15} /> {exportando ? 'Exportando…' : 'Exportar'}
-  </button>
-)}
+      <div className="flex justify-end gap-2 mb-3">
+        {puede('gestionarMultas') && (
+          <button onClick={() => setOtrosPagos(true)}
+            className="inline-flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-semibold border border-[var(--gp-orange)] text-[var(--gp-orange)] hover:bg-orange-50">
+            <CreditCard size={15} /> Otros Pagos
+          </button>
+        )}
+        {puede('exportarDatos') && (
+          <button onClick={handleExportar} disabled={exportando}
+            className="inline-flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-semibold bg-[var(--gp-orange)] text-white disabled:opacity-50">
+            <Download size={15} /> {exportando ? 'Exportando…' : 'Exportar'}
+          </button>
+        )}
+      </div>
+      <ModalOtrosPagos open={otrosPagosOpen} onClose={() => setOtrosPagos(false)} />
+      <ModalReporteControl w={reporteModal} onClose={() => setReporteModal(null)} />
       <div className="flex items-center gap-3 mb-5">
         <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ background: 'var(--gp-orange)' }}>
           <FileWarning size={18} className="text-white" />
@@ -228,6 +251,7 @@ const handleExportar = async () => {
               ? 'Sin resultados con esos filtros.'
               : tab === 'archivadas' ? 'No hay multas archivadas.'
               : tab === 'vencidas'   ? 'No hay multas vencidas (+10d).'
+              : tab === 'a_controlar' ? 'No hay multas reportadas a control.'
               : 'No hay multas en gestión.'}
           </p>
         </div>
@@ -237,7 +261,7 @@ const handleExportar = async () => {
             <table className="w-full min-w-[860px]">
               <thead>
                 <tr className="bg-gray-50 border-b border-gray-100 text-left">
-                  {['N°', 'Cliente', 'Patente / Nota', 'Entrega', 'Estado', 'Honorarios', 'Creado'].map(h => (
+                  {['N°', 'Cliente', 'Patente / Nota', 'Entrega', 'Estado', 'Honorarios', 'Creado', ''].map(h => (
                     <th key={h} className="px-3 py-2.5 text-[10px] font-bold text-gray-400 uppercase tracking-wider whitespace-nowrap">
                       {h}
                     </th>
@@ -259,6 +283,11 @@ const handleExportar = async () => {
                     <td className="px-3 py-2.5">
                       <p className="text-sm font-semibold text-gray-900 truncate max-w-[180px]">{w.paso1?.nombreCompleto || 'Sin nombre'}</p>
                       {w.paso1?.dni && <p className="text-[11px] text-gray-400">DNI {w.paso1.dni}</p>}
+                      {w.reporteControl && (
+                        <p className="text-[11px] text-amber-700 font-medium mt-0.5 truncate max-w-[200px]" title={w.reporteControl.motivo}>
+                          ⚠ {w.reporteControl.motivo} · {w.reporteControl.autorNombre}
+                        </p>
+                      )}
                     </td>
                     {/* Patente / Nota */}
                     <td className="px-3 py-2.5">
@@ -289,6 +318,19 @@ const handleExportar = async () => {
                         {fmtFecha(t?.creadoEn ?? w.creadoEn)}
                         <ChevronRight size={13} className="text-gray-300" />
                       </span>
+                    </td>
+                    {/* Acción control */}
+                    <td className="px-3 py-2.5 whitespace-nowrap text-right" onClick={e => e.stopPropagation()}>
+                      {esControl && (tab === 'a_controlar'
+                        ? <button onClick={() => resolverControl(w.id)} title="Resolver y devolver al flujo"
+                            className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100">
+                            <RotateCcw size={13} /> Resolver
+                          </button>
+                        : <button onClick={() => setReporteModal(w)} title="Reportar a control"
+                            className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-semibold text-amber-700 bg-amber-50 hover:bg-amber-100">
+                            <ShieldAlert size={13} /> Reportar
+                          </button>
+                      )}
                     </td>
                   </tr>
                 ))}

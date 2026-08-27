@@ -15,12 +15,13 @@ import toast from 'react-hot-toast'
 
 // ─── TABS ─────────────────────────────────────────────────────────────────────
 
-type Tab = 'gestor' | 'horarios' | 'tarifas' | 'banco' | 'mensajes' | 'push' | 'premios'
+type Tab = 'gestor' | 'horarios' | 'tarifas' | 'multas' | 'banco' | 'mensajes' | 'push' | 'premios'
 
 const TABS: { id: Tab; label: string; icon: React.ElementType }[] = [
   { id: 'gestor',   label: 'La Gestoría',  icon: Building2     },
   { id: 'horarios', label: 'Horarios',     icon: Clock         },
   { id: 'tarifas',  label: 'Tarifas',      icon: DollarSign    },
+  { id: 'multas',   label: 'Multas',       icon: AlertCircle   },
   { id: 'banco',    label: 'Datos bancarios', icon: CreditCard  },
   { id: 'mensajes', label: 'Mensajes',     icon: MessageSquare },
   { id: 'push',     label: 'Notificaciones', icon: Bell          },
@@ -726,6 +727,62 @@ function TabPremios({
 
 // ─── PÁGINA PRINCIPAL ─────────────────────────────────────────────────────────
 
+// ─── TAB: MULTAS ──────────────────────────────────────────────────────────────
+
+function TabMultas({
+  form, set,
+}: { form: Partial<Configuracion>; set: (k: string, v: string | boolean | number | Record<string, any>) => void }) {
+  const cm = form.costosMulta ?? {}
+  const setCosto = (campo: 'suats' | 'informePersona', valor: number) =>
+    set('costosMulta', { ...cm, [campo]: valor })
+
+  return (
+    <div className="space-y-5">
+      <InfoBox>
+        Estos montos son costos operativos que la gestoría abona por el cliente
+        (no son ingreso). Se deducen de los honorarios al cerrar el trámite y se
+        pre-cargan automáticamente en el Paso 7 de cada multa.
+      </InfoBox>
+
+      <div className="space-y-2">
+        <div className="flex items-center gap-3 px-4 py-3 rounded-xl border border-gray-200 bg-white">
+          <div>
+            <p className="text-sm font-semibold text-gray-700">SUATS</p>
+            <p className="text-xs text-gray-400">Se cobra por defecto en toda revisión de multas</p>
+          </div>
+          <div className="ml-auto flex items-center gap-2">
+            <label className="text-xs text-gray-400 whitespace-nowrap">Monto base $</label>
+            <input
+              type="number" min={0} step={1000}
+              value={cm.suats ?? ''}
+              onChange={e => setCosto('suats', Number(e.target.value))}
+              placeholder="20000"
+              className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm outline-none focus:border-[var(--gp-orange)] w-32 text-right"
+            />
+          </div>
+        </div>
+
+        <div className="flex items-center gap-3 px-4 py-3 rounded-xl border border-gray-200 bg-white">
+          <div>
+            <p className="text-sm font-semibold text-gray-700">Informe de Persona</p>
+            <p className="text-xs text-gray-400">Costo cuando se realiza el informe</p>
+          </div>
+          <div className="ml-auto flex items-center gap-2">
+            <label className="text-xs text-gray-400 whitespace-nowrap">Monto base $</label>
+            <input
+              type="number" min={0} step={1000}
+              value={cm.informePersona ?? ''}
+              onChange={e => setCosto('informePersona', Number(e.target.value))}
+              placeholder="35000"
+              className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm outline-none focus:border-[var(--gp-orange)] w-32 text-right"
+            />
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export default function ConfiguracionPage() {
   const { user }              = useAuth()
   const { config, loading }   = useConfiguracion()
@@ -801,6 +858,7 @@ export default function ConfiguracionPage() {
         {tabActiva === 'gestor'   && <TabGestoria  form={form} set={set} />}
         {tabActiva === 'horarios' && <TabHorarios  form={form} set={set} />}
         {tabActiva === 'tarifas'  && <TabTarifas   form={form} set={set} />}
+        {tabActiva === 'multas'   && <TabMultas    form={form} set={set} />}
         {tabActiva === 'banco'    && <TabBanco      form={form} set={set} />}
         {tabActiva === 'mensajes' && <TabMensajes   form={form} set={set} />}
         {tabActiva === 'push'     && <PanelConfigPush />}

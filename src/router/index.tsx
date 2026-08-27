@@ -45,6 +45,7 @@ const VencimientosPage         = lazy(() => import('@/features/vehiculos/Vencimi
 const SuperAdminPage           = lazy(() => import('@/features/superadmin/SuperAdminPage'))
 const PremiosPage              = lazy(() => import('@/features/premios/PremiosPage'))
 const RevisionMultasPage       = lazy(() => import('@/features/revision-multas/RevisionMultasPage'))
+const TorreControlMultasPage   = lazy(() => import('@/features/multas/TorreControlMultasPage'))
 
 
 // ─── GESTOR (mandatario) ──────────────────────────────────────────────────────
@@ -151,6 +152,7 @@ export const router = createBrowserRouter([
       { path: 'backup',            element: <L><BackupPage /></L> },
       { path: 'consultas-multas', element: <L><ConsultasMultasPage /></L> },
       { path: 'revision-multas', element: <L><RevisionMultasPage /></L> },
+      { path: 'torre-multas',      element: <L><TorreControlMultasPage /></L> },
       
       // Configuración
       { path: 'configuracion',     element: <L><ConfiguracionPage /></L> },

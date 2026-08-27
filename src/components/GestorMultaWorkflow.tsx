@@ -10,12 +10,14 @@ import { useAuthStore }                   from '@/store/authStore'
 import { usePermisos }                    from '@/hooks/usePermisos'
 import { useGestoresEquipo, useGestoresMulta } from '@/hooks/useEquipo'
 import { editarFechaTramiteMulta }        from '@/lib/firestore/MultaWorwflow'
+import { useConfiguracion }              from '@/hooks/useConfiguracion'
 import {
   PASOS_MULTA_CONFIG, ESTADO_MULTA_LABELS, ESTADO_MULTA_COLORS,
   METODOS_PAGO_LABELS, documentacionCompleta,
   estadoMultaEfectivo, derivarEstadoMulta,
   ESTADO_MULTA_OP_LABELS, ESTADO_MULTA_OP_COLORS,
   ESTADO_MULTA_OP_ORDER, ESTADOS_MULTA_MANUALES,
+  MONTO_SUATS_DEFAULT, MONTO_INFORME_PERSONA_DEFAULT,
 } from '@/types/multa_types'
 import type { MetodoPago, RegistroPago, EstadoMulta } from '@/types/multa_types'
 import {
@@ -246,9 +248,16 @@ export default function GestorMultaWorkflow({ tramiteId, numeroLITExterno }: Pro
   const esAsesor          = esAsesorComercial || ['vendedor','operador'].includes(user?.rol ?? '') || !esAdmin
   const puedeAsignar      = esAsesorComercial || esAdmin
   const puedeCerrarPaso7  = ['propietario','admin_gral','admin'].includes(user?.rol ?? '')
+  // El asistente de multas opera el workflow COMPLETO hasta el paso 6 (pasos 3-6
+  // como admin). El cierre financiero + archivado (paso 7) sigue siendo admin/CEO.
+  const puedeOperarMulta  = esAdmin || esAsistenteMultas
 
   const { gestores: gestoresEquipo } = useGestoresEquipo()
   const { gestores: gestoresMulta }  = useGestoresMulta()
+
+  const { config } = useConfiguracion()
+  const montoSuatsCfg   = config.costosMulta?.suats ?? MONTO_SUATS_DEFAULT
+  const montoInformeCfg = config.costosMulta?.informePersona ?? MONTO_INFORME_PERSONA_DEFAULT
 
   const {
     workflow, loading, guardando, error, progreso, pasoActual,
@@ -319,6 +328,23 @@ export default function GestorMultaWorkflow({ tramiteId, numeroLITExterno }: Pro
     informePersonaRealizado: false, montoInformePersona: 0,
     pagoTotalRecibo: 0,
   })
+
+  // Pre-carga automática del Paso 7 — el CEO/admin sigue siendo el último filtro humano.
+  const p7Precargado = useRef(false)
+  useEffect(() => {
+    if (workflow?.pasoActual !== 7 || workflow?.paso7) { p7Precargado.current = false; return }
+    if (p7Precargado.current) return
+    p7Precargado.current = true
+    setP7(prev => {
+      const next = { ...prev }
+      if (!prev.pagoTotalRecibo && workflow?.paso2?.montoTotal) next.pagoTotalRecibo = workflow.paso2.montoTotal
+      if (workflow?.paso1?.requiereSUATS && !prev.suatsAbonado) {
+        next.suatsAbonado = true
+        next.montoSUATS   = prev.montoSUATS || montoSuatsCfg
+      }
+      return next
+    })
+  }, [workflow?.pasoActual, workflow?.paso7, workflow?.paso2?.montoTotal, workflow?.paso1?.requiereSUATS, montoSuatsCfg])
 
   const [pasosColapsados, setPasosColapsados] = useState<Record<number, boolean>>({})
   const toggle = (n: number) => setPasosColapsados(p => ({ ...p, [n]: !p[n] }))
@@ -511,7 +537,7 @@ const iniciarJob = httpsCallable(functions, 'iniciarDescargaCupones')
           {workflow.paso3?.emailMesaAyuda && (
             <p className="text-xs text-amber-500 mt-1">Email: {workflow.paso3.emailMesaAyuda}</p>
           )}
-          {esAdmin && (
+          {puedeOperarMulta && (
             <button onClick={() => resolverMesaAyuda()}
               className="mt-3 w-full py-2 bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold rounded-xl transition-colors">
               ✅ Respuesta recibida — Continuar gestión
@@ -1028,7 +1054,7 @@ const iniciarJob = httpsCallable(functions, 'iniciarDescargaCupones')
               </button>
             </div>
           )}
-          {!esRebotado && pasoActual === 3 && esAdmin && (
+          {!esRebotado && pasoActual === 3 && puedeOperarMulta && (
             <div className="space-y-4">
               <div className="bg-gray-50 border border-gray-200 rounded-xl p-4">
                 <p className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3">Documentación del asesor</p>
@@ -1112,7 +1138,7 @@ const iniciarJob = httpsCallable(functions, 'iniciarDescargaCupones')
       {pasoActual >= 4 && !esMesa && !pasosColapsados[4] && (
         <>
           <div className="bg-white border border-gray-100 rounded-2xl p-5 space-y-4">
-            {pasoActual === 4 && esAdmin ? (
+            {pasoActual === 4 && puedeOperarMulta ? (
             <>
               <div>
                 <label className="text-xs font-semibold text-gray-500 mb-1 block">Notas de revisión multa x multa *</label>
@@ -1157,7 +1183,7 @@ const iniciarJob = httpsCallable(functions, 'iniciarDescargaCupones')
       {pasoActual >= 5 && renderPasoHeader(5, pasoActual, pasosColapsados, toggle)}
       {pasoActual >= 5 && !pasosColapsados[5] && (
         <div className="bg-white border border-gray-100 rounded-2xl p-5 space-y-4">
-          {pasoActual === 5 && esAdmin ? (
+          {pasoActual === 5 && puedeOperarMulta ? (
             <>
               <p className="text-xs text-gray-500">Subí las capturas del descargo cargado en el sistema.</p>
               <label className="border-2 border-dashed border-gray-200 rounded-xl p-4 flex flex-col items-center gap-2 cursor-pointer hover:border-[#D4621A]/40 hover:bg-orange-50/30 transition-all">
@@ -1192,7 +1218,7 @@ const iniciarJob = httpsCallable(functions, 'iniciarDescargaCupones')
       {pasoActual >= 6 && renderPasoHeader(6, pasoActual, pasosColapsados, toggle)}
       {pasoActual >= 6 && !pasosColapsados[6] && (
         <div className="bg-white border border-gray-100 rounded-2xl p-5 space-y-4">
-          {pasoActual === 6 && esAdmin ? (
+          {pasoActual === 6 && puedeOperarMulta ? (
             <>
               {workflow.paso1?.requiereSUATS ? (
                 <>
@@ -1293,11 +1319,11 @@ const iniciarJob = httpsCallable(functions, 'iniciarDescargaCupones')
 <div className={`border rounded-xl overflow-hidden ${workflow.paso1?.requiereSUATS ? 'border-red-300 bg-red-50' : 'border-gray-100'}`}>
   <label className={`flex items-center gap-2 p-3 cursor-pointer text-sm hover:bg-opacity-70 transition-colors ${workflow.paso1?.requiereSUATS ? 'bg-red-50' : 'hover:bg-gray-50'}`}>
     <input type="checkbox" checked={p7.suatsAbonado}
-      onChange={e => setP7(prev => ({ ...prev, suatsAbonado: e.target.checked, montoSUATS: e.target.checked ? prev.montoSUATS : 0 }))}
+      onChange={e => setP7(prev => ({ ...prev, suatsAbonado: e.target.checked, montoSUATS: e.target.checked ? (prev.montoSUATS || montoSuatsCfg) : 0 }))}
       className="accent-[#D4621A]" />
     <span className="font-medium text-gray-700">¿Se abonó SUATS?</span>
     <span className={`text-xs ml-auto font-bold ${workflow.paso1?.requiereSUATS ? 'text-red-600' : 'text-gray-400'}`}>
-      {workflow.paso1?.requiereSUATS ? '⚠️ REQUERIDO ($16.000)' : '(opcional)'}
+      {workflow.paso1?.requiereSUATS ? `⚠️ REQUERIDO (${formatARS(montoSuatsCfg)})` : '(opcional)'}
     </span>
   </label>
   {workflow.paso1?.requiereSUATS && !p7.suatsAbonado && (
@@ -1312,7 +1338,7 @@ const iniciarJob = httpsCallable(functions, 'iniciarDescargaCupones')
         <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm font-bold text-gray-400">$</span>
         <input type="number" min={0} step={100} value={p7.montoSUATS || ''}
           onChange={e => setP7(prev => ({ ...prev, montoSUATS: Number(e.target.value) }))} 
-          placeholder={workflow.paso1?.requiereSUATS ? '16000' : '0'}
+          placeholder={workflow.paso1?.requiereSUATS ? String(montoSuatsCfg) : '0'}
           className="w-full pl-7 pr-3 py-2.5 border border-amber-200 rounded-xl text-sm font-bold text-amber-800 bg-white outline-none focus:border-[#D4621A]" />
       </div>
       {p7.montoSUATS > 0 && <p className="text-xs text-amber-600 mt-1.5">📊 Se registrará en el reporte mensual como SUATS abonado.</p>}
@@ -1324,7 +1350,7 @@ const iniciarJob = httpsCallable(functions, 'iniciarDescargaCupones')
               <div className="border border-gray-100 rounded-xl overflow-hidden">
                 <label className="flex items-center gap-2 p-3 cursor-pointer text-sm hover:bg-gray-50 transition-colors">
                   <input type="checkbox" checked={p7.informePersonaRealizado}
-                    onChange={e => setP7(prev => ({ ...prev, informePersonaRealizado: e.target.checked, montoInformePersona: e.target.checked ? prev.montoInformePersona : 0 }))}
+                    onChange={e => setP7(prev => ({ ...prev, informePersonaRealizado: e.target.checked, montoInformePersona: e.target.checked ? (prev.montoInformePersona || montoInformeCfg) : 0 }))}
                     className="accent-[#D4621A]" />
                   <span className="font-medium text-gray-700">¿Se realizó informe de persona?</span>
                   <span className="text-xs text-gray-400 ml-auto">(opcional)</span>
@@ -1335,7 +1361,7 @@ const iniciarJob = httpsCallable(functions, 'iniciarDescargaCupones')
                     <div className="relative">
                       <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm font-bold text-gray-400">$</span>
                       <input type="number" min={0} step={100} value={p7.montoInformePersona || ''}
-                        onChange={e => setP7(prev => ({ ...prev, montoInformePersona: Number(e.target.value) }))} placeholder="0"
+                        onChange={e => setP7(prev => ({ ...prev, montoInformePersona: Number(e.target.value) }))} placeholder={String(montoInformeCfg)}
                         className="w-full pl-7 pr-3 py-2.5 border border-blue-200 rounded-xl text-sm font-bold text-blue-800 bg-white outline-none focus:border-[#D4621A]" />
                     </div>
                     {p7.montoInformePersona > 0 && <p className="text-xs text-blue-600 mt-1.5">📋 Se registrará en el reporte mensual como informe de persona.</p>}

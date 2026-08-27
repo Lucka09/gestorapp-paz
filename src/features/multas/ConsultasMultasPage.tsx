@@ -2,6 +2,8 @@
 import { useState } from 'react'
 import toast from 'react-hot-toast'
 import Modal from '@/components/shared/Modal'
+import ModalOtrosPagos from '@/components/multas/ModalOtrosPagos'
+import { CreditCard } from 'lucide-react'
 import PresupuestoMultas from '@/features/multas/PresupuestoMultas'
 import { usePermisos } from '@/hooks/usePermisos'
 import { useConsultasInfracciones } from '@/hooks/useConsultasInfracciones'
@@ -21,7 +23,7 @@ import type { DatosPresupuesto } from '@/lib/armarDatosPresupuesto'
 const NARANJA = '#D4621A'
 type Tab = 'cola' | 'cotizadas' | 'sin_deuda'
 
-// Roles que pueden asignar/reasignar a terceros y ver TODAS las consultas.
+// Roles que pueden asignar y ver todas las consultas.
 const ROLES_ADMIN = ['propietario', 'admin', 'admin_gral', 'superadmin']
 
 function valorConsulta(c: ConsultaInfraccion): string {
@@ -43,6 +45,7 @@ export default function ConsultasMultasPage() {
   const { porEstado, paraEnviar, loading } = useConsultasInfracciones()
   const [tab, setTab] = useState<Tab>('cola')
   const [abierta, setAbierta] = useState<ConsultaInfraccion | null>(null)
+  const [otrosPagosOpen, setOtrosPagos] = useState(false)
 
   if (!puedeVer) return <div className="p-6 text-sm text-gray-500">No tenés acceso a esta sección.</div>
 
@@ -73,18 +76,6 @@ export default function ConsultasMultasPage() {
     } catch (e: any) { toast.error(e?.message ?? 'No se pudo asignar') }
   }
 
-  // Reclamar del pool libre para sí mismo (secretario comercial). No pisa dueño.
-  async function handleReclamar(consultaId: string) {
-    if (!user) return
-    try {
-      await reclamarConsultaSiLibre(consultaId, {
-        uid: user.uid,
-        nombre: `${user.nombre ?? ''} ${user.apellido ?? ''}`.trim() || (user.email ?? '—'),
-      })
-      toast.success('Consulta reclamada')
-    } catch (e: any) { toast.error(e?.message ?? 'No se pudo reclamar') }
-  }
-
   async function handleEnviar(consulta: ConsultaInfraccion, datos: DatosPresupuesto) {
     try {
       await persistirDatosPresupuesto(consulta.id, datos)
@@ -107,7 +98,6 @@ export default function ConsultasMultasPage() {
   }
 
   // ── Sub-componentes ────────────────────────────────────────────────────
-  // Reasignar a terceros: solo admins.
   const AsignarSelect = ({ c }: { c: ConsultaInfraccion }) => {
     if (!esAdmin) return null
     return (
@@ -125,20 +115,6 @@ export default function ConsultasMultasPage() {
     )
   }
 
-  // Reclamar del pool: solo no-admins, y solo sobre consultas libres.
-  const ReclamarBtn = ({ c }: { c: ConsultaInfraccion }) => {
-    if (esAdmin || c.asignadoA) return null
-    return (
-      <button
-        onClick={e => { e.stopPropagation(); handleReclamar(c.id) }}
-        className="text-[11px] rounded-lg px-2.5 py-1 font-semibold text-white whitespace-nowrap"
-        style={{ background: NARANJA }}
-      >
-        Reclamar
-      </button>
-    )
-  }
-
   const BadgeAsignado = ({ c }: { c: ConsultaInfraccion }) =>
     c.asignadoANombre
       ? <span className="text-[10px] rounded-full px-2 py-0.5 bg-blue-50 text-blue-700 whitespace-nowrap">{c.asignadoANombre}</span>
@@ -146,14 +122,24 @@ export default function ConsultasMultasPage() {
 
   return (
     <div className="p-4 md:p-6 max-w-3xl mx-auto">
-      <header className="mb-4">
-        <h1 className="text-xl font-bold" style={{ color: NARANJA }}>Consultas de multas</h1>
-        <p className="text-sm text-gray-500">
-          {esAdmin
-            ? 'Cola de la extensión, cotizaciones y resultados sin deuda.'
-            : 'Tus consultas y las disponibles para reclamar.'}
-        </p>
+      <header className="mb-4 flex items-start justify-between gap-3">
+        <div>
+          <h1 className="text-xl font-bold" style={{ color: NARANJA }}>Consultas de multas</h1>
+          <p className="text-sm text-gray-500">
+            {esAdmin
+              ? 'Cola de la extensión, cotizaciones y resultados sin deuda.'
+              : 'Tus consultas asignadas.'}
+          </p>
+        </div>
+        {puede('gestionarMultas') && (
+          <button onClick={() => setOtrosPagos(true)}
+            className="shrink-0 inline-flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-semibold text-white"
+            style={{ background: NARANJA }}>
+            <CreditCard size={15} /> Otros Pagos
+          </button>
+        )}
       </header>
+      <ModalOtrosPagos open={otrosPagosOpen} onClose={() => setOtrosPagos(false)} />
 
       {/* ── PESTAÑAS ─────────────────────────────────────────────────── */}
       <div className="flex gap-2 mb-5 overflow-x-auto">
@@ -188,7 +174,6 @@ export default function ConsultasMultasPage() {
               <div className="flex items-center gap-2 shrink-0">
                 <BadgeAsignado c={c} />
                 <AsignarSelect c={c} />
-                <ReclamarBtn c={c} />
                 <span className="text-gray-400 text-xs whitespace-nowrap">
                   {c.estado === 'consultada' ? 'procesando…' : c.tipoConsulta === 'dni' ? 'DNI · esperando extensión' : 'esperando extensión'}
                 </span>
@@ -228,7 +213,6 @@ export default function ConsultasMultasPage() {
                   Ver presupuesto
                 </button>
                 <AsignarSelect c={c} />
-                <ReclamarBtn c={c} />
                 {c.estado !== 'enviada' && (
                   <button onClick={() => handleDescartar(c.id)} className="rounded-lg px-3 py-2 text-sm text-gray-500 bg-gray-100">
                     Descartar

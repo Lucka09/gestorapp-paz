@@ -40,16 +40,18 @@ const PREFETCH_MAP: Record<string, () => Promise<unknown>> = {
   '/admin/bandeja':           () => import('@/features/bandeja/BandejaWAPage'),
   '/admin/premios':           () => import('@/features/premios/PremiosPage'),
   '/admin/referidos':         () => import('@/features/referidos/ReferidosPage'),
+  '/admin/torre-multas':      () => import('@/features/multas/TorreControlMultasPage'),
 }
 
 const NAV_ITEMS_ALL = [
   { to: '/admin/dashboard',        icon: LayoutDashboard, label: 'Panel de Mando',   permiso: 'verPanelMando' },
+  { to: '/admin/dashboard',        icon: LayoutDashboard, label: 'Panel de Mando',   permiso: 'verDashboard'   },
   { to: '/admin/clientes',         icon: Users,           label: 'Clientes',         permiso: 'verClientes'    },
   { to: '/admin/vehiculos',        icon: Car,             label: 'Vehículos',        permiso: 'verVehiculos'   },
   { to: '/admin/tramites',         icon: FileText,        label: 'Trámites',         permiso: 'verTramites'    },
   { to: '/admin/torre-de-control', icon: Radar,           label: 'Torre de Control', permiso: 'verTramites'    },
   { to: '/admin/turnos',           icon: CalendarDays,    label: 'Turnos',           permiso: 'verTurnos'      },
-  { to: '/admin/pipeline',         icon: TrendingUp,      label: 'Prospectos',       permiso: 'verCRM'         },
+  { to: '/admin/pipeline',         icon: TrendingUp,      label: 'Pipeline',         permiso: 'verCRM'         },
   { to: '/admin/leads',            icon: Target,          label: 'Leads',            permiso: 'verCRM'         },
   { to: '/admin/bandeja',          icon: MessageCircle,   label: 'WhatsApp',         permiso: 'verBandejaWA'  },
   { to: '/admin/cobranzas',        icon: DollarSign,      label: 'Cobranzas',        permiso: 'verCobranzas'   },
@@ -68,6 +70,7 @@ const NAV_ITEMS_ALL = [
 const NAV_MULTAS = [
   { to: '/admin/revision-multas',  icon: AlertTriangle, label: 'Revisión de Multas',  permiso: 'gestionarMultas'    },  // solo quienes procesan multas
   { to: '/admin/consultas-multas', icon: Search,        label: 'Consultas de Multas', permiso: 'verConsultasMultas' },  // todo el staff
+  { to: '/admin/torre-multas',     icon: Radar,         label: 'Torre de Multas',     permiso: 'gestionarMultas'    },  // vista de control por estado
 ]
 
 // ─── PANTALLAS DE ESTADO DEL TENANT ──────────────────────────────────────────

@@ -1,7 +1,7 @@
 // src/lib/firestore/MultaWorwflow.ts  (nombre original preservado)
 import {
   doc, setDoc, collection, addDoc, updateDoc, getDoc,
-  serverTimestamp, Timestamp, arrayUnion,
+  serverTimestamp, Timestamp, arrayUnion, deleteField,
   onSnapshot, query, where,
   type CollectionReference,
 } from 'firebase/firestore'
@@ -572,3 +572,23 @@ export async function asignarAdminMulta(
 // ─── SUBSCRIBE ────────────────────────────────────────────────────────────────
  
 export { workflowDoc as multaWorkflowDoc }
+
+// ─── REPORTE DE CONTROL (pestaña "A Controlar") ──────────────────────────────
+export async function reportarMultaControl(
+  tramiteId:   string,
+  motivo:      string,
+  autorId:     string,
+  autorNombre: string,
+): Promise<void> {
+  await updateDoc(workflowDoc(tramiteId), {
+    reporteControl: { motivo, autorId, autorNombre, creadoEn: Timestamp.now() },
+    actualizadoEn:  serverTimestamp(),
+  })
+}
+
+export async function resolverReporteControlMulta(tramiteId: string): Promise<void> {
+  await updateDoc(workflowDoc(tramiteId), {
+    reporteControl: deleteField(),
+    actualizadoEn:  serverTimestamp(),
+  })
+}

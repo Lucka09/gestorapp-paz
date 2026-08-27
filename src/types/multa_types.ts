@@ -26,10 +26,17 @@ export interface RegistroPago {
   monto:               number
   metodoPago:          MetodoPago
   nota?:               string
-  registradoPor:       string
+  pagadoPor?:          string                      // quién realizó el pago (cliente/tercero)
+  origen?:             'workflow' | 'otros_pagos'  // de dónde se cargó el cobro
+  registradoPor:       string                      // quién lo cargó (usuario del sistema)
   registradoPorNombre: string
   registradoEn:        Timestamp
 }
+
+// ─── COSTOS OPERATIVOS (fallback si la gestoría no configuró montos) ──────────
+// Fuente de verdad configurable: configuracion.costosMulta.{suats,informePersona}
+export const MONTO_SUATS_DEFAULT           = 20_000
+export const MONTO_INFORME_PERSONA_DEFAULT = 35_000
 
 // ─── PASO 1 — Recepción de datos (Asesor) ─────────────────────────────────────
 
@@ -195,6 +202,13 @@ export interface DocumentoAdicional {
 
 // ─── DOCUMENTO PRINCIPAL ──────────────────────────────────────────────────────
 
+export interface ReporteControl {
+  motivo:      string
+  autorId:     string
+  autorNombre: string
+  creadoEn:    Timestamp
+}
+
 export interface MultaWorkflow {
   id:            string    // = tramiteId
   tramiteId:     string
@@ -249,6 +263,9 @@ export interface MultaWorkflow {
   paso5?: MultaPaso5Data
   paso6?: MultaPaso6Data
   paso7?: MultaPaso7Data
+
+  // Reporte de control — saca la multa del tablero activo hacia "A Controlar"
+  reporteControl?: ReporteControl
 
   auditoria?: {
     campo:              string
