@@ -335,11 +335,11 @@ function PanelChat({
                         Sin agentes disponibles
                       </div>
                     ) : agentesWA.map(a => {
-                      const esActual = a.id === conv.asignadoA
+                      const esActual = a.uid === conv.asignadoA
                       return (
                         <button
-                          key={a.id}
-                          onClick={() => { if (!esActual) asignar(conv.id, a.id); setReasignarOpen(false) }}
+                          key={a.uid}
+                          onClick={() => { if (!esActual) asignar(conv.id, a.uid); setReasignarOpen(false) }}
                           style={{
                             display: 'flex', alignItems: 'center', gap: 8,
                             width: '100%', textAlign: 'left', border: 'none',
