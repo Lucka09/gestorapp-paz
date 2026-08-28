@@ -38,6 +38,14 @@ service cloud.firestore {
       'operador','asesor_comercial','superadmin','asistente_multas'
     ];
 }
+    // Bandeja WA — una conversación es "visible" para un agente si es suya o del pool.
+    function scopePropioWA(data) {
+      return data.asignadoA == request.auth.uid || data.asignadoA == '';
+    }
+    // Datos de la conversación padre (para reglas de la subcolección mensajes).
+    function convWA(convId) {
+      return get(/databases/$(database)/documents/conversacionesWA/$(convId)).data;
+    }
 
     // ─── USERS ───────────────────────────────────────────────────────────────
     match /users/{uid} {
@@ -185,14 +193,38 @@ service cloud.firestore {
     }
 
     // ─── CONVERSACIONES WA ────────────────────────────────────────────────────
+    // Aislamiento por rol:
+    //  • Roles de control (isAdmin) y superadmin → ven y editan todo.
+    //  • Resto del staff con acceso → solo lo propio (asignadoA == uid) o el pool
+    //    (asignadoA == ''). No pueden reasignar a otro: el nuevo asignadoA debe
+    //    quedar igual o pasar a ser el uid propio (autoasignarse del pool).
     match /conversacionesWA/{convId} {
-      allow read:   if isStaff() && docDeMiGestoria();
-      allow create: if isStaff() && nuevaDocDeMiGestoria();
-      allow update: if isStaff() && docDeMiGestoria();
+      allow read:   if esSuperAdmin();
+      allow read:   if isAdmin()  && docDeMiGestoria();
+      allow read:   if isStaff()  && docDeMiGestoria() && scopePropioWA(resource.data);
+
+      allow create: if isStaff()  && nuevaDocDeMiGestoria();
+
+      allow update: if esSuperAdmin();
+      allow update: if isAdmin()  && docDeMiGestoria();
+      allow update: if isStaff()  && docDeMiGestoria()
+                    && scopePropioWA(resource.data)
+                    && (
+                         request.resource.data.asignadoA == resource.data.asignadoA
+                         || request.resource.data.asignadoA == request.auth.uid
+                       );
 
       match /mensajes/{msgId} {
-        allow read:   if isStaff() && get(/databases/$(database)/documents/conversacionesWA/$(convId)).data.gestoriaId == miPerfil().gestoriaId;
-        allow create: if isStaff() && get(/databases/$(database)/documents/conversacionesWA/$(convId)).data.gestoriaId == miPerfil().gestoriaId;
+        allow read:   if esSuperAdmin();
+        allow read:   if isStaff()
+                      && convWA(convId).gestoriaId == miPerfil().gestoriaId
+                      && ( isAdmin()
+                           || convWA(convId).asignadoA == request.auth.uid
+                           || convWA(convId).asignadoA == '' );
+        allow create: if isStaff()
+                      && convWA(convId).gestoriaId == miPerfil().gestoriaId
+                      && ( isAdmin()
+                           || convWA(convId).asignadoA == request.auth.uid );
       }
     }
 

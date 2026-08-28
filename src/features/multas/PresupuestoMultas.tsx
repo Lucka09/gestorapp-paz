@@ -281,7 +281,7 @@ transfModo: 'pct', transfPct: 40, efvoModo: 'pct', efvoPct: 35, efvoMonto: 0,
 
                 {/* Resumen calculado (solo lectura) */}
                 <div style={{ display: 'flex', gap: 10, marginTop: 16, flexWrap: 'wrap' }}>
-                  <span style={chip}>Queda en: {money(totales.quedaFila[i] ?? 0)}</span>
+                  <span style={chip}>Transferencia: {money(totales.quedaFila[i] ?? 0)}</span>
                   <span style={chip}>Efectivo: {money(totales.efvoFila[i] ?? 0)}</span>
                 </div>
               </div>

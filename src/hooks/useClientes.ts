@@ -99,17 +99,19 @@ export function useClientesPaginados(pageSize = PAGE_SIZE) {
   const [debouncedSearch, setDebouncedSearch] = useState('')
   const [searchAll, setSearchAll]         = useState<Cliente[] | null>(null)
   const [searchLoading, setSearchLoading] = useState(false)
-
+  // Toggle: false = solo clientes reales (default) · true = incluye prospectos
+  const [verProspectos, setVerProspectos] = useState(false)
   // ── Exportar ──────────────────────────────────────────────────────────────
   const [exportLoading, setExportLoading] = useState(false)
 
   // ── Efectos ───────────────────────────────────────────────────────────────
 
   // 1. Contar total del tenant (una vez al montar)
-  useEffect(() => {
+    useEffect(() => {
     if (!gestoriaId) return
-    getClientesCount(gestoriaId).then(setTotal).catch(console.warn)
-  }, [gestoriaId])
+    getClientesCount(gestoriaId, verProspectos ? undefined : 'cliente')
+      .then(setTotal).catch(console.warn)
+  }, [gestoriaId, verProspectos])
 
   // 2. Debounce del input de búsqueda
   useEffect(() => {
@@ -118,24 +120,24 @@ export function useClientesPaginados(pageSize = PAGE_SIZE) {
   }, [inputSearch])
 
   // 3. Cargar página (solo cuando no hay búsqueda activa)
-  useEffect(() => {
+    useEffect(() => {
     if (!gestoriaId || debouncedSearch.trim()) return
     setLoading(true)
-
     const cursor = cursorsRef.current[page - 1] ?? null
-    getClientesPagina(gestoriaId, cursor, pageSize)
+    getClientesPagina(gestoriaId, cursor, pageSize, verProspectos ? undefined : 'cliente')
       .then(({ clientes: data, lastDoc }) => {
         setItems(data)
         lastDocRef.current = lastDoc
         setHasNext(data.length === pageSize)
         setLoading(false)
       })
-      .catch(err => {
-        console.error('[useClientesPaginados]', err)
-        setLoading(false)
-      })
-  }, [gestoriaId, page, pageSize, debouncedSearch])
+      .catch(err => { console.error('[useClientesPaginados]', err); setLoading(false) })
+  }, [gestoriaId, page, pageSize, debouncedSearch, verProspectos])
 
+    useEffect(() => {
+    cursorsRef.current = [null]
+    setPage(1)
+  }, [verProspectos])
   // 4. Cargar TODOS los clientes para búsqueda (solo cuando hay texto)
   useEffect(() => {
     if (!debouncedSearch.trim() || !gestoriaId) {
@@ -153,6 +155,7 @@ export function useClientesPaginados(pageSize = PAGE_SIZE) {
         setSearchLoading(false)
       })
   }, [debouncedSearch, gestoriaId])
+  
 
   // ── Acciones de paginación ────────────────────────────────────────────────
 
@@ -188,23 +191,26 @@ export function useClientesPaginados(pageSize = PAGE_SIZE) {
 
   const isSearching = debouncedSearch.trim() !== ''
 
-  const clientesFiltrados = useMemo(() => {
+   const clientesFiltrados = useMemo(() => {
     if (!searchAll) return null
     const q = debouncedSearch.toLowerCase()
     return searchAll.filter(c =>
-      c.nombre.toLowerCase().includes(q)   ||
-      c.apellido.toLowerCase().includes(q) ||
-      c.dni.includes(q)                    ||
-      c.telefono.includes(q)               ||
-      c.email.toLowerCase().includes(q)
+      (verProspectos || c.cicloVida !== 'prospecto') && (
+        c.nombre.toLowerCase().includes(q)   ||
+        c.apellido.toLowerCase().includes(q) ||
+        c.dni.includes(q)                    ||
+        c.telefono.includes(q)               ||
+        c.email.toLowerCase().includes(q)
+      )
     )
-  }, [searchAll, debouncedSearch])
+  }, [searchAll, debouncedSearch, verProspectos])
 
   return {
     // Datos a mostrar
     clientes:  clientesFiltrados ?? items,
     total,
-
+    verProspectos,
+    setVerProspectos,
     // Estado de carga
     loading:       isSearching ? searchLoading : loading,
     searchLoading,

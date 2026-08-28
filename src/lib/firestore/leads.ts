@@ -13,6 +13,7 @@ import {
   type Lead, type LeadInput, type EstadoLead, type OrigenSistema,
   type TipoEvento, type OrigenCanal, type TipoTramite,
 } from '@/types'
+import { actualizarCliente } from './clientes'
 
 // ─── COLECCIÓN ────────────────────────────────────────────────────────────────
 const leadsCol = collection(db, 'leads')
@@ -52,12 +53,23 @@ export function subscribeLeads(
 /**
  * Crea un lead. `opts.origenSistema` distingue de dónde vino:
  *   'manual' | 'web_form' | 'wa_api' | 'campana' | 'referido' | 'import'
+ *
+ * `opts.asignar`: si viene, el lead NACE ya asignado (p.ej. carga manual de un
+ * secretario: queda suyo desde el segundo cero, y solo lo ve él + los admins).
+ * El evento 'lead.creado' se emite igual —así la tarea de contacto se sigue
+ * creando— pero lleva `asignadoA` en el payload para que el rotativo detecte
+ * que ya tiene dueño y lo saltee (ver guard en ejecutores.ts / asignar_rotativo).
+ * Los leads de web/Kommo/extensión no pasan `asignar` → nacen sin dueño (pool).
  */
 export async function crearLead(
   gestoriaId: string,
   data:       LeadInput,
   creadoPor:  string,
-  opts: { origenSistema?: OrigenSistema; actor?: ActorInfo } = {},
+  opts: {
+    origenSistema?: OrigenSistema
+    actor?: ActorInfo
+    asignar?: { uid: string; nombre: string }
+  } = {},
 ): Promise<string> {
   const { utm, ...rest } = data
   const clean: Record<string, unknown> = {}
@@ -65,13 +77,18 @@ export async function crearLead(
     if (v !== undefined) clean[k] = v
   }
 
-  const origenSistema = opts.origenSistema ?? 'manual'
+  const origenSistema  = opts.origenSistema ?? 'manual'
+  const asignadoUid    = opts.asignar?.uid ?? data.asignadoA
+  const asignadoNombre = opts.asignar?.nombre
+
   const ref = await addDoc(leadsCol, {
     ...clean,
     gestoriaId,
     estado:        'nuevo',
     prioridad:     data.prioridad ?? 'normal',
     origenSistema,
+    ...(asignadoUid    ? { asignadoA: asignadoUid } : {}),
+    ...(asignadoNombre ? { asignadoNombre } : {}),
     utm_source:    utm?.source  ?? null,
     utm_medium:    utm?.medium  ?? null,
     utm_campaign:  utm?.campaign ?? null,
@@ -81,7 +98,8 @@ export async function crearLead(
     actualizadoEn: serverTimestamp(),
   })
 
-  // Evento fire-and-forget
+  // Evento fire-and-forget. Incluye `asignadoA` en el payload para que el
+  // ejecutor asignar_rotativo pueda saltear los leads que ya nacen con dueño.
   emitirEventoSilencioso(crearEvento({
     gestoriaId,
     tipo:         'lead.creado',
@@ -91,7 +109,7 @@ export async function crearLead(
     actorId:      opts.actor?.id ?? creadoPor,
     actorNombre:  opts.actor?.nombre,
     actorTipo:    opts.actor?.id ? 'usuario' : 'sistema',
-    payload:      { canal: data.canal, telefono: data.telefono, origenSistema },
+    payload:      { canal: data.canal, telefono: data.telefono, origenSistema, asignadoA: asignadoUid ?? null },
     resumen:      `Nuevo lead ${leadLabel(data)} vía ${data.canal}`,
   }))
 
@@ -109,6 +127,35 @@ export async function actualizarLead(
     if (v !== undefined) clean[k] = v
   }
   await updateDoc(leadDoc(id), { ...clean, actualizadoEn: serverTimestamp() })
+
+  // Write-through al cliente materializado (overwrite: solo campos no vacíos
+  // que la persona tocó realmente). Fire-and-forget: no bloquea la edición.
+  void (async () => {
+    try {
+      const snap = await getDoc(leadDoc(id))
+      if (!snap.exists()) return
+      const lead = snap.data() as Lead
+      if (!lead.clienteId) return
+
+      const patch: Record<string, unknown> = {}
+      if (data.nombre?.trim())    patch.nombre    = data.nombre.trim()
+      if (data.apellido?.trim())  patch.apellido  = data.apellido.trim()
+      if (data.telefono?.trim())  patch.telefono  = normalizarTelefono(data.telefono)
+      if (data.email?.trim())     patch.email     = data.email.trim()
+      if (data.localidad?.trim()) patch.localidad = data.localidad.trim()
+      if (data.documento?.trim()) patch.dni       = normalizarDNI(data.documento)
+
+      if (Object.keys(patch).length === 0) return
+
+      // Si ya hay DNI + apellido, el registro deja de estar incompleto.
+      const apellidoOk = !!(patch.apellido || lead.apellido?.trim())
+      if (patch.dni && apellidoOk) patch.datosIncompletos = false
+
+            await actualizarCliente(lead.clienteId, patch, actor)
+    } catch (e) {
+      console.warn('[leads] write-through a cliente falló:', e)
+    }
+  })()
 }
 
 /**

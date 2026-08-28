@@ -20,6 +20,8 @@ function getMetaToken() {
         throw new Error('[WA] WHATSAPP_TOKEN no configurado');
     return token;
 }
+// phone_number_id por defecto (fallback). Con multilínea, el emisor real se
+// pasa por parámetro; este env queda como red de seguridad.
 function getPhoneNumberId() {
     const id = process.env.WHATSAPP_PHONE_NUMBER_ID;
     if (!id)
@@ -38,6 +40,14 @@ function getGestoriaId() {
         throw new Error('[WA] GESTORIA_ID no configurado');
     return g;
 }
+// Resuelve el número emisor: usa el que se pasa (el de la conversación) o cae
+// al del env si no vino ninguno.
+function resolverEmisor(phoneNumberId) {
+    const id = (phoneNumberId && phoneNumberId.trim()) ? phoneNumberId.trim() : process.env.WHATSAPP_PHONE_NUMBER_ID;
+    if (!id)
+        throw new Error('[WA] Sin phone_number_id emisor (ni parámetro ni WHATSAPP_PHONE_NUMBER_ID)');
+    return id;
+}
 // ─── NORMALIZAR TELÉFONO ─────────────────────────────────────────────────────
 // Meta envía el número sin "+" ej: "5491155667788"
 // Usamos ese mismo formato como ID de documento en Firestore
@@ -45,12 +55,15 @@ function normalizarTelefono(raw) {
     return raw.replace(/\D/g, '');
 }
 // ─── ENVIAR MENSAJE DE TEXTO ─────────────────────────────────────────────────
+// phoneNumberId (opcional): número emisor. En multilínea se pasa el
+// waPhoneNumberId de la conversación para responder DESDE el mismo número al
+// que escribió el cliente.
 async function sendTextMessage(to, // teléfono normalizado
-text) {
+text, phoneNumberId) {
     var _a, _b, _c;
-    const phoneNumberId = getPhoneNumberId();
+    const emisor = resolverEmisor(phoneNumberId);
     const token = getMetaToken();
-    const url = `${META_API_BASE}/${phoneNumberId}/messages`;
+    const url = `${META_API_BASE}/${emisor}/messages`;
     const body = {
         messaging_product: 'whatsapp',
         recipient_type: 'individual',
@@ -69,10 +82,11 @@ text) {
     return waMessageId;
 }
 // ─── MARCAR MENSAJE COMO LEÍDO ───────────────────────────────────────────────
-async function markMessageRead(waMessageId) {
-    const phoneNumberId = getPhoneNumberId();
+// Debe usar el MISMO número que recibió el mensaje (el de la conversación).
+async function markMessageRead(waMessageId, phoneNumberId) {
+    const emisor = resolverEmisor(phoneNumberId);
     const token = getMetaToken();
-    const url = `${META_API_BASE}/${phoneNumberId}/messages`;
+    const url = `${META_API_BASE}/${emisor}/messages`;
     await axios_1.default.post(url, {
         messaging_product: 'whatsapp',
         status: 'read',

@@ -61,6 +61,8 @@ export interface Permisos {
   // WhatsApp Bandeja — acceso por rol
   verBandejaWA:         boolean   // ver bandeja de mensajes WhatsApp
   responderWA:          boolean   // enviar mensajes desde la bandeja
+  verTodaLaBandejaWA:   boolean   // ve TODAS las conversaciones (roles de control); false = solo propias + pool
+  reasignarWA:          boolean   // puede reasignar una conversación a otro agente
 
   // Torre de Control — visibilidad
   verTorreCompleta:     boolean   // ve todos los gestores y performance (propietario/admin)
@@ -96,7 +98,7 @@ const PERMISOS: Record<Rol, Permisos> = {
     verCobranzas: true, verReportes: true,  // ← acceso financiero total
     gestionarMultas: true,
     verConsultasMultas: true,
-    verBandejaWA: true, responderWA: true,
+    verBandejaWA: true, responderWA: true, verTodaLaBandejaWA: true, reasignarWA: true,
     verTorreCompleta: true, verTorreSoloPropia: false, requiereGeo: false,
     verPremios: true, verPremiosTorre: true,
     verRendimientoGestores: true,
@@ -117,35 +119,34 @@ const PERMISOS: Record<Rol, Permisos> = {
     verCobranzas: false, verReportes: false,  // ← sin acceso financiero
     gestionarMultas: true,
     verConsultasMultas: true,
-    verBandejaWA: true, responderWA: true,
+    verBandejaWA: true, responderWA: true, verTodaLaBandejaWA: true, reasignarWA: true,
     verTorreCompleta: true, verTorreSoloPropia: false, requiereGeo: false,
     verPremios: true, verPremiosTorre: true,
     verRendimientoGestores: false,
   },
 
-  // ── ADMIN GENERAL — acceso a TODO menos finanzas (cobranzas/reportes/métricas) ──
-  //    Diferencia con admin: admin_gral SÍ ve Panel de Mando; ambos sin finanzas.
+  // ── ADMIN GENERAL — igual a admin + acceso financiero, solo 1 por gestoría ──
   admin_gral: {
     verClientes: true, crearClientes: true, editarClientes: true,
     eliminarClientes: false, darAccesoPortal: true,
     verVehiculos: true, crearVehiculos: true, editarVehiculos: true,
     verTramites: true, crearTramites: true, cambiarEstadoTramite: true,
-    verHonorariosDetalle: true, marcarPagado: true, verObsInternas: true,  // ← dinero operativo del trámite (no es "finanzas")
+    verHonorariosDetalle: true, marcarPagado: true, verObsInternas: true,
     verTurnos: true, crearTurnos: true, confirmarTurnos: true, cancelarTurnos: true,
-    verDashboard: true, verPanelMando: true, verMetricasFinancieras: false, verCRM: true,  // ← ve Panel de Mando, sin métricas financieras
+    verDashboard: true, verPanelMando: true, verMetricasFinancieras: true, verCRM: true,
     exportarDatos: true, verSeguimiento: true, crearSeguimiento: true,
-    verConfiguracion: true, editarConfiguracion: true,   // ← ahora SÍ edita config
-    verEquipo: true, gestionarEquipo: true,              // ← ahora SÍ gestiona equipo
-    verCobranzas: false, verReportes: false,             // ← sin finanzas
+    verConfiguracion: true, editarConfiguracion: false,  // ← no puede cambiar config
+    verEquipo: true, gestionarEquipo: false,             // ← no puede crear/eliminar miembros
+    verCobranzas: true, verReportes: true,               // ← acceso financiero elevado
     gestionarMultas: true,
     verConsultasMultas: true,
-    verBandejaWA: true, responderWA: true,
+    verBandejaWA: true, responderWA: true, verTodaLaBandejaWA: true, reasignarWA: true,
     verTorreCompleta: true, verTorreSoloPropia: false, requiereGeo: false,
     verPremios: true, verPremiosTorre: true,
-    verRendimientoGestores: true,                        // ← % por gestor en Torre (operativo, no financiero)
+    verRendimientoGestores: true,                        // ← puede ver % por gestor en Torre
   },
 
-  // ── VENDEDOR — NO gestiona equipo ─────────────────────────────────────────
+  // ── VENDEDOR — NO gestiona equipo. Bandeja: solo propias + pool ─────────────
   vendedor: {
     verClientes: true, crearClientes: true, editarClientes: false,
     eliminarClientes: false, darAccesoPortal: false,
@@ -160,7 +161,7 @@ const PERMISOS: Record<Rol, Permisos> = {
     verCobranzas: false, verReportes: false,
     gestionarMultas: false,
     verConsultasMultas: true,
-    verBandejaWA: true, responderWA: true,
+    verBandejaWA: true, responderWA: true, verTodaLaBandejaWA: false, reasignarWA: false,
     verTorreCompleta: false, verTorreSoloPropia: false, requiereGeo: false,
     verPremios: false, verPremiosTorre: false,
     verRendimientoGestores: false,
@@ -181,7 +182,7 @@ const PERMISOS: Record<Rol, Permisos> = {
     verCobranzas: false, verReportes: false,
     gestionarMultas: false,
     verConsultasMultas: true,
-    verBandejaWA: false, responderWA: false,
+    verBandejaWA: false, responderWA: false, verTodaLaBandejaWA: false, reasignarWA: false,
     verTorreCompleta: false, verTorreSoloPropia: false, requiereGeo: false,
     verPremios: false, verPremiosTorre: false,
     verRendimientoGestores: false,
@@ -200,7 +201,7 @@ const PERMISOS: Record<Rol, Permisos> = {
     verCobranzas: true, verReportes: true,
     gestionarMultas: true,
     verConsultasMultas: true,
-    verBandejaWA: true, responderWA: true,
+    verBandejaWA: true, responderWA: true, verTodaLaBandejaWA: true, reasignarWA: true,
     verTorreCompleta: true, verTorreSoloPropia: false, requiereGeo: false,
     verPremios: true, verPremiosTorre: true,
     verRendimientoGestores: true,
@@ -221,13 +222,13 @@ const PERMISOS: Record<Rol, Permisos> = {
     verCobranzas: false, verReportes: false,
     gestionarMultas: true,
     verConsultasMultas: true,
-    verBandejaWA: false, responderWA: false,
+    verBandejaWA: false, responderWA: false, verTodaLaBandejaWA: false, reasignarWA: false,
     verTorreCompleta: false, verTorreSoloPropia: true, requiereGeo: true,
     verPremios: false, verPremiosTorre: false,
     verRendimientoGestores: false,
   },
 
-  // ── ASESOR COMERCIAL (label: Secretario Comercial) ──────────────────────────
+  // ── ASESOR COMERCIAL (label: Secretario Comercial) — Bandeja: propias + pool ─
   asesor_comercial: {
     verClientes: true, crearClientes: true, editarClientes: true,
     eliminarClientes: false, darAccesoPortal: false,
@@ -242,24 +243,17 @@ const PERMISOS: Record<Rol, Permisos> = {
     verCobranzas: false, verReportes: false,        // ← sin acceso financiero
     gestionarMultas: true,
     verConsultasMultas: true,
-    verBandejaWA: true, responderWA: true,
+    verBandejaWA: true, responderWA: true, verTodaLaBandejaWA: false, reasignarWA: false,
     verTorreCompleta: true, verTorreSoloPropia: false, requiereGeo: false,
     verPremios: true, verPremiosTorre: true,         // ← exclusivo de este rol
     verRendimientoGestores: false,
   },
 
   // ── ASISTENTE DE MULTAS — módulo de multas + básico, nada financiero ────────
-  // Recibe multas asignadas y ejecuta el workflow COMPLETO (paso 1 a 7).
-  // Ve Trámites (para abrir la multa) y Torre solo-propia. Sin clientes/vehículos,
-  // turnos, cobranzas, reportes, config, equipo, pipeline, WhatsApp ni premios.
   asistente_multas: {
     verClientes: false, crearClientes: false, editarClientes: false,
     eliminarClientes: false, darAccesoPortal: false,
     verVehiculos: false, crearVehiculos: false, editarVehiculos: false,
-    // verTramites: false → NO ve la lista general de Trámites/Torre/Tareas en el
-    // menú. El detalle de la multa se abre igual desde Revisión de Multas (la ruta
-    // /admin/tramites/:id no está guardada por permiso) y el workflow corre porque
-    // usa cambiarEstadoTramite, no verTramites.
     verTramites: false, crearTramites: true, cambiarEstadoTramite: true,
     verHonorariosDetalle: false, marcarPagado: false, verObsInternas: false,
     verTurnos: false, crearTurnos: false, confirmarTurnos: false, cancelarTurnos: false,
@@ -270,7 +264,7 @@ const PERMISOS: Record<Rol, Permisos> = {
     verCobranzas: false, verReportes: false,
     gestionarMultas: true,                          // ← acceso al módulo de multas
     verConsultasMultas: true,
-    verBandejaWA: false, responderWA: false,
+    verBandejaWA: false, responderWA: false, verTodaLaBandejaWA: false, reasignarWA: false,
     verTorreCompleta: false, verTorreSoloPropia: true, requiereGeo: false,
     verPremios: false, verPremiosTorre: false,
     verRendimientoGestores: false,
@@ -291,7 +285,7 @@ const PERMISOS: Record<Rol, Permisos> = {
     verCobranzas: false, verReportes: false,
     gestionarMultas: false,
     verConsultasMultas: false,
-    verBandejaWA: false, responderWA: false,
+    verBandejaWA: false, responderWA: false, verTodaLaBandejaWA: false, reasignarWA: false,
     verTorreCompleta: false, verTorreSoloPropia: false, requiereGeo: false,
     verPremios: false, verPremiosTorre: false,
     verRendimientoGestores: false,

@@ -15,6 +15,7 @@ import {
   type Cinemometro,
 } from '../lib/cinemometros'
 import type { CuponInfraccion, DescargaCuponesJob } from '../cupon_types'
+import { CORS_ORIGINS } from '../cors'
 
 if (!getApps().length) initializeApp()
 const db = getFirestore()
@@ -31,7 +32,7 @@ interface Request {
 
 export const subirCuponInfraccion = onCall<Request>(
   {
-    cors: [/gestorapp.*\.vercel\.app$/, /gestorapp.*\.web\.app$/, /localhost/],
+        cors: CORS_ORIGINS,
     memory: '512MiB',
     timeoutSeconds: 60,
   },

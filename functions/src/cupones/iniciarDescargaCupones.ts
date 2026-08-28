@@ -4,6 +4,7 @@ import { initializeApp, getApps } from 'firebase-admin/app'
 import { getFirestore, FieldValue } from 'firebase-admin/firestore'
 import { getAuth } from 'firebase-admin/auth'
 import type { DescargaCuponesJob, ItemDescargaCupon } from '../cupon_types'
+import { CORS_ORIGINS } from '../cors'
 
 if (!getApps().length) initializeApp()
 const db = getFirestore()
@@ -15,7 +16,7 @@ interface Request {
 }
 
 export const iniciarDescargaCupones = onCall<Request>(
-  { cors: [/gestorapp.*\.vercel\.app$/, /gestorapp.*\.web\.app$/, /localhost/] },
+    { cors: CORS_ORIGINS },
   async (req) => {
     const uid = req.auth?.uid
     if (!uid) throw new HttpsError('unauthenticated', 'Requiere login')

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { getFunctions, httpsCallable }              from 'firebase/functions'
 import { create }        from 'zustand'
 import { useGestoria }   from '@/context/GestoriaContext'
@@ -16,6 +16,7 @@ import {
   actualizarNombreContacto,
   guardarMensajeSaliente,
   calcularMetricasBandeja,
+  type ScopeBandeja,
 } from '@/lib/firestore/conversacionesWA'
 import type {
   ConversacionWA, MensajeWA,
@@ -37,27 +38,41 @@ const useConversacionesStore = create<ConversacionesStore>((set) => ({
     set({ conversaciones, gestoriaActiva }),
 }))
 
+// ─── HELPER: scope según permisos ─────────────────────────────────────────────
+// Roles de control ven todo; el resto ve lo propio + el pool sin asignar.
+function calcularScope(verTodo: boolean, uid: string | undefined): ScopeBandeja | null {
+  if (verTodo) return { tipo: 'todas' }
+  if (!uid)    return null          // sin uid no se puede armar 'propiasYPool'
+  return { tipo: 'propiasYPool', uid }
+}
+
 // ─── HOOK PRINCIPAL ───────────────────────────────────────────────────────────
 
 export function useConversacionesWA() {
-  const { gestoriaId }       = useGestoria()
-  const { user }             = useAuth()
-  const { puede }         = usePermisos()
+  const { gestoriaId }   = useGestoria()
+  const { user }         = useAuth()
+  const { puede }        = usePermisos()
   const verBandejaWA     = puede('verBandejaWA')
+  const verTodo          = puede('verTodaLaBandejaWA')
+  const puedeReasignar   = puede('reasignarWA')
   const { setConversaciones: setStore } = useConversacionesStore()
   const [conversaciones, setLocal] = useState<ConversacionWA[]>([])
   const [loading, setLoading]      = useState(true)
   const [error, setError]          = useState<string | null>(null)
 
+  const scope = useMemo(
+    () => calcularScope(verTodo, user?.uid),
+    [verTodo, user?.uid],
+  )
+
   useEffect(() => {
-    // ⛔ No suscribir si el usuario no tiene acceso a la bandeja WA
-    if (!gestoriaId || !verBandejaWA) {
+    // ⛔ No suscribir si no tiene acceso, o si falta el scope (sin uid todavía)
+    if (!gestoriaId || !verBandejaWA || !scope) {
       setLoading(false)
       return
     }
     setLoading(true)
 
-    // FIX: soloActivas=true explícito, onError como 4to parámetro
     const unsub = subscribeConversaciones(
       gestoriaId,
       data => {
@@ -67,7 +82,7 @@ export function useConversacionesWA() {
         setError(null)
       },
       true,           // soloActivas
-      err => {        // onError — 4to parámetro correcto
+      err => {
         setLoading(false)
         setError(
           (err as any).code === 'permission-denied'
@@ -75,16 +90,20 @@ export function useConversacionesWA() {
             : `Error al cargar conversaciones: ${(err as any).code}`
         )
       },
+      scope,
     )
     return unsub
-  }, [gestoriaId, verBandejaWA, setStore])
+  }, [gestoriaId, verBandejaWA, scope, setStore])
 
   const metricas: MetricasBandeja = calcularMetricasBandeja(conversaciones)
 
   const marcarLeida  = useCallback((id: string) => marcarConversacionLeida(id), [])
   const cambiarEstado = useCallback((id: string, estado: EstadoConversacion) =>
     cambiarEstadoConversacion(id, estado), [])
+  // Reasignar a OTRO agente — la UI debe gatearlo con `puedeReasignar`;
+  // las reglas lo imponen del lado servidor.
   const asignar      = useCallback((id: string, uid: string) => asignarAgente(id, uid), [])
+  // Autoasignarse una del pool — permitido para cualquiera con acceso.
   const asignarseYo  = useCallback((id: string) => {
     if (!user?.uid) return Promise.resolve()
     return asignarAgente(id, user.uid)
@@ -101,6 +120,7 @@ export function useConversacionesWA() {
     conversaciones, loading, error, metricas,
     marcarLeida, cambiarEstado, asignar, asignarseYo,
     linkCliente, linkProspecto, desvincular, editarNombre,
+    puedeReasignar, verTodo,
   }
 }
 
@@ -163,34 +183,39 @@ export function useMensajesWA(conversacionId: string | null) {
 }
 
 // ─── HOOK CONTADOR GLOBAL (badge en el nav) ───────────────────────────────────
-// FIX: verifica permisos antes de suscribir → elimina el permission-denied para
-// roles sin acceso WA (gestor, cliente, operador sin permiso, etc.)
 
 export function useNoLeidosWA(): number {
-  const { gestoriaId }  = useGestoria()
+  const { gestoriaId }     = useGestoria()
+  const { user }           = useAuth()
   const { puede: puedeWA } = usePermisos()
   const verBandejaWA = puedeWA('verBandejaWA')
+  const verTodo      = puedeWA('verTodaLaBandejaWA')
   const { conversaciones, gestoriaActiva, setConversaciones } = useConversacionesStore()
+
+  const scope = useMemo(
+    () => calcularScope(verTodo, user?.uid),
+    [verTodo, user?.uid],
+  )
 
   const yaActivo = gestoriaActiva === gestoriaId && gestoriaId !== null
 
   useEffect(() => {
-    // ⛔ No suscribir si no tiene permiso o si useConversacionesWA ya está activo
-    if (!gestoriaId || !verBandejaWA || yaActivo) return
+    // ⛔ No suscribir si no tiene permiso, falta scope, o ya hay una suscripción activa
+    if (!gestoriaId || !verBandejaWA || !scope || yaActivo) return
 
     const unsub = subscribeConversaciones(
       gestoriaId,
       data => setConversaciones(data, gestoriaId),
-      true,         // soloActivas
+      true,
       err => {
-        // Silenciar — es el badge del nav, no crítico
         if ((err as any).code !== 'permission-denied') {
           console.warn('[useNoLeidosWA]', (err as any).code)
         }
       },
+      scope,
     )
     return unsub
-  }, [gestoriaId, verBandejaWA, yaActivo, setConversaciones])
+  }, [gestoriaId, verBandejaWA, scope, yaActivo, setConversaciones])
 
   if (!verBandejaWA || gestoriaActiva !== gestoriaId) return 0
   return conversaciones.reduce((acc, c) => acc + (c.noLeidos ?? 0), 0)

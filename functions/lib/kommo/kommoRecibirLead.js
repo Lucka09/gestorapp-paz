@@ -22,22 +22,9 @@ var __importStar = (this && this.__importStar) || function (mod) {
     __setModuleDefault(result, mod);
     return result;
 };
-var _a;
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.kommoRecibirLead = void 0;
-// functions/src/kommo/kommoRecibirLead.ts
-// ─────────────────────────────────────────────────────────────────────────────
-// Webhook de ingreso de leads de MULTAS desde Kommo (CRM interino).
-// Acepta dos formatos:
-//   • Nativo Kommo: { leads: { add/update: [...] }, contacts: {...} }
-//   • Simple: { nombre, telefono, dni, patente, mensaje, canal } (tools/web)
-// Garantías:
-//   • Auth fail-closed por KOMMO_WEBHOOK_KEY (header x-kommo-key o ?key=)
-//   • gestoriaId SIEMPRE server-side (GESTORIA_ID_WEB)
-//   • Idempotencia: dedup por kommoLeadId → teléfono; si hay kommoLeadId el
-//     doc se crea con ID determinista kommo_{gestoriaId}_{leadId}
-//   • Un lead malo no tira el batch (try/catch por ítem)
-// ─────────────────────────────────────────────────────────────────────────────
+// functions/src/whatsapp/kommoRecibirLead.ts
 const admin = __importStar(require("firebase-admin"));
 const https_1 = require("firebase-functions/v2/https");
 const firebase_functions_1 = require("firebase-functions");
@@ -45,6 +32,13 @@ if (!admin.apps.length)
     admin.initializeApp();
 const db = admin.firestore();
 const now = () => admin.firestore.FieldValue.serverTimestamp();
+const MAPEO_PIPELINES_KOMMO = {
+    // Reemplazá 'ID_PIPELINE_JESSICA' por el número real que veas en la URL de Kommo
+    '14258279': { email: 'Jessjoker1@gmail.com', linea: '5491136141431' },
+    '14323319': { email: 'florchiperez1987@gmail.com', linea: '5491161859697' },
+    '14323315': { email: 'gonzalonicolas948@gmail.com', linea: '5491157037764' },
+    '14286743': { email: 'Alexiapini.t@gmail.com', linea: '5491149470249' },
+};
 // ─── NORMALIZADORES ─────────────────────────────────────────────────────────
 function normalizarTelefono(raw) {
     const limpio = (raw || '').replace(/\D/g, '');
@@ -59,7 +53,6 @@ function normalizarTelefono(raw) {
 const normalizarDNI = (raw) => (raw || '').replace(/[.\s-]/g, '');
 const normalizarPatente = (raw) => (raw || '').toUpperCase().replace(/\s/g, '');
 const validarPatente = (p) => /^[A-Z]{3}\d{3}$/.test(p) || /^[A-Z]{2}\d{3}[A-Z]{2}$/.test(p);
-const PIPELINE_MULTAS = ((_a = process.env.KOMMO_PIPELINE_MULTAS) !== null && _a !== void 0 ? _a : '').trim();
 function campoKommo(customFields, nombres) {
     var _a, _b;
     const lows = nombres.map(n => n.toLowerCase());
@@ -79,6 +72,7 @@ function desdeFormatoSimple(b) {
         mensaje: String((_g = b.mensaje) !== null && _g !== void 0 ? _g : ''),
         kommoLeadId: b.kommoLeadId ? String(b.kommoLeadId) : null,
         kommoContactId: b.kommoContactId ? String(b.kommoContactId) : null,
+        kommoPipelineId: b.kommoPipelineId ? String(b.kommoPipelineId) : null,
     };
 }
 function desdeKommoNativo(body) {
@@ -87,19 +81,6 @@ function desdeKommoNativo(body) {
         ...((_b = (_a = body === null || body === void 0 ? void 0 : body.leads) === null || _a === void 0 ? void 0 : _a.add) !== null && _b !== void 0 ? _b : []),
         ...((_d = (_c = body === null || body === void 0 ? void 0 : body.leads) === null || _c === void 0 ? void 0 : _c.update) !== null && _d !== void 0 ? _d : []),
     ];
-    if (!PIPELINE_MULTAS && todos.length > 0) {
-        firebase_functions_1.logger.warn('[kommo] KOMMO_PIPELINE_MULTAS sin configurar: se aceptan leads de TODOS los pipelines', {
-            pipelines: todos.map(l => l === null || l === void 0 ? void 0 : l.pipeline_id),
-        });
-    }
-    const leads = PIPELINE_MULTAS
-        ? todos.filter(l => { var _a; return String((_a = l === null || l === void 0 ? void 0 : l.pipeline_id) !== null && _a !== void 0 ? _a : '') === PIPELINE_MULTAS; })
-        : todos;
-    if (PIPELINE_MULTAS && todos.length > 0 && leads.length === 0) {
-        firebase_functions_1.logger.info('[kommo] leads ignorados (otro pipeline)', {
-            pipelines: todos.map(l => l === null || l === void 0 ? void 0 : l.pipeline_id),
-        });
-    }
     const contactos = [
         ...((_f = (_e = body === null || body === void 0 ? void 0 : body.contacts) === null || _e === void 0 ? void 0 : _e.add) !== null && _f !== void 0 ? _f : []),
         ...((_h = (_g = body === null || body === void 0 ? void 0 : body.contacts) === null || _g === void 0 ? void 0 : _g.update) !== null && _h !== void 0 ? _h : []),
@@ -113,7 +94,7 @@ function desdeKommoNativo(body) {
         if ((c === null || c === void 0 ? void 0 : c.id) != null && tels.length)
             telPorContacto.set(String(c.id), tels[0]);
     }
-    return leads.map(l => {
+    return todos.map(l => {
         var _a, _b, _c, _d;
         const cf = (_a = l.custom_fields) !== null && _a !== void 0 ? _a : [];
         const contactoId = (_c = (_b = l.contact_id) !== null && _b !== void 0 ? _b : l.main_contact_id) !== null && _c !== void 0 ? _c : null;
@@ -128,10 +109,25 @@ function desdeKommoNativo(body) {
             mensaje: campoKommo(cf, ['consulta', 'mensaje', 'nota']),
             kommoLeadId: l.id != null ? String(l.id) : null,
             kommoContactId: contactoId != null ? String(contactoId) : null,
+            kommoPipelineId: l.pipeline_id != null ? String(l.pipeline_id) : null,
         };
     });
 }
-// ─── PROSPECTO + CONSULTA ───────────────────────────────────────────────────
+// ─── HELPERS DE FIRESTORE ───────────────────────────────────────────────────
+async function obtenerUidPorEmail(email, gestoriaId) {
+    if (!email)
+        return null;
+    const snap = await db.collection('equipo')
+        .where('gestoriaId', '==', gestoriaId)
+        .where('email', '==', email.toLowerCase())
+        .limit(1)
+        .get();
+    if (snap.empty) {
+        firebase_functions_1.logger.warn('[kommo] No se encontró usuario en equipo para email:', email);
+        return null;
+    }
+    return snap.docs[0].id; // El ID del documento en 'equipo' es el UID del usuario
+}
 async function crearProspectoYConsulta(p) {
     var _a, _b, _c, _d, _e, _f;
     const tipoConsulta = p.patente ? 'dominio' : 'dni';
@@ -148,10 +144,10 @@ async function crearProspectoYConsulta(p) {
         descripcion: p.mensaje || `Consulta Kommo ${p.patente || p.dni}`,
         montoCierre: 0, formaPago: '', fechaCierre: '',
         tareas: [], etiquetas: ['kommo'],
-        leadId: p.leadId, creadoPor: 'kommo',
+        leadId: p.leadId, asesorId: p.asesorId || 'sin_asignar', creadoPor: 'kommo',
         orden: Date.now(), creadoEn: now(), actualizadoEn: now(),
     });
-    const cRef = await db.collection('consultasInfracciones').add(Object.assign(Object.assign({ gestoriaId: p.gestoriaId, tipoConsulta }, (tipoConsulta === 'dominio' ? { dominio: p.patente } : { dni: p.dni, tipoDocumento: 'DNI' })), { contacto: { nombre: `${p.nombre} ${(_d = p.apellido) !== null && _d !== void 0 ? _d : ''}`.trim(), whatsapp: (_e = p.telefono) !== null && _e !== void 0 ? _e : '', email: (_f = p.email) !== null && _f !== void 0 ? _f : '' }, origen: p.canal, estado: 'pendiente', prospectoId: pRef.id, leadId: p.leadId, creadaEn: now() }));
+    const cRef = await db.collection('consultasInfracciones').add(Object.assign(Object.assign({ gestoriaId: p.gestoriaId, tipoConsulta }, (tipoConsulta === 'dominio' ? { dominio: p.patente } : { dni: p.dni, tipoDocumento: 'DNI' })), { contacto: { nombre: `${p.nombre} ${(_d = p.apellido) !== null && _d !== void 0 ? _d : ''}`.trim(), whatsapp: (_e = p.telefono) !== null && _e !== void 0 ? _e : '', email: (_f = p.email) !== null && _f !== void 0 ? _f : '' }, origen: p.canal, estado: 'pendiente', prospectoId: pRef.id, leadId: p.leadId, asesorId: p.asesorId || 'sin_asignar', creadaEn: now() }));
     return { prospectoId: pRef.id, consultaId: cRef.id };
 }
 // ─── NÚCLEO ─────────────────────────────────────────────────────────────────
@@ -161,7 +157,18 @@ async function procesarLead(b) {
     let patente = b.patente;
     if (patente && !validarPatente(patente))
         patente = '';
-    // Dedup nivel 1: kommoLeadId / nivel 2: teléfono
+    // 1. Determinar asesor y línea según el Pipeline de Kommo
+    let asesorEmail = '';
+    let lineaOrigen = '';
+    if (b.kommoPipelineId && MAPEO_PIPELINES_KOMMO[b.kommoPipelineId]) {
+        asesorEmail = MAPEO_PIPELINES_KOMMO[b.kommoPipelineId].email;
+        lineaOrigen = MAPEO_PIPELINES_KOMMO[b.kommoPipelineId].linea;
+    }
+    else {
+        firebase_functions_1.logger.warn('[kommo] Pipeline no mapeado o sin ID', { pipelineId: b.kommoPipelineId });
+    }
+    const asesorId = await obtenerUidPorEmail(asesorEmail, gestoriaId);
+    // 2. Dedup nivel 1: kommoLeadId / nivel 2: teléfono
     let existingId = null;
     if (b.kommoLeadId) {
         const dup = await db.collection('leads')
@@ -192,6 +199,10 @@ async function procesarLead(b) {
             patch.email = b.email;
         if (b.mensaje && !ld.consulta)
             patch.consulta = b.mensaje;
+        if (lineaOrigen && !ld.lineaOrigen)
+            patch.lineaOrigen = lineaOrigen;
+        if (asesorId && !ld.asesorId)
+            patch.asesorId = asesorId;
         await ref.update(patch);
         const patenteFinal = patente || ld.patente || '';
         const dniFinal = b.dni || ld.documento || '';
@@ -201,7 +212,8 @@ async function procesarLead(b) {
                 gestoriaId, nombre: (_c = ld.nombre) !== null && _c !== void 0 ? _c : b.nombre, apellido: (_d = ld.apellido) !== null && _d !== void 0 ? _d : '',
                 telefono: (_e = ld.telefono) !== null && _e !== void 0 ? _e : b.telefono, email: (_f = ld.email) !== null && _f !== void 0 ? _f : b.email,
                 patente: patenteFinal, dni: dniFinal,
-                mensaje: (_g = ld.consulta) !== null && _g !== void 0 ? _g : b.mensaje, canal: (_h = ld.canal) !== null && _h !== void 0 ? _h : b.canal, leadId: existingId,
+                mensaje: (_g = ld.consulta) !== null && _g !== void 0 ? _g : b.mensaje, canal: (_h = ld.canal) !== null && _h !== void 0 ? _h : b.canal,
+                leadId: existingId, asesorId: ld.asesorId || asesorId,
             });
             await ref.update(ids);
             return Object.assign({ ok: true, leadId: existingId, duplicado: true, encolado: true }, ids);
@@ -221,9 +233,11 @@ async function procesarLead(b) {
         tipoTramiteInteres: 'descargo_multa',
         consulta: b.mensaje || `Lead Kommo vía ${b.canal}`,
         kommoLeadId: b.kommoLeadId, kommoContactId: b.kommoContactId,
+        kommoPipelineId: b.kommoPipelineId,
+        lineaOrigen: lineaOrigen || 'desconocida',
+        asesorId: asesorId || 'sin_asignar',
         creadoPor: 'kommo', creadoEn: now(), actualizadoEn: now(),
     };
-    // ID determinista cuando hay kommoLeadId → retries/duplicados convergen al mismo doc
     let leadId;
     if (b.kommoLeadId) {
         leadId = `kommo_${gestoriaId}_${b.kommoLeadId}`;
@@ -237,7 +251,7 @@ async function procesarLead(b) {
         ids = await crearProspectoYConsulta({
             gestoriaId, nombre: b.nombre, apellido,
             telefono: b.telefono, email: b.email, patente, dni: b.dni,
-            mensaje: b.mensaje, canal: b.canal, leadId,
+            mensaje: b.mensaje, canal: b.canal, leadId, asesorId,
         });
         await db.collection('leads').doc(leadId).update(ids);
     }
@@ -245,22 +259,22 @@ async function procesarLead(b) {
         gestoriaId, tipo: 'lead.creado', entidad: 'lead', entidadId: leadId,
         entidadLabel: b.nombre || b.telefono,
         actor: { id: 'kommo', nombre: 'Kommo', tipo: 'sistema' },
-        payload: { canal: b.canal, origenSistema: 'kommo', kommoLeadId: b.kommoLeadId },
-        resumen: `Nuevo lead ${b.nombre || b.telefono} vía Kommo (${b.canal})`,
+        payload: { canal: b.canal, origenSistema: 'kommo', kommoLeadId: b.kommoLeadId, lineaOrigen, asesorId },
+        resumen: `Nuevo lead ${b.nombre || b.telefono} vía Kommo (${b.canal}) - Asignado a ${asesorEmail || 'sin asignar'}`,
         timestamp: now(),
     });
-    firebase_functions_1.logger.info('[kommo] lead nuevo', { leadId, kommoLeadId: b.kommoLeadId });
+    firebase_functions_1.logger.info('[kommo] lead nuevo procesado', { leadId, kommoLeadId: b.kommoLeadId, lineaOrigen, asesorId });
     return Object.assign({ ok: true, leadId, duplicado: false }, ids);
 }
 // ─── HANDLER ────────────────────────────────────────────────────────────────
 exports.kommoRecibirLead = (0, https_1.onRequest)({ region: 'us-central1', cors: true, timeoutSeconds: 30 }, async (req, res) => {
-    var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k, _l, _m, _o, _p, _q, _r, _s;
+    var _a, _b;
     if (req.method === 'OPTIONS') {
         res.status(204).send('');
         return;
     }
     if (req.method === 'GET') {
-        res.status(200).json({ ok: true });
+        res.status(200).json({ ok: true, status: 'active' });
         return;
     }
     if (req.method !== 'POST') {
@@ -276,30 +290,7 @@ exports.kommoRecibirLead = (0, https_1.onRequest)({ region: 'us-central1', cors:
     const esNativo = Boolean((body === null || body === void 0 ? void 0 : body.leads) || (body === null || body === void 0 ? void 0 : body.contacts));
     const entrantes = esNativo ? desdeKommoNativo(body) : [desdeFormatoSimple(body)];
     if (entrantes.length === 0 || entrantes.every(e => !e.nombre && !e.telefono)) {
-        const sampleLead = (_g = (_d = (_c = (_b = body === null || body === void 0 ? void 0 : body.leads) === null || _b === void 0 ? void 0 : _b.update) === null || _c === void 0 ? void 0 : _c[0]) !== null && _d !== void 0 ? _d : (_f = (_e = body === null || body === void 0 ? void 0 : body.leads) === null || _e === void 0 ? void 0 : _e.add) === null || _f === void 0 ? void 0 : _f[0]) !== null && _g !== void 0 ? _g : null;
-        const sampleContact = (_o = (_k = (_j = (_h = body === null || body === void 0 ? void 0 : body.contacts) === null || _h === void 0 ? void 0 : _h.update) === null || _j === void 0 ? void 0 : _j[0]) !== null && _k !== void 0 ? _k : (_m = (_l = body === null || body === void 0 ? void 0 : body.contacts) === null || _l === void 0 ? void 0 : _l.add) === null || _m === void 0 ? void 0 : _m[0]) !== null && _o !== void 0 ? _o : null;
-        firebase_functions_1.logger.info('[kommo] webhook recibido, sin leads parseables', {
-            formatoDetectado: esNativo ? 'kommo-nativo' : 'simple',
-            bodyKeys: Object.keys(body !== null && body !== void 0 ? body : {}),
-            leadsKeys: (body === null || body === void 0 ? void 0 : body.leads) ? Object.keys(body.leads) : null,
-            contactsKeys: (body === null || body === void 0 ? void 0 : body.contacts) ? Object.keys(body.contacts) : null,
-            pipelineEsperado: PIPELINE_MULTAS || '(sin filtro)',
-            sampleLeadName: (_p = sampleLead === null || sampleLead === void 0 ? void 0 : sampleLead.name) !== null && _p !== void 0 ? _p : '(sin name)',
-            sampleLeadPipeline: (_q = sampleLead === null || sampleLead === void 0 ? void 0 : sampleLead.pipeline_id) !== null && _q !== void 0 ? _q : '(sin pipeline_id)',
-            sampleLeadKeys: sampleLead ? Object.keys(sampleLead) : null,
-            sampleLeadCustomFields: (_r = sampleLead === null || sampleLead === void 0 ? void 0 : sampleLead.custom_fields) !== null && _r !== void 0 ? _r : null,
-            sampleContactKeys: sampleContact ? Object.keys(sampleContact) : null,
-            sampleContactCustomFields: (sampleContact === null || sampleContact === void 0 ? void 0 : sampleContact.custom_fields)
-                ? (Array.isArray(sampleContact.custom_fields)
-                    ? sampleContact.custom_fields.slice(0, 5).map((cf) => ({
-                        id: cf.id, name: cf.name, code: cf.code,
-                        valuesType: Array.isArray(cf.values) ? 'array' : typeof cf.values,
-                        valuesLen: Array.isArray(cf.values) ? cf.values.length : null,
-                        firstValue: Array.isArray(cf.values) && cf.values[0] ? Object.keys(cf.values[0]) : null,
-                    }))
-                    : typeof sampleContact.custom_fields)
-                : null,
-        });
+        firebase_functions_1.logger.info('[kommo] webhook recibido, sin leads parseables', { bodyKeys: Object.keys(body !== null && body !== void 0 ? body : {}) });
     }
     const resultados = [];
     for (const b of entrantes) {
@@ -314,7 +305,7 @@ exports.kommoRecibirLead = (0, https_1.onRequest)({ region: 'us-central1', cors:
             firebase_functions_1.logger.error('[kommo] error procesando lead', {
                 kommoLeadId: b.kommoLeadId, telefono: b.telefono, error: e === null || e === void 0 ? void 0 : e.message,
             });
-            resultados.push({ ok: false, error: (_s = e === null || e === void 0 ? void 0 : e.message) !== null && _s !== void 0 ? _s : 'Error interno', kommoLeadId: b.kommoLeadId });
+            resultados.push({ ok: false, error: (_b = e === null || e === void 0 ? void 0 : e.message) !== null && _b !== void 0 ? _b : 'Error interno', kommoLeadId: b.kommoLeadId });
         }
     }
     firebase_functions_1.logger.info('[kommo] batch procesado', {

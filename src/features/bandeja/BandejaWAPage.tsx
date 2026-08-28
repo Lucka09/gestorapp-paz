@@ -9,8 +9,12 @@ import { formatDistanceToNow, format, isToday, isYesterday } from 'date-fns'
 import { es } from 'date-fns/locale'
 import { useConversacionesWA, useMensajesWA, useNoLeidosWA } from '@/hooks/useConversacionesWA'
 import { useAuth }          from '@/hooks/useAuth'
+import { useEquipo }        from '@/hooks/useEquipo'
+import { getPermisos }      from '@/utils/permisos'
 import { usePageTitle }     from '@/hooks/usePageTitle'
 import { useGestoria }      from '@/context/GestoriaContext'
+import { crearConsultaDesdeWA }       from '@/lib/firestore/consultasInfracciones'
+import { actualizarConsultaSugerida } from '@/lib/firestore/conversacionesWA'
 import type { ConversacionWA, MensajeWA, EstadoConversacion } from '@/wa_types'
 
 // ─── PALETA BANDEJA WA ────────────────────────────────────────────────────────
@@ -29,6 +33,16 @@ const WA_DIVIDER  = '#2A3942'   // bordes y separadores
 // Helper que lee el color del tenant en runtime (respetar branding)
 const getOrange = () =>
   getComputedStyle(document.documentElement).getPropertyValue('--gp-orange').trim() || '#D4621A'
+
+// ─── VALIDACIÓN PATENTE / DNI (chip de consulta de infracciones) ─────────────
+const RE_DOMINIO = /^([A-Z]{3}\d{3}|[A-Z]{2}\d{3}[A-Z]{2}|\d{3}[A-Z]{3}|[A-Z]\d{3}[A-Z]{3})$/
+const limpiarValor = (v: string) => (v || '').toUpperCase().replace(/[^A-Z0-9]/g, '')
+const tipoDeValor  = (v: string): 'dominio' | 'dni' =>
+  /^\d{7,8}$/.test(limpiarValor(v)) ? 'dni' : 'dominio'
+const esConsultable = (v: string) => {
+  const x = limpiarValor(v)
+  return RE_DOMINIO.test(x) || /^\d{7,8}$/.test(x)
+}
 
 // ─── HELPERS ─────────────────────────────────────────────────────────────────
 
@@ -162,10 +176,55 @@ function PanelChat({
   onClose: () => void
 }) {
   const { mensajes, loading, enviando, error, enviar, bottomRef } = useMensajesWA(conv.id)
-  const { cambiarEstado, asignarseYo, marcarLeida } = useConversacionesWA()
+  const { cambiarEstado, asignarseYo, asignar, marcarLeida, puedeReasignar } = useConversacionesWA()
   const { user } = useAuth()
+  const { gestoriaId } = useGestoria()
+  const { activos } = useEquipo()
   const [texto, setTexto] = useState('')
+  const [reasignarOpen, setReasignarOpen] = useState(false)
+  const [valorConsulta, setValorConsulta] = useState(conv.consultaSugerida?.valor ?? '')
+  const [creandoConsulta, setCreandoConsulta] = useState(false)
   const inputRef = useRef<HTMLTextAreaElement>(null)
+
+  // Si el webhook actualiza el valor detectado (patente que llegó después), sincronizar
+  useEffect(() => {
+    setValorConsulta(conv.consultaSugerida?.valor ?? '')
+  }, [conv.consultaSugerida?.valor])
+
+  // Confirmar la consulta sugerida → crea el doc en cola (lo levanta la extensión)
+  const handleConsultar = async () => {
+    if (!gestoriaId || !esConsultable(valorConsulta) || creandoConsulta) return
+    setCreandoConsulta(true)
+    try {
+      const nombreAgente =
+        [(user as any)?.nombre, (user as any)?.apellido].filter(Boolean).join(' ').trim()
+        || (user as any)?.email || 'Agente'
+      const consultaId = await crearConsultaDesdeWA({
+        gestoriaId,
+        tipo:     tipoDeValor(valorConsulta),
+        valor:    valorConsulta,
+        contacto: { nombre: conv.nombre, whatsapp: conv.telefono, email: '' },
+        leadId:   conv.leadId,
+        creadoPor: { uid: user?.uid ?? '', nombre: nombreAgente },
+      })
+      await actualizarConsultaSugerida(conv.id, 'confirmada', consultaId)
+    } catch (e) {
+      console.error('[WA] error creando consulta de infracciones', e)
+    } finally {
+      setCreandoConsulta(false)
+    }
+  }
+
+  const handleDescartarSugerida = async () => {
+    try { await actualizarConsultaSugerida(conv.id, 'descartada') }
+    catch (e) { console.error('[WA] error descartando sugerencia', e) }
+  }
+
+  // Candidatos para reasignar: miembros activos con acceso a la Bandeja WA
+  const agentesWA = useMemo(
+    () => activos.filter(m => getPermisos(m.rol).verBandejaWA),
+    [activos],
+  )
 
   // Marcar leída al abrir
   useEffect(() => {
@@ -230,14 +289,78 @@ function PanelChat({
             {conv.nombre}
           </p>
           <p style={{ margin: 0, color: WA_SUBTEXT, fontSize: 12 }}>
-            +{conv.telefono}
+            +{conv.telefono}{conv.asignadoNombre ? ` · ${conv.asignadoNombre}` : (conv.asignadoA ? '' : ' · sin asignar')}
           </p>
         </div>
 
         <EstadoBadge estado={conv.estado} />
 
         {/* Acciones rápidas */}
-        <div style={{ display: 'flex', gap: 6 }}>
+        <div style={{ display: 'flex', gap: 6, position: 'relative' }}>
+          {puedeReasignar && (
+            <>
+              <button
+                onClick={() => setReasignarOpen(o => !o)}
+                title="Reasignar a otro agente"
+                style={{
+                  background: '#3B82F622', border: '1px solid #3B82F644',
+                  color: '#60A5FA', borderRadius: 8, padding: '4px 8px',
+                  fontSize: 12, fontWeight: 600, cursor: 'pointer',
+                  display: 'flex', alignItems: 'center', gap: 4,
+                }}
+              >
+                <RefreshCw size={14} /> Reasignar
+              </button>
+              {reasignarOpen && (
+                <>
+                  <div
+                    onClick={() => setReasignarOpen(false)}
+                    style={{ position: 'fixed', inset: 0, zIndex: 40 }}
+                  />
+                  <div style={{
+                    position: 'absolute', top: 'calc(100% + 6px)', right: 0, zIndex: 41,
+                    minWidth: 210, background: WA_PANEL,
+                    border: `1px solid ${WA_DIVIDER}`, borderRadius: 10,
+                    boxShadow: '0 10px 30px rgba(0,0,0,0.45)', overflow: 'hidden',
+                  }}>
+                    <div style={{
+                      padding: '8px 12px', fontSize: 11, fontWeight: 700,
+                      color: WA_SUBTEXT, borderBottom: `1px solid ${WA_DIVIDER}`,
+                      textTransform: 'uppercase', letterSpacing: 0.4,
+                    }}>
+                      Reasignar a
+                    </div>
+                    {agentesWA.length === 0 ? (
+                      <div style={{ padding: 12, fontSize: 12, color: WA_SUBTEXT }}>
+                        Sin agentes disponibles
+                      </div>
+                    ) : agentesWA.map(a => {
+                      const esActual = a.id === conv.asignadoA
+                      return (
+                        <button
+                          key={a.id}
+                          onClick={() => { if (!esActual) asignar(conv.id, a.id); setReasignarOpen(false) }}
+                          style={{
+                            display: 'flex', alignItems: 'center', gap: 8,
+                            width: '100%', textAlign: 'left', border: 'none',
+                            cursor: esActual ? 'default' : 'pointer',
+                            padding: '8px 12px', fontSize: 13, color: WA_TEXT,
+                            background: esActual ? `${WA_GREEN}18` : 'transparent',
+                          }}
+                        >
+                          <Avatar nombre={`${a.nombre} ${a.apellido ?? ''}`} size={24} />
+                          <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {a.nombre} {a.apellido ?? ''}
+                          </span>
+                          {esActual && <Check size={14} color={WA_GREEN} />}
+                        </button>
+                      )
+                    })}
+                  </div>
+                </>
+              )}
+            </>
+          )}
           {!conv.asignadoA && (
             <button
               onClick={() => asignarseYo(conv.id)}
@@ -284,7 +407,7 @@ function PanelChat({
           {conv.prospectoId && (
             <a
               href={`/admin/pipeline`}
-              title="Ver en Prospectos"
+              title="Ver en Pipeline"
               style={{
                 background: '#8B5CF622', border: '1px solid #8B5CF644',
                 color: '#A78BFA', borderRadius: 8, padding: '4px 8px',
@@ -293,11 +416,68 @@ function PanelChat({
                 textDecoration: 'none',
               }}
             >
-              <Tag size={14} /> Prospectos
+              <Tag size={14} /> Pipeline
             </a>
           )}
         </div>
       </div>
+
+      {/* Chip de consulta de infracciones (clasificación de multas) */}
+      {conv.consultaSugerida?.estado === 'sugerida' && (
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: 8,
+          padding: '8px 12px', background: '#1F2C33',
+          borderBottom: `1px solid ${WA_DIVIDER}`,
+        }}>
+          <Search size={16} color={getOrange()} style={{ flexShrink: 0 }} />
+          <span style={{ color: WA_TEXT, fontSize: 13, fontWeight: 600, whiteSpace: 'nowrap' }}>
+            Consultar infracciones:
+          </span>
+          <input
+            value={valorConsulta}
+            onChange={e => setValorConsulta(e.target.value.toUpperCase())}
+            placeholder="Patente o DNI"
+            style={{
+              flex: 1, minWidth: 0, background: WA_DARK,
+              border: `1px solid ${WA_DIVIDER}`, borderRadius: 6,
+              color: WA_TEXT, fontSize: 13, padding: '5px 8px',
+              outline: 'none', fontFamily: 'inherit', letterSpacing: 0.5,
+            }}
+          />
+          <button
+            onClick={handleConsultar}
+            disabled={!esConsultable(valorConsulta) || creandoConsulta}
+            style={{
+              background: esConsultable(valorConsulta) ? WA_GREEN : WA_DIVIDER,
+              color: esConsultable(valorConsulta) ? '#0B141A' : WA_SUBTEXT,
+              border: 'none', borderRadius: 6, padding: '6px 12px',
+              fontSize: 12, fontWeight: 700, whiteSpace: 'nowrap',
+              cursor: esConsultable(valorConsulta) && !creandoConsulta ? 'pointer' : 'not-allowed',
+            }}
+          >
+            {creandoConsulta ? 'Enviando…' : 'Consultar'}
+          </button>
+          <button
+            onClick={handleDescartarSugerida}
+            title="Descartar sugerencia"
+            style={{ background: 'none', border: 'none', cursor: 'pointer', color: WA_SUBTEXT, display: 'flex', padding: 4 }}
+          >
+            <X size={16} />
+          </button>
+        </div>
+      )}
+      {conv.consultaSugerida?.estado === 'confirmada' && (
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: 6,
+          padding: '6px 12px', background: '#0E2A20',
+          borderBottom: `1px solid ${WA_DIVIDER}`,
+        }}>
+          <Check size={14} color={WA_GREEN} />
+          <span style={{ color: WA_GREEN, fontSize: 12, fontWeight: 600 }}>
+            Consulta de infracciones enviada a la cola
+          </span>
+        </div>
+      )}
 
       {/* Mensajes */}
       <div style={{

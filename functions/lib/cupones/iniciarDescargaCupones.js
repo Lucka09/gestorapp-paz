@@ -6,11 +6,12 @@ const https_1 = require("firebase-functions/v2/https");
 const app_1 = require("firebase-admin/app");
 const firestore_1 = require("firebase-admin/firestore");
 const auth_1 = require("firebase-admin/auth");
+const cors_1 = require("../cors");
 if (!(0, app_1.getApps)().length)
     (0, app_1.initializeApp)();
 const db = (0, firestore_1.getFirestore)();
 const auth = (0, auth_1.getAuth)();
-exports.iniciarDescargaCupones = (0, https_1.onCall)({ cors: [/gestorapp.*\.vercel\.app$/, /gestorapp.*\.web\.app$/, /localhost/] }, async (req) => {
+exports.iniciarDescargaCupones = (0, https_1.onCall)({ cors: cors_1.CORS_ORIGINS }, async (req) => {
     var _a, _b, _c, _d, _e;
     const uid = (_a = req.auth) === null || _a === void 0 ? void 0 : _a.uid;
     if (!uid)

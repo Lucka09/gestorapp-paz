@@ -1,7 +1,7 @@
 import {
   collection, doc, addDoc, updateDoc, onSnapshot,
-  query, where, orderBy, serverTimestamp, writeBatch,
-  getDocs, limit, setDoc, increment,
+  query, where, orderBy, serverTimestamp,
+  getDocs, limit,
   type Unsubscribe, type CollectionReference,
 } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
@@ -17,20 +17,54 @@ const mensajesCol       = (convId: string) =>
   collection(db, 'conversacionesWA', convId, 'mensajes') as CollectionReference<MensajeWA>
 
 const conversacionDoc   = (id: string) => doc(conversacionesCol, id)
-const mensajeDoc        = (convId: string, id: string) => doc(mensajesCol(convId), id)
+
+// ─── SCOPE DE VISIBILIDAD ─────────────────────────────────────────────────────
+// 'todas'        → roles de control (CEO / admin_gral / admin / superadmin)
+// 'propiasYPool' → asesor_comercial / vendedor: ve lo suyo + lo sin asignar
+export type ScopeBandeja =
+  | { tipo: 'todas' }
+  | { tipo: 'propiasYPool'; uid: string }
 
 // ─── SUBSCRIBE CONVERSACIONES ─────────────────────────────────────────────────
+// El scope decide la query. Para 'propiasYPool' se filtra por asignadoA en la
+// query (requerido para que las reglas de Firestore no rechacen la suscripción)
+// y el estado se filtra en cliente para no encadenar dos operadores 'in'.
 
 export function subscribeConversaciones(
   gestoriaId: string,
   callback:   (items: ConversacionWA[]) => void,
   soloActivas = true,
   onError?:   (err: Error) => void,
+  scope: ScopeBandeja = { tipo: 'todas' },
 ): Unsubscribe {
   const estados: EstadoConversacion[] = soloActivas
     ? ['nueva', 'en_atencion']
     : ['nueva', 'en_atencion', 'resuelta', 'archivada']
 
+  const onErr = (err: any) => {
+    console.error('[conversacionesWA] Error en subscription:', err.code, err.message)
+    onError?.(err)
+  }
+
+  if (scope.tipo === 'propiasYPool') {
+    const q = query(
+      conversacionesCol,
+      where('gestoriaId', '==', gestoriaId),
+      where('asignadoA',  'in', [scope.uid, '']),   // lo propio + el pool
+      orderBy('ultimaActividad', 'desc'),
+    )
+    return onSnapshot(
+      q,
+      snap => callback(
+        snap.docs
+          .map(d => ({ ...d.data(), id: d.id }))
+          .filter(c => estados.includes(c.estado)),   // estado filtrado en cliente
+      ),
+      onErr,
+    )
+  }
+
+  // scope 'todas'
   const q = query(
     conversacionesCol,
     where('gestoriaId',       '==', gestoriaId),
@@ -40,13 +74,11 @@ export function subscribeConversaciones(
   return onSnapshot(
     q,
     snap => callback(snap.docs.map(d => ({ ...d.data(), id: d.id }))),
-    err  => {
-      console.error('[conversacionesWA] Error en subscription:', err.code, err.message)
-      onError?.(err)
-    },
+    onErr,
   )
 }
 
+// Mantengo esta variante por compatibilidad (algún consumidor puntual la usa).
 export function subscribeConversacionesByAgente(
   gestoriaId: string,
   agenteUid:  string,
@@ -106,6 +138,8 @@ export async function cambiarEstadoConversacion(
 }
 
 // ─── ASIGNAR AGENTE ───────────────────────────────────────────────────────────
+// Sirve tanto para autoasignarse (uid propio) como para que un rol de control
+// reasigne a otro. El aislamiento de quién puede hacer qué lo imponen las reglas.
 
 export async function asignarAgente(
   conversacionId: string,
@@ -141,6 +175,22 @@ export async function desvincularEntidad(conversacionId: string): Promise<void> 
   })
 }
 
+// ─── CONSULTA SUGERIDA (clasificación de multas) ─────────────────────────────
+// Marca la sugerencia como confirmada (con el id de la consulta creada) o
+// descartada. El objeto consultaSugerida lo escribe el webhook al detectar
+// keyword/patente; acá solo cambiamos su estado desde la Bandeja.
+
+export async function actualizarConsultaSugerida(
+  conversacionId: string,
+  estado:         'confirmada' | 'descartada',
+  consultaId?:    string,
+): Promise<void> {
+  await updateDoc(conversacionDoc(conversacionId), {
+    'consultaSugerida.estado': estado,
+    ...(consultaId ? { 'consultaSugerida.consultaId': consultaId } : {}),
+  })
+}
+
 // ─── EDITAR NOMBRE DEL CONTACTO ──────────────────────────────────────────────
 
 export async function actualizarNombreContacto(
@@ -169,15 +219,13 @@ export async function getConversacionByTelefono(
 }
 
 // ─── GUARDAR MENSAJE SALIENTE (optimista desde el frontend) ──────────────────
-// La Cloud Function escribe el mensaje entrante; el frontend escribe el saliente
-// directamente y luego la CF confirma el estado vía status webhook.
 
 export async function guardarMensajeSaliente(
   conversacionId: string,
   gestoriaId:     string,
   texto:          string,
   enviadoPor:     string,
-  waMessageId:    string,       // lo devuelve la CF tras llamar a Meta
+  waMessageId:    string,
 ): Promise<string> {
   const ref = await addDoc(mensajesCol(conversacionId), { id: '' as string,
     gestoriaId,
@@ -189,7 +237,6 @@ export async function guardarMensajeSaliente(
     estado:     'enviado'  as const,
     enviadoPor,
   })
-  // Actualizar preview de la conversación
   await updateDoc(conversacionDoc(conversacionId), {
     ultimoMensaje:   texto,
     ultimaActividad: serverTimestamp(),

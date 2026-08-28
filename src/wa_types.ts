@@ -9,6 +9,16 @@ export type EstadoConversacion =
   | 'resuelta'     // cerrada — sin pendientes
   | 'archivada'    // fuera de vista por defecto
 
+// Consulta de infracciones detectada en la conversación, pendiente de que la
+// secretaria la confirme desde la Bandeja antes de mandarla a la cola.
+export interface ConsultaSugeridaWA {
+  tipo:        'dominio' | 'dni'
+  valor:       string                                  // detectado; editable
+  estado:      'sugerida' | 'confirmada' | 'descartada'
+  detectadoEn: Timestamp
+  consultaId?: string                                  // set al confirmar
+}
+
 export interface ConversacionWA {
   id:              string          // = telefono normalizado "5491155667788"
   gestoriaId:      string
@@ -18,13 +28,18 @@ export interface ConversacionWA {
   ultimoMensaje:   string          // texto preview
   ultimaActividad: Timestamp
   estado:          EstadoConversacion
-  asignadoA:       string          // uid del agente asignado ('' = sin asignar)
+  asignadoA:       string          // uid del agente asignado ('' = sin asignar / pool)
+  asignadoNombre?: string          // nombre del agente dueño (lo setea el webhook por ruteo)
   noLeidos:        number
   // Links a entidades del CRM
   clienteId?:      string
   prospectoId?:    string
+  leadId?:         string          // lead creado por el webhook al abrir la conversación
+  // Clasificación de multas
+  consultaSugerida?: ConsultaSugeridaWA | null   // chip de "consultar infracciones"
   // Meta
-  waPhoneNumberId: string          // para saber qué número usó Meta al recibir
+  waPhoneNumberId: string          // ID de Meta del número que RECIBIÓ (clave de ruteo)
+  waDisplayPhone?: string          // número visible de la gestoría que recibió
   creadoEn:        Timestamp
 }
 

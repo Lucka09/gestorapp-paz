@@ -8,6 +8,11 @@ export type EstadoMensaje      = 'enviando' | 'enviado' | 'entregado' | 'leido' 
 
 // ─── META WEBHOOK PAYLOAD ────────────────────────────────────────────────────
 
+export interface MetaMetadata {
+  display_phone_number: string   // número de la gestoría (formato visible)
+  phone_number_id:      string   // ID de Meta del número que RECIBIÓ — clave de ruteo
+}
+
 export interface MetaWebhookPayload {
   object: string
   entry: Array<{
@@ -15,10 +20,7 @@ export interface MetaWebhookPayload {
     changes: Array<{
       value: {
         messaging_product: string
-        metadata: {
-          display_phone_number: string
-          phone_number_id:      string
-        }
+        metadata: MetaMetadata
         contacts?: Array<{
           profile: { name: string }
           wa_id:   string
@@ -31,6 +33,22 @@ export interface MetaWebhookPayload {
   }>
 }
 
+// ─── REFERRAL (Click-to-WhatsApp) ─────────────────────────────────────────────
+// Presente SOLO en el primer mensaje que llega desde un anuncio CTWA.
+// Es la atribución de campaña: qué anuncio originó el lead.
+
+export interface MetaReferral {
+  source_url?:  string
+  source_type?: string   // 'ad' | 'post'
+  source_id?:   string   // ID del anuncio
+  headline?:    string
+  body?:        string
+  media_type?:  string
+  image_url?:   string
+  video_url?:   string
+  ctwa_clid?:   string   // click id — para casar con la pauta de Meta
+}
+
 export interface MetaIncomingMessage {
   id:        string
   from:      string         // teléfono del cliente (sin +)
@@ -41,6 +59,7 @@ export interface MetaIncomingMessage {
   audio?:    { id: string; mime_type: string }
   document?: { id: string; mime_type: string; filename?: string }
   sticker?:  { id: string; mime_type: string }
+  referral?: MetaReferral
 }
 
 export interface MetaStatusUpdate {

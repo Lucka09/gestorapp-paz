@@ -109,11 +109,12 @@ export default function ClientesPage() {
   const { gestoria } = useGestoria()
   const [modalOpen, setModal] = useState(false)
 
-  const {
+    const {
     clientes, total, loading,
     page, hasPrev, hasNext, goNext, goPrev,
     search, setSearch, isSearching, searchLoading,
     exportar, exportLoading,
+    verProspectos, setVerProspectos,
   } = useClientesPaginados()
 
   const {
@@ -251,7 +252,21 @@ export default function ClientesPage() {
                     <div className="flex items-center gap-2 flex-wrap">
                       <p className="font-semibold text-gray-900 text-sm">{c.apellido}, {c.nombre}</p>
                       <span className="text-xs text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full">
-                        DNI {c.dni}
+                       {c.dni ? (
+  <span className="text-xs text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full">
+    DNI {c.dni}
+  </span>
+) : (
+  <span className="text-xs text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full">
+    Sin DNI
+  </span>
+)}
+{c.creadoAutomaticamente && (
+  <span className="text-xs text-gp-orange bg-gp-orange/10 px-2 py-0.5 rounded-full"
+        title="Registro creado automáticamente desde un lead">
+    ⚡ Auto
+  </span>
+)}
                       </span>
                       {c.vehiculosIds?.length > 0 && (
                         <span className="text-xs text-gp-orange bg-gp-orange/10 px-2 py-0.5 rounded-full">
@@ -279,7 +294,15 @@ export default function ClientesPage() {
               </div>
             ))}
           </div>
-
+  <label className="flex items-center gap-2 mb-3 text-xs text-gp-text-3 cursor-pointer select-none">
+    <input
+      type="checkbox"
+      checked={verProspectos}
+      onChange={e => setVerProspectos(e.target.checked)}
+      className="accent-gp-orange"
+    />
+    Ver prospectos (registros de leads sin convertir)
+  </label>
           <PaginacionBar
             page={page}
             hasPrev={hasPrev}

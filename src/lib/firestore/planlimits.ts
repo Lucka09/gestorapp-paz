@@ -49,10 +49,18 @@ export class LimitePlanError extends Error {
 // ─── CONTEOS (1 lectura agregación cada uno) ──────────────────────────────────
 
 export async function contarClientes(gestoriaId: string): Promise<number> {
-  const snap = await getCountFromServer(
+  // Total de la colección (incluye esqueletos de leads)
+  const totalSnap = await getCountFromServer(
     query(clientesCol, where('gestoriaId', '==', gestoriaId))
   )
-  return snap.data().count
+  // Esqueletos materializados desde leads (no cuentan para el límite del plan)
+  const prospectosSnap = await getCountFromServer(
+    query(clientesCol,
+      where('gestoriaId', '==', gestoriaId),
+      where('cicloVida', '==', 'prospecto'),
+    )
+  )
+  return totalSnap.data().count - prospectosSnap.data().count
 }
 
 export async function contarUsuariosActivos(gestoriaId: string): Promise<number> {

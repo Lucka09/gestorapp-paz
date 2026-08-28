@@ -18,7 +18,8 @@ import type { MetaWebhookPayload, SendMessageRequest } from './whatsapp/types'
 import { onCall, HttpsError } from 'firebase-functions/v2/https'
 import { defineSecret }       from 'firebase-functions/params'
 import * as https             from 'https'
-
+import { kommoRecibirLead } from './kommo/kommoRecibirLead'
+import { CORS_ORIGINS } from './cors'
 // ─── INICIALIZAR ADMIN SDK ────────────────────────────────────────────────────
 if (!admin.apps.length) admin.initializeApp()
 
@@ -105,12 +106,7 @@ export const claudeProxy = onCall(
     // Máximo 1 request concurrente por instancia (evita cold start abrupto)
     maxInstances:   5,
     // CORS: solo aceptar requests del dominio de GestorApp
-    cors:           [
-      'https://gestorapp-paz.web.app',
-      'https://gestorapp-paz.firebaseapp.com',
-      'http://localhost:5173',
-      'http://localhost:5174',
-    ],
+         cors: CORS_ORIGINS,
   },
   async (request) => {
     // ── 1. Verificar autenticación ──────────────────────────────────────────
@@ -254,5 +250,5 @@ export { motorAlertasDiario } from './MotorAlertas'
 export { motorAutomatizaciones, seedAutomatizaciones } from './automatizaciones/motor'
 export { subirCuponInfraccion } from './cupones/subirCuponInfraccion'
 export { iniciarDescargaCupones } from './cupones/iniciarDescargaCupones'
-export { kommoRecibirLead } from './kommo/kommoRecibirLead'
+export { kommoRecibirLead }
 export { gestionarEquipo } from './equipo/gestionarEquipo'

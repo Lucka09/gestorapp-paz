@@ -1,21 +1,19 @@
+// src/types/lead.ts
 /**
- * LEAD TYPES
- * ─────────────────────────────────────────────────────────────────
- * Entidad de captura inicial (pre-prospecto).
- *
- * Diferencias con Prospecto (src/lib/firestore/pipeline):
- *   • Lead: captura anónima/semi-anónima, datos mínimos, estado corto.
- *   • Prospecto: lead ya calificado y en negociación activa (Kanban).
- *
- * Ciclo de vida:
- *   nuevo → contactado → calificado → convertido (→ Prospecto o Cliente)
- *                                   → perdido / descartado
- */
+LEAD TYPES
+─────────────────────────────────────────────────────────────────
+Entidad de captura inicial (pre-prospecto).
+Diferencias con Prospecto (src/lib/firestore/pipeline):
+• Lead: captura anónima/semi-anónima, datos mínimos, estado corto.
+• Prospecto: lead ya calificado y en negociación activa (Kanban).
+Ciclo de vida:
+nuevo → contactado → calificado → convertido (→ Prospecto o Cliente)
+                              → perdido / descartado
+*/
 import type { Timestamp } from 'firebase/firestore'
 import type { OrigenCanal, TipoTramite } from '@/types'
 
 // ─── ENUMS ──────────────────────────────────────────────────────────────────
-
 export type EstadoLead =
   | 'nuevo'
   | 'contactado'
@@ -44,9 +42,9 @@ export type OrigenSistema =
   | 'referido'
   | 'import'
   | 'manual'
+  | 'kommo'
 
 // ─── INTERFAZ PRINCIPAL ─────────────────────────────────────────────────────
-
 export interface Lead {
   // Identificación
   id: string
@@ -90,15 +88,18 @@ export interface Lead {
   motivoPerdida?: MotivoPerdida
   motivoPerdidaNota?: string
 
+  // Kommo (cross-reference para enriquecimiento bidireccional)
+  kommoLeadId?: string
+  kommoContactId?: string
+
   // Auditoría
   creadoEn: Timestamp
   actualizadoEn: Timestamp
   ultimoContactoEn?: Timestamp
-  creadoPor: string          // uid | 'system'
+  creadoPor: string          // uid | 'system' | 'kommo'
 }
 
 // ─── INPUTS ─────────────────────────────────────────────────────────────────
-
 /** Campos mínimos para crear un lead desde web pública o WA */
 export interface LeadInputPublico {
   nombre: string
@@ -109,13 +110,23 @@ export interface LeadInputPublico {
   // Rellenado automáticamente por la Callable Function
 }
 
-/** Input completo para crear/editar desde el panel */
+/**
+ * Input completo para crear/editar desde el panel O desde integraciones
+ * (Kommo, import, etc.). Unifica el formulario web (utm, paginaUrl)
+ * con el canal Kommo (origenSistema, canalRespuesta, patente, notas).
+ */
 export interface LeadInput extends LeadInputPublico {
   apellido?: string
   documento?: string
   localidad?: string
+  patente?: string           // normalizado a mayúsculas (Kommo/multas)
+  tipoTramite?: TipoTramite
+
+  // Origen
   canal: OrigenCanal
-  fuente?: string
+  canalRespuesta?: 'whatsapp' | 'telefono' | 'email' | 'presencial'
+  origenSistema?: OrigenSistema
+  fuente?: string            // "Instagram DM", "Llamada telefónica", etc.
   utm?: {
     source?: string
     medium?: string
@@ -123,27 +134,7 @@ export interface LeadInput extends LeadInputPublico {
     content?: string
   }
   paginaUrl?: string
-  asignadoA?: string
-  prioridad?: PrioridadLead
-}
-export interface LeadInput {
-  // Contacto
-  nombre: string
-  apellido?: string
-  telefono?: string      // formato libre, se normaliza
-  email?: string
-  documento?: string     // DNI/CUIT, se normaliza
-  patente?: string       // se normaliza a mayúsculas
-
-  // Consulta
-  tipoTramite?: TipoTramite
-  consulta?: string
-
-  // Origen
-  canal: OrigenCanal
-  canalRespuesta?: 'whatsapp' | 'telefono' | 'email' | 'presencial'
-  origenSistema?: OrigenSistema
-  fuente?: string        // "Instagram DM", "Llamada telefónica", etc.
+  ipOrigen?: string
 
   // Gestión
   asignadoA?: string
@@ -151,9 +142,13 @@ export interface LeadInput {
 
   // Metadata
   notas?: string
-}
-// ─── LABELS ─────────────────────────────────────────────────────────────────
 
+  // Kommo (cross-reference, opcional)
+  kommoLeadId?: string
+  kommoContactId?: string
+}
+
+// ─── LABELS ─────────────────────────────────────────────────────────────────
 export const ESTADO_LEAD_LABELS: Record<EstadoLead, string> = {
   nuevo: 'Nuevo',
   contactado: 'Contactado',
@@ -209,7 +204,6 @@ export const PRIORIDAD_LEAD_COLORS: Record<PrioridadLead, string> = {
 }
 
 // ─── HELPERS ────────────────────────────────────────────────────────────────
-
 /** Estados considerados "activos" (aparecen en bandeja de entrada) */
 export const ESTADOS_LEAD_ACTIVOS: EstadoLead[] = [
   'nuevo',

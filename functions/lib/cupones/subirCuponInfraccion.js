@@ -35,13 +35,14 @@ const storage_1 = require("firebase-admin/storage");
 const auth_1 = require("firebase-admin/auth");
 const parseCupon_1 = require("./parseCupon");
 const cinemometros_1 = require("../lib/cinemometros");
+const cors_1 = require("../cors");
 if (!(0, app_1.getApps)().length)
     (0, app_1.initializeApp)();
 const db = (0, firestore_1.getFirestore)();
 const auth = (0, auth_1.getAuth)();
 const storage = (0, storage_1.getStorage)().bucket(); // bucket predeterminado
 exports.subirCuponInfraccion = (0, https_1.onCall)({
-    cors: [/gestorapp.*\.vercel\.app$/, /gestorapp.*\.web\.app$/, /localhost/],
+    cors: cors_1.CORS_ORIGINS,
     memory: '512MiB',
     timeoutSeconds: 60,
 }, async (req) => {

@@ -47,13 +47,17 @@ async function handleSendMessage(data, context) {
     if (!convSnap.exists) {
         throw new Error('not-found: conversación no encontrada');
     }
-    if (((_b = convSnap.data()) === null || _b === void 0 ? void 0 : _b.gestoriaId) !== gestoriaId) {
+    const conv = (_b = convSnap.data()) !== null && _b !== void 0 ? _b : {};
+    if (conv.gestoriaId !== gestoriaId) {
         throw new Error('permission-denied: conversación de otra gestoría');
     }
     // ── Enviar via Meta API ────────────────────────────────────────────────────
+    // Responder DESDE el mismo número que recibió (waPhoneNumberId de la conv).
+    // Si por algún motivo la conversación no lo tiene, sendTextMessage cae al env.
+    const emisor = conv.waPhoneNumberId;
     // conversacionId = teléfono normalizado
-    const waMessageId = await (0, Utils_1.sendTextMessage)(conversacionId, texto.trim());
-    console.log(`[WA Send] ${gestoriaId} → ${conversacionId}: "${texto.slice(0, 40)}" [${waMessageId}]`);
+    const waMessageId = await (0, Utils_1.sendTextMessage)(conversacionId, texto.trim(), emisor);
+    console.log(`[WA Send] ${gestoriaId} → ${conversacionId} (desde ${emisor !== null && emisor !== void 0 ? emisor : 'env'}): "${texto.slice(0, 40)}" [${waMessageId}]`);
     return { waMessageId };
 }
 //# sourceMappingURL=Send.js.map

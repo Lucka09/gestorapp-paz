@@ -43,6 +43,9 @@ const Send_1 = require("./whatsapp/Send");
 const https_2 = require("firebase-functions/v2/https");
 const params_1 = require("firebase-functions/params");
 const https = __importStar(require("https"));
+const kommoRecibirLead_1 = require("./kommo/kommoRecibirLead");
+Object.defineProperty(exports, "kommoRecibirLead", { enumerable: true, get: function () { return kommoRecibirLead_1.kommoRecibirLead; } });
+const cors_1 = require("./cors");
 // ─── INICIALIZAR ADMIN SDK ────────────────────────────────────────────────────
 if (!admin.apps.length)
     admin.initializeApp();
@@ -100,12 +103,7 @@ exports.claudeProxy = (0, https_2.onCall)({
     // Máximo 1 request concurrente por instancia (evita cold start abrupto)
     maxInstances: 5,
     // CORS: solo aceptar requests del dominio de GestorApp
-    cors: [
-        'https://gestorapp-paz.web.app',
-        'https://gestorapp-paz.firebaseapp.com',
-        'http://localhost:5173',
-        'http://localhost:5174',
-    ],
+    cors: cors_1.CORS_ORIGINS,
 }, async (request) => {
     var _a, _b, _c, _d, _e, _f, _g;
     // ── 1. Verificar autenticación ──────────────────────────────────────────
@@ -219,8 +217,6 @@ var subirCuponInfraccion_1 = require("./cupones/subirCuponInfraccion");
 Object.defineProperty(exports, "subirCuponInfraccion", { enumerable: true, get: function () { return subirCuponInfraccion_1.subirCuponInfraccion; } });
 var iniciarDescargaCupones_1 = require("./cupones/iniciarDescargaCupones");
 Object.defineProperty(exports, "iniciarDescargaCupones", { enumerable: true, get: function () { return iniciarDescargaCupones_1.iniciarDescargaCupones; } });
-var kommoRecibirLead_1 = require("./kommo/kommoRecibirLead");
-Object.defineProperty(exports, "kommoRecibirLead", { enumerable: true, get: function () { return kommoRecibirLead_1.kommoRecibirLead; } });
 var gestionarEquipo_1 = require("./equipo/gestionarEquipo");
 Object.defineProperty(exports, "gestionarEquipo", { enumerable: true, get: function () { return gestionarEquipo_1.gestionarEquipo; } });
 //# sourceMappingURL=index.js.map

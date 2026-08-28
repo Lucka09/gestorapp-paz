@@ -73,7 +73,9 @@ export type TipoAccion =
   | 'convertir_a_cliente'
   | 'llamar_webhook'
   | 'ejecutar_ia'           // ← prompts automáticos (clasificar, responder, resumir)
-  | 'delay'                 // pausa antes de la siguiente acción
+  | 'delay' 
+  | 'convertir_a_cliente'
+  | 'materializar_cliente'   // ← nuevo: crea cliente+vehículo al entrar el lead                // pausa antes de la siguiente acción
 
 export interface Accion {
   tipo: TipoAccion
@@ -250,6 +252,17 @@ export const PLANTILLAS_AUTOMATIZACION: PlantillaAutomatizacion[] = [
       { tipo: 'convertir_a_cliente', params: { copiarDatos: true } },
     ],
   },
+  {
+    id: 'tpl_lead_materializar_cliente',
+    nombre: 'Lead nuevo → crear registro de cliente',
+    descripcion: 'Apenas entra un lead deja un registro en Clientes (y vehículo si hay patente) para campañas y repesca, aunque el lead nunca convierta.',
+    categoria: 'leads',
+    trigger: 'lead.creado',
+    condiciones: [],
+    acciones: [
+      { tipo: 'materializar_cliente', params: {} },
+    ],
+  },
 ]
 
 // ─── LABELS ─────────────────────────────────────────────────────────────────
@@ -267,6 +280,7 @@ export const TIPO_ACCION_LABELS: Record<TipoAccion, string> = {
   crear_nota: 'Crear nota interna',
   convertir_a_prospecto: 'Convertir a prospecto',
   convertir_a_cliente: 'Convertir a cliente',
+  materializar_cliente: 'Materializar cliente desde lead',
   llamar_webhook: 'Llamar webhook externo',
   ejecutar_ia: 'Ejecutar IA',
   delay: 'Esperar',
@@ -285,6 +299,7 @@ export const TIPO_ACCION_EMOJI: Record<TipoAccion, string> = {
   crear_nota: '📝',
   convertir_a_prospecto: '🎯',
   convertir_a_cliente: '🤝',
+  materializar_cliente: '🗂️',
   llamar_webhook: '🔗',
   ejecutar_ia: '🤖',
   delay: '⏱️',
@@ -313,4 +328,5 @@ export const CATEGORIA_AUTOMATIZACION_LABELS: Record<
   tramites: 'Trámites',
   cobranzas: 'Cobranzas',
   comunicacion: 'Comunicación',
-}
+} 
+ 

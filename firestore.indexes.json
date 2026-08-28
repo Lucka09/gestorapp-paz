@@ -1,387 +1,6 @@
 {
   "indexes": [
     {
-      "collectionGroup": "turnos",
-      "queryScope": "COLLECTION",
-      "fields": [
-        {
-          "fieldPath": "clienteId",
-          "order": "ASCENDING"
-        },
-        {
-          "fieldPath": "fecha",
-          "order": "DESCENDING"
-        }
-      ]
-      
-    },
-    {
-  "collectionGroup": "leads",
-  "queryScope": "COLLECTION",
-  "fields": [
-    { "fieldPath": "gestoriaId", "order": "ASCENDING" },
-    { "fieldPath": "creadoEn",  "order": "DESCENDING" }
-  ]
-},
-    {
-  "collectionGroup": "eventos",
-  "queryScope": "COLLECTION",
-  "fields": [
-    { "fieldPath": "gestoriaId", "order": "ASCENDING" },
-    { "fieldPath": "timestamp",  "order": "DESCENDING" }
-  ]
-},
-{
-  "collectionGroup": "eventos",
-  "queryScope": "COLLECTION",
-  "fields": [
-    { "fieldPath": "gestoriaId", "order": "ASCENDING" },
-    { "fieldPath": "tipo",       "order": "ASCENDING" },
-    { "fieldPath": "timestamp",  "order": "DESCENDING" }
-  ]
-},
-    {
-  "collectionGroup": "consultasInfracciones",
-  "queryScope": "COLLECTION",
-  "fields": [
-    { "fieldPath": "gestoriaId", "order": "ASCENDING" },
-    { "fieldPath": "estado",     "order": "ASCENDING" },
-    { "fieldPath": "creadaEn",   "order": "ASCENDING" }
-  ]
-},
-    {
-      "collectionGroup": "turnos",
-      "queryScope": "COLLECTION",
-      "fields": [
-        {
-          "fieldPath": "fecha",
-          "order": "ASCENDING"
-        },
-        {
-          "fieldPath": "estado",
-          "order": "ASCENDING"
-        }
-      ]
-    },
-    {
-      "collectionGroup": "tramites",
-      "queryScope": "COLLECTION",
-      "fields": [
-        {
-          "fieldPath": "clienteId",
-          "order": "ASCENDING"
-        },
-        {
-          "fieldPath": "creadoEn",
-          "order": "DESCENDING"
-        }
-      ]
-    },
-    {
-      "collectionGroup": "tramites",
-      "queryScope": "COLLECTION",
-      "fields": [
-        {
-          "fieldPath": "clienteId",
-          "order": "ASCENDING"
-        },
-        {
-          "fieldPath": "actualizadoEn",
-          "order": "DESCENDING"
-        }
-      ]
-    },
-    {
-      "collectionGroup": "tramites",
-      "queryScope": "COLLECTION",
-      "fields": [
-        {
-          "fieldPath": "estado",
-          "order": "ASCENDING"
-        },
-        {
-          "fieldPath": "creadoEn",
-          "order": "DESCENDING"
-        }
-      ]
-    },
-    {
-      "collectionGroup": "notificaciones",
-      "queryScope": "COLLECTION",
-      "fields": [
-        {
-          "fieldPath": "destinatarioId",
-          "order": "ASCENDING"
-        },
-        {
-          "fieldPath": "creadoEn",
-          "order": "DESCENDING"
-        }
-      ]
-    },
-    {
-      "collectionGroup": "prospectos",
-      "queryScope": "COLLECTION",
-      "fields": [
-        {
-          "fieldPath": "orden",
-          "order": "ASCENDING"
-        },
-        {
-          "fieldPath": "creadoEn",
-          "order": "DESCENDING"
-        }
-      ]
-    },
-    {
-      "collectionGroup": "prospectos",
-      "queryScope": "COLLECTION",
-      "fields": [
-        {
-          "fieldPath": "etapa",
-          "order": "ASCENDING"
-        },
-        {
-          "fieldPath": "orden",
-          "order": "ASCENDING"
-        }
-      ]
-    },
-    {
-      "collectionGroup": "multaWorkflow",
-      "queryScope": "COLLECTION",
-      "fields": [
-        {
-          "fieldPath": "gestoriaId",
-          "order": "ASCENDING"
-        },
-        {
-          "fieldPath": "actualizadoEn",
-          "order": "DESCENDING"
-        }
-      ]
-    },
-    {
-      "collectionGroup": "multaWorkflow",
-      "queryScope": "COLLECTION",
-      "fields": [
-        {
-          "fieldPath": "gestoriaId",
-          "order": "ASCENDING"
-        },
-        {
-          "fieldPath": "pasoActual",
-          "order": "ASCENDING"
-        }
-      ]
-    },
-    {
-      "collectionGroup": "alertas_sistema",
-      "queryScope": "COLLECTION",
-      "fields": [
-        {
-          "fieldPath": "resuelta",
-          "order": "ASCENDING"
-        },
-        {
-          "fieldPath": "creadaEn",
-          "order": "DESCENDING"
-        }
-      ]
-    },
-    {
-      "collectionGroup": "turnos",
-      "queryScope": "COLLECTION",
-      "fields": [
-        {
-          "fieldPath": "gestoriaId",
-          "order": "ASCENDING"
-        },
-        {
-          "fieldPath": "fecha",
-          "order": "ASCENDING"
-        }
-      ]
-    },
-    {
-      "collectionGroup": "turnos",
-      "queryScope": "COLLECTION",
-      "fields": [
-        {
-          "fieldPath": "gestoriaId",
-          "order": "ASCENDING"
-        },
-        {
-          "fieldPath": "fecha",
-          "order": "DESCENDING"
-        }
-      ]
-    },
-    {
-      "collectionGroup": "tramites",
-      "queryScope": "COLLECTION",
-      "fields": [
-        {
-          "fieldPath": "gestoriaId",
-          "order": "ASCENDING"
-        },
-        {
-          "fieldPath": "actualizadoEn",
-          "order": "DESCENDING"
-        }
-      ]
-    },
-    {
-      "collectionGroup": "tramites",
-      "queryScope": "COLLECTION",
-      "fields": [
-        {
-          "fieldPath": "clienteId",
-          "order": "ASCENDING"
-        },
-        {
-          "fieldPath": "actualizadoEn",
-          "order": "ASCENDING"
-        }
-      ]
-    },
-    {
-      "collectionGroup": "vehiculos",
-      "queryScope": "COLLECTION",
-      "fields": [
-        {
-          "fieldPath": "gestoriaId",
-          "order": "ASCENDING"
-        },
-        {
-          "fieldPath": "patente",
-          "order": "ASCENDING"
-        }
-      ]
-    },
-    {
-      "collectionGroup": "clientes",
-      "queryScope": "COLLECTION",
-      "fields": [
-        {
-          "fieldPath": "gestoriaId",
-          "order": "ASCENDING"
-        },
-        {
-          "fieldPath": "apellido",
-          "order": "ASCENDING"
-        }
-      ]
-    },
-    {
-      "collectionGroup": "tareas",
-      "queryScope": "COLLECTION",
-      "fields": [
-        {
-          "fieldPath": "estado",
-          "order": "ASCENDING"
-        },
-        {
-          "fieldPath": "gestoriaId",
-          "order": "ASCENDING"
-        },
-        {
-          "fieldPath": "vencimiento",
-          "order": "ASCENDING"
-        }
-      ]
-    },
-    {
-      "collectionGroup": "users",
-      "queryScope": "COLLECTION",
-      "fields": [
-        {
-          "fieldPath": "gestoriaId",
-          "order": "ASCENDING"
-        },
-        {
-          "fieldPath": "rol",
-          "order": "ASCENDING"
-        },
-        {
-          "fieldPath": "creadoEn",
-          "order": "ASCENDING"
-        }
-      ]
-    },
-    {
-      "collectionGroup": "tareas",
-      "queryScope": "COLLECTION",
-      "fields": [
-        {
-          "fieldPath": "asignadoA",
-          "order": "ASCENDING"
-        },
-        {
-          "fieldPath": "estado",
-          "order": "ASCENDING"
-        },
-        {
-          "fieldPath": "gestoriaId",
-          "order": "ASCENDING"
-        },
-        {
-          "fieldPath": "vencimiento",
-          "order": "ASCENDING"
-        }
-      ]
-    },
-    {
-      "collectionGroup": "notificaciones",
-      "queryScope": "COLLECTION",
-      "fields": [
-        {
-          "fieldPath": "destinatarioId",
-          "order": "ASCENDING"
-        },
-        {
-          "fieldPath": "gestoriaId",
-          "order": "ASCENDING"
-        },
-        {
-          "fieldPath": "creadoEn",
-          "order": "DESCENDING"
-        }
-      ]
-    },
-    {
-      "collectionGroup": "tramites",
-      "queryScope": "COLLECTION",
-      "fields": [
-        {
-          "fieldPath": "gestoriaId",
-          "order": "ASCENDING"
-        },
-        {
-          "fieldPath": "creadoEn",
-          "order": "DESCENDING"
-        }
-      ]
-    },
-    {
-      "collectionGroup": "prospectos",
-      "queryScope": "COLLECTION",
-      "fields": [
-        {
-          "fieldPath": "gestoriaId",
-          "order": "ASCENDING"
-        },
-        {
-          "fieldPath": "orden",
-          "order": "ASCENDING"
-        },
-        {
-          "fieldPath": "creadoEn",
-          "order": "DESCENDING"
-        }
-      ]
-    },
-    {
       "collectionGroup": "alertas_sistema",
       "queryScope": "COLLECTION",
       "fields": [
@@ -396,8 +15,13 @@
         {
           "fieldPath": "creadaEn",
           "order": "DESCENDING"
+        },
+        {
+          "fieldPath": "__name__",
+          "order": "DESCENDING"
         }
-      ]
+      ],
+      "density": "SPARSE_ALL"
     },
     {
       "collectionGroup": "alertas_sistema",
@@ -418,11 +42,100 @@
         {
           "fieldPath": "creadaEn",
           "order": "DESCENDING"
+        },
+        {
+          "fieldPath": "__name__",
+          "order": "DESCENDING"
         }
-      ]
+      ],
+      "density": "SPARSE_ALL"
     },
     {
-      "collectionGroup": "conversacionesWA",
+      "collectionGroup": "alertas_sistema",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "resuelta",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "creadaEn",
+          "order": "DESCENDING"
+        },
+        {
+          "fieldPath": "__name__",
+          "order": "DESCENDING"
+        }
+      ],
+      "density": "SPARSE_ALL"
+    },
+    {
+      "collectionGroup": "campanas",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "gestoriaId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "creadoEn",
+          "order": "DESCENDING"
+        },
+        {
+          "fieldPath": "__name__",
+          "order": "DESCENDING"
+        }
+      ],
+      "density": "SPARSE_ALL"
+    },
+    {
+      "collectionGroup": "clientes",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "gestoriaId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "apellido",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "__name__",
+          "order": "ASCENDING"
+        }
+      ],
+      "density": "SPARSE_ALL"
+    },
+    {
+      "collectionGroup": "clientes",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "gestoriaId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "apellido",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "telefono",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "cicloVida",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "__name__",
+          "order": "ASCENDING"
+        }
+      ],
+      "density": "SPARSE_ALL"
+    },
+    {
+      "collectionGroup": "consultasInfracciones",
       "queryScope": "COLLECTION",
       "fields": [
         {
@@ -434,10 +147,38 @@
           "order": "ASCENDING"
         },
         {
+          "fieldPath": "creadaEn",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "__name__",
+          "order": "ASCENDING"
+        }
+      ],
+      "density": "SPARSE_ALL"
+    },
+    {
+      "collectionGroup": "conversacionesWA",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "estado",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "gestoriaId",
+          "order": "ASCENDING"
+        },
+        {
           "fieldPath": "ultimaActividad",
           "order": "DESCENDING"
+        },
+        {
+          "fieldPath": "__name__",
+          "order": "DESCENDING"
         }
-      ]
+      ],
+      "density": "SPARSE_ALL"
     },
     {
       "collectionGroup": "conversacionesWA",
@@ -458,8 +199,36 @@
         {
           "fieldPath": "ultimaActividad",
           "order": "DESCENDING"
+        },
+        {
+          "fieldPath": "__name__",
+          "order": "DESCENDING"
         }
-      ]
+      ],
+      "density": "SPARSE_ALL"
+    },
+    {
+      "collectionGroup": "conversacionesWA",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "gestoriaId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "estado",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "ultimaActividad",
+          "order": "DESCENDING"
+        },
+        {
+          "fieldPath": "__name__",
+          "order": "DESCENDING"
+        }
+      ],
+      "density": "SPARSE_ALL"
     },
     {
       "collectionGroup": "conversacionesWA",
@@ -472,22 +241,13 @@
         {
           "fieldPath": "telefono",
           "order": "ASCENDING"
-        }
-      ]
-    },
-    {
-      "collectionGroup": "campanas",
-      "queryScope": "COLLECTION",
-      "fields": [
-        {
-          "fieldPath": "gestoriaId",
-          "order": "ASCENDING"
         },
         {
-          "fieldPath": "creadoEn",
-          "order": "DESCENDING"
+          "fieldPath": "__name__",
+          "order": "ASCENDING"
         }
-      ]
+      ],
+      "density": "SPARSE_ALL"
     },
     {
       "collectionGroup": "envios",
@@ -504,9 +264,638 @@
         {
           "fieldPath": "enviadoEn",
           "order": "DESCENDING"
+        },
+        {
+          "fieldPath": "__name__",
+          "order": "DESCENDING"
         }
-      ]
+      ],
+      "density": "SPARSE_ALL"
+    },
+    {
+      "collectionGroup": "eventos",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "gestoriaId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "timestamp",
+          "order": "DESCENDING"
+        },
+        {
+          "fieldPath": "__name__",
+          "order": "DESCENDING"
+        }
+      ],
+      "density": "SPARSE_ALL"
+    },
+    {
+      "collectionGroup": "eventos",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "gestoriaId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "tipo",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "timestamp",
+          "order": "DESCENDING"
+        },
+        {
+          "fieldPath": "__name__",
+          "order": "DESCENDING"
+        }
+      ],
+      "density": "SPARSE_ALL"
+    },
+    {
+      "collectionGroup": "leads",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "gestoriaId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "creadoEn",
+          "order": "DESCENDING"
+        },
+        {
+          "fieldPath": "__name__",
+          "order": "DESCENDING"
+        }
+      ],
+      "density": "SPARSE_ALL"
+    },
+    {
+      "collectionGroup": "multaWorkflow",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "gestoriaId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "actualizadoEn",
+          "order": "DESCENDING"
+        },
+        {
+          "fieldPath": "__name__",
+          "order": "DESCENDING"
+        }
+      ],
+      "density": "SPARSE_ALL"
+    },
+    {
+      "collectionGroup": "multaWorkflow",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "gestoriaId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "pasoActual",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "__name__",
+          "order": "ASCENDING"
+        }
+      ],
+      "density": "SPARSE_ALL"
+    },
+    {
+      "collectionGroup": "notas_internas",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "entidad",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "entidadId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "gestoriaId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "creadoEn",
+          "order": "DESCENDING"
+        },
+        {
+          "fieldPath": "__name__",
+          "order": "DESCENDING"
+        }
+      ],
+      "density": "SPARSE_ALL"
+    },
+    {
+      "collectionGroup": "notificaciones",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "destinatarioId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "creadoEn",
+          "order": "DESCENDING"
+        },
+        {
+          "fieldPath": "__name__",
+          "order": "DESCENDING"
+        }
+      ],
+      "density": "SPARSE_ALL"
+    },
+    {
+      "collectionGroup": "notificaciones",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "destinatarioId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "gestoriaId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "creadoEn",
+          "order": "DESCENDING"
+        },
+        {
+          "fieldPath": "__name__",
+          "order": "DESCENDING"
+        }
+      ],
+      "density": "SPARSE_ALL"
+    },
+    {
+      "collectionGroup": "prospectos",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "etapa",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "orden",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "__name__",
+          "order": "ASCENDING"
+        }
+      ],
+      "density": "SPARSE_ALL"
+    },
+    {
+      "collectionGroup": "prospectos",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "gestoriaId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "orden",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "creadoEn",
+          "order": "DESCENDING"
+        },
+        {
+          "fieldPath": "__name__",
+          "order": "DESCENDING"
+        }
+      ],
+      "density": "SPARSE_ALL"
+    },
+    {
+      "collectionGroup": "prospectos",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "orden",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "creadoEn",
+          "order": "DESCENDING"
+        },
+        {
+          "fieldPath": "__name__",
+          "order": "DESCENDING"
+        }
+      ],
+      "density": "SPARSE_ALL"
+    },
+    {
+      "collectionGroup": "recibos",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "gestoriaId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "creadoEn",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "__name__",
+          "order": "ASCENDING"
+        }
+      ],
+      "density": "SPARSE_ALL"
+    },
+    {
+      "collectionGroup": "recibos",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "gestoriaId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "creadoEn",
+          "order": "DESCENDING"
+        },
+        {
+          "fieldPath": "__name__",
+          "order": "DESCENDING"
+        }
+      ],
+      "density": "SPARSE_ALL"
+    },
+    {
+      "collectionGroup": "tareas",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "asignadoA",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "estado",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "gestoriaId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "vencimiento",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "__name__",
+          "order": "ASCENDING"
+        }
+      ],
+      "density": "SPARSE_ALL"
+    },
+    {
+      "collectionGroup": "tareas",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "estado",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "gestoriaId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "vencimiento",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "__name__",
+          "order": "ASCENDING"
+        }
+      ],
+      "density": "SPARSE_ALL"
+    },
+    {
+      "collectionGroup": "tramites",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "clienteId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "actualizadoEn",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "__name__",
+          "order": "ASCENDING"
+        }
+      ],
+      "density": "SPARSE_ALL"
+    },
+    {
+      "collectionGroup": "tramites",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "clienteId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "actualizadoEn",
+          "order": "DESCENDING"
+        },
+        {
+          "fieldPath": "__name__",
+          "order": "DESCENDING"
+        }
+      ],
+      "density": "SPARSE_ALL"
+    },
+    {
+      "collectionGroup": "tramites",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "clienteId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "creadoEn",
+          "order": "DESCENDING"
+        },
+        {
+          "fieldPath": "__name__",
+          "order": "DESCENDING"
+        }
+      ],
+      "density": "SPARSE_ALL"
+    },
+    {
+      "collectionGroup": "tramites",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "estado",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "creadoEn",
+          "order": "DESCENDING"
+        },
+        {
+          "fieldPath": "__name__",
+          "order": "DESCENDING"
+        }
+      ],
+      "density": "SPARSE_ALL"
+    },
+    {
+      "collectionGroup": "tramites",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "gestoriaId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "actualizadoEn",
+          "order": "DESCENDING"
+        },
+        {
+          "fieldPath": "__name__",
+          "order": "DESCENDING"
+        }
+      ],
+      "density": "SPARSE_ALL"
+    },
+    {
+      "collectionGroup": "tramites",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "gestoriaId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "creadoEn",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "__name__",
+          "order": "ASCENDING"
+        }
+      ],
+      "density": "SPARSE_ALL"
+    },
+    {
+      "collectionGroup": "tramites",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "gestoriaId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "creadoEn",
+          "order": "DESCENDING"
+        },
+        {
+          "fieldPath": "__name__",
+          "order": "DESCENDING"
+        }
+      ],
+      "density": "SPARSE_ALL"
+    },
+    {
+      "collectionGroup": "tramites",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "gestoriaId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "pagado",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "creadoEn",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "__name__",
+          "order": "ASCENDING"
+        }
+      ],
+      "density": "SPARSE_ALL"
+    },
+    {
+      "collectionGroup": "tramites",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "gestoriaId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "pagado",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "fechaPago",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "__name__",
+          "order": "ASCENDING"
+        }
+      ],
+      "density": "SPARSE_ALL"
+    },
+    {
+      "collectionGroup": "turnos",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "clienteId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "fecha",
+          "order": "DESCENDING"
+        },
+        {
+          "fieldPath": "__name__",
+          "order": "DESCENDING"
+        }
+      ],
+      "density": "SPARSE_ALL"
+    },
+    {
+      "collectionGroup": "turnos",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "fecha",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "estado",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "__name__",
+          "order": "ASCENDING"
+        }
+      ],
+      "density": "SPARSE_ALL"
+    },
+    {
+      "collectionGroup": "turnos",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "gestoriaId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "fecha",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "__name__",
+          "order": "ASCENDING"
+        }
+      ],
+      "density": "SPARSE_ALL"
+    },
+    {
+      "collectionGroup": "turnos",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "gestoriaId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "fecha",
+          "order": "DESCENDING"
+        },
+        {
+          "fieldPath": "__name__",
+          "order": "DESCENDING"
+        }
+      ],
+      "density": "SPARSE_ALL"
+    },
+    {
+      "collectionGroup": "users",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "gestoriaId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "rol",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "creadoEn",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "__name__",
+          "order": "ASCENDING"
+        }
+      ],
+      "density": "SPARSE_ALL"
+    },
+    {
+      "collectionGroup": "vehiculos",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "gestoriaId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "patente",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "__name__",
+          "order": "ASCENDING"
+        }
+      ],
+      "density": "SPARSE_ALL"
     }
   ],
-  "fieldOverrides": []
+  "fieldOverrides": [
+  {
+    "collectionGroup": "mensajes",
+    "fieldPath": "waMessageId",
+    "indexes": [
+      { "order": "ASCENDING",  "queryScope": "COLLECTION" },
+      { "order": "DESCENDING", "queryScope": "COLLECTION" },
+      { "order": "ASCENDING",  "queryScope": "COLLECTION_GROUP" }
+    ]
+  }
+]
 }

@@ -11,7 +11,7 @@
 // el volumen de leads es bajo y se ordena en memoria en el hook.
 
 import {
-  collection, doc, query, where, onSnapshot, updateDoc, getDoc,
+  collection, doc, query, where, onSnapshot, updateDoc, getDoc, setDoc,
   serverTimestamp, type Unsubscribe,
 } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
@@ -70,6 +70,51 @@ export async function reclamarConsultaSiLibre(
     creadoPorNombre: data?.creadoPorNombre ?? usuario.nombre,
     asignadaEn:      serverTimestamp(),
   })
+}
+
+// ─── CREAR DESDE LA BANDEJA WA ──────────────────────────────────────────────
+//
+// La secretaria confirma la consulta sugerida (chip en la Bandeja) → creamos el
+// doc con el MISMO shape que la web pública, para que la extensión lo levante
+// igual. Idempotente por día: mismo dato el mismo día ⇒ mismo documento, así un
+// doble click no encola dos veces. Nace asignada a quien la confirma.
+
+function diaAR(): string {
+  return new Date(Date.now() - 3 * 3600 * 1000).toISOString().slice(0, 10).replace(/-/g, '')
+}
+
+export async function crearConsultaDesdeWA(p: {
+  gestoriaId: string
+  tipo:       'dominio' | 'dni'
+  valor:      string
+  contacto:   { nombre: string; whatsapp: string; email?: string }
+  leadId?:    string
+  creadoPor:  { uid: string; nombre: string }
+}): Promise<string> {
+  const valor      = (p.valor || '').toUpperCase().replace(/[^A-Z0-9]/g, '')
+  const dedupeKey  = `wa_${p.gestoriaId}_${p.tipo}_${valor}_${diaAR()}`.replace(/\//g, '_')
+  const ref        = doc(db, 'consultasInfracciones', dedupeKey)
+
+  await setDoc(ref, {
+    gestoriaId:   p.gestoriaId,
+    tipoConsulta: p.tipo,
+    ...(p.tipo === 'dominio' ? { dominio: valor } : { dni: valor, tipoDocumento: 'DNI' }),
+    contacto: {
+      nombre:   p.contacto.nombre,
+      whatsapp: p.contacto.whatsapp,
+      email:    p.contacto.email ?? '',
+    },
+    origen:          'whatsapp',
+    estado:          'pendiente' as EstadoConsulta,
+    ...(p.leadId ? { leadId: p.leadId } : {}),
+    asignadoA:       p.creadoPor.uid,
+    asignadoANombre: p.creadoPor.nombre,
+    creadoPor:       p.creadoPor.uid,
+    creadoPorNombre: p.creadoPor.nombre,
+    creadaEn:        serverTimestamp(),
+  }, { merge: true })
+
+  return ref.id
 }
 
 // ─── WRITE ────────────────────────────────────────────────────────────────────

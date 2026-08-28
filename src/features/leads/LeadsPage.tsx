@@ -31,6 +31,9 @@ import { getFunctions, httpsCallable } from 'firebase/functions'
 
 type Tab = 'bandeja' | 'nuevos' | 'convertidos' | 'perdidos' | 'todos'
 
+// Roles que reasignan a terceros y ven todo el pool de leads.
+const ROLES_ADMIN = ['propietario', 'admin', 'admin_gral', 'superadmin']
+
 const TABS: { key: Tab; label: string }[] = [
   { key: 'bandeja',     label: '📥 Bandeja'    },
   { key: 'nuevos',      label: '🆕 Nuevos'     },
@@ -375,6 +378,7 @@ function ModalDetalleLead({
     : undefined
 
   const esActivo = ESTADOS_LEAD_ACTIVOS.includes(lead.estado)
+  const esAdmin  = ROLES_ADMIN.includes(user?.rol ?? '')
 
 const handleConvertir = async () => {
   setConvirtiendo(true)
@@ -497,22 +501,33 @@ const handleConvertir = async () => {
             )}
           </div>
 
-          {/* Asignación */}
-          <div>
-            <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider block mb-1.5">
-              Asignar a
-            </label>
-            <select
-              value={asignandoA}
-              onChange={e => handleAsignar(e.target.value)}
-              className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm outline-none focus:border-[#D4621A]"
-            >
-              <option value="">Sin asignar</option>
-              {equipo.map(m => (
-                <option key={m.uid} value={m.uid}>{m.nombre} {m.apellido}</option>
-              ))}
-            </select>
-          </div>
+          {/* Asignación — reasignar a terceros solo admins; el resto reclama el pool libre */}
+          {esAdmin ? (
+            <div>
+              <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider block mb-1.5">
+                Asignar a
+              </label>
+              <select
+                value={asignandoA}
+                onChange={e => handleAsignar(e.target.value)}
+                className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm outline-none focus:border-[#D4621A]"
+              >
+                <option value="">Sin asignar</option>
+                {equipo.map(m => (
+                  <option key={m.uid} value={m.uid}>{m.nombre} {m.apellido}</option>
+                ))}
+              </select>
+            </div>
+          ) : !lead.asignadoA ? (
+            <Button variant="secondary" onClick={() => { if (user) handleAsignar(user.uid) }} className="w-full">
+              <UserCheck size={15} /> Reclamar este lead
+            </Button>
+          ) : (
+            <div className="text-xs text-gray-500 flex items-center gap-1.5">
+              <UserCheck size={13} className="text-green-600" />
+              Asignado a {lead.asignadoNombre || 'vos'}
+            </div>
+          )}
 
           {/* Convertir */}
           <Button onClick={handleConvertir} loading={convirtiendo} className="w-full">
@@ -670,12 +685,17 @@ export default function LeadsPage() {
     }
   }
 
-  // 4. Crear el lead con datos normalizados
+  // 4. Crear el lead con datos normalizados.
+  //    Si lo crea un secretario, nace asignado a él (solo lo ve él + admins).
+  //    Si lo crea un admin, queda sin asignar → pool (lo asigna o lo dejan libre).
+  const asignar = ROLES_ADMIN.includes(user.rol ?? '')
+    ? undefined
+    : { uid: user.uid, nombre: `${user.nombre} ${user.apellido}`.trim() }
   const leadId = await crearLead(
     gestoriaId,
     datosFinales,
     user.uid,
-    { origenSistema: 'manual', actor }
+    { origenSistema: 'manual', actor, asignar }
   )
 
   // 5. Determinar si puede ir a la cola (patente o DNI + tipo multa)

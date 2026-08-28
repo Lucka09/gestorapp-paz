@@ -163,6 +163,11 @@ export interface Cliente {
   origen?:       string          
   origenCanal?:  OrigenCanal  
   origenNombre?: string
+  cicloVida?:             'prospecto' | 'cliente'
+  datosIncompletos?:      boolean       // falta DNI/apellido — completar
+  origenLeadId?:          string        // cross-ref al lead de origen
+  creadoAutomaticamente?: boolean       // creado por el materializador
+  actualizadoEn?:         Timestamp
   creadoEn:     Timestamp
   creadoPor:    string
 }

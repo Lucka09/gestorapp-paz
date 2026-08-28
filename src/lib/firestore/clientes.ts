@@ -49,10 +49,13 @@ export async function getCliente(id: string): Promise<Cliente | null> {
 
 // ─── READ (paginado — para ClientesPage) ─────────────────────────────────────
 
-export async function getClientesCount(gestoriaId: string): Promise<number> {
-  const snap = await getCountFromServer(
-    query(clientesCol, where('gestoriaId', '==', gestoriaId))
-  )
+export async function getClientesCount(
+  gestoriaId: string,
+  cicloVida?: 'cliente' | 'prospecto',
+): Promise<number> {
+  const constraints: QueryConstraint[] = [where('gestoriaId', '==', gestoriaId)]
+  if (cicloVida) constraints.push(where('cicloVida', '==', cicloVida))
+  const snap = await getCountFromServer(query(clientesCol, ...constraints))
   return snap.data().count
 }
 
@@ -60,12 +63,11 @@ export async function getClientesPagina(
   gestoriaId: string,
   cursor:     QueryDocumentSnapshot<Cliente> | null,
   pageSize =  PAGE_SIZE_CLIENTES,
-): Promise<{
-  clientes: Cliente[]
-  lastDoc:  QueryDocumentSnapshot<Cliente> | null
-}> {
+  cicloVida?: 'cliente' | 'prospecto',
+): Promise<{ clientes: Cliente[]; lastDoc: QueryDocumentSnapshot<Cliente> | null }> {
   const constraints: QueryConstraint[] = [
     where('gestoriaId', '==', gestoriaId),
+    ...(cicloVida ? [where('cicloVida', '==', cicloVida)] : []),
     orderBy('apellido'),
     ...(cursor ? [startAfter(cursor)] : []),
     limit(pageSize),

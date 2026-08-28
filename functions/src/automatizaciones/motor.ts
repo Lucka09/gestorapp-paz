@@ -8,7 +8,7 @@ import { onDocumentCreated } from 'firebase-functions/v2/firestore'
 import { onCall, HttpsError } from 'firebase-functions/v2/https'
 import { evaluarCondiciones } from './condiciones'
 import { EJECUTORES, COLECCION_POR_ENTIDAD, type CtxAutomatizacion } from './ejecutores'
-
+import { CORS_ORIGINS } from '../cors'
 const db = admin.firestore()
 const FV = admin.firestore.FieldValue
 
@@ -92,12 +92,7 @@ export const motorAutomatizaciones = onDocumentCreated(
 export const seedAutomatizaciones = onCall(
   { 
     region: 'us-central1',
-    cors: [                                    // ← AGREGAR ESTE BLOQUE
-      'https://gestorapp-paz.web.app',
-      'https://gestorapp-paz.firebaseapp.com',
-      'http://localhost:5173',
-      'http://localhost:5174',
-    ],
+      cors: CORS_ORIGINS,
   },
   async (request) => {
     if (!request.auth) throw new HttpsError('unauthenticated', 'Requiere login')

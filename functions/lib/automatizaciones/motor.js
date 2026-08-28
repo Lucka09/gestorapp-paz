@@ -34,6 +34,7 @@ const firestore_1 = require("firebase-functions/v2/firestore");
 const https_1 = require("firebase-functions/v2/https");
 const condiciones_1 = require("./condiciones");
 const ejecutores_1 = require("./ejecutores");
+const cors_1 = require("../cors");
 const db = admin.firestore();
 const FV = admin.firestore.FieldValue;
 exports.motorAutomatizaciones = (0, firestore_1.onDocumentCreated)({ document: 'eventos/{eventoId}', region: 'southamerica-east1', memory: '512MiB', timeoutSeconds: 60 }, async (event) => {
@@ -115,12 +116,7 @@ exports.motorAutomatizaciones = (0, firestore_1.onDocumentCreated)({ document: '
 // ─── SEED: activa las automatizaciones sugeridas del tenant (una sola vez) ───
 exports.seedAutomatizaciones = (0, https_1.onCall)({
     region: 'us-central1',
-    cors: [
-        'https://gestorapp-paz.web.app',
-        'https://gestorapp-paz.firebaseapp.com',
-        'http://localhost:5173',
-        'http://localhost:5174',
-    ],
+    cors: cors_1.CORS_ORIGINS,
 }, async (request) => {
     if (!request.auth)
         throw new https_1.HttpsError('unauthenticated', 'Requiere login');
