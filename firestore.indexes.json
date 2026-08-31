@@ -108,6 +108,15 @@
       "density": "SPARSE_ALL"
     },
     {
+  "collectionGroup": "clientes",
+  "queryScope": "COLLECTION",
+  "fields": [
+    { "fieldPath": "cicloVida",  "order": "ASCENDING" },
+    { "fieldPath": "gestoriaId", "order": "ASCENDING" },
+    { "fieldPath": "apellido",   "order": "ASCENDING" }
+  ]
+},
+    {
       "collectionGroup": "clientes",
       "queryScope": "COLLECTION",
       "fields": [

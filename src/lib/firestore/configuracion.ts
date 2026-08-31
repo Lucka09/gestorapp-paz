@@ -88,10 +88,17 @@ export async function getConfiguracion(): Promise<Configuracion> {
 export function subscribeConfiguracion(
   callback: (cfg: Configuracion) => void
 ): Unsubscribe {
-  return onSnapshot(configuracionDoc, snap => {
-    if (!snap.exists()) callback({ ...CONFIG_DEFAULT } as Configuracion)
-    else callback({ ...CONFIG_DEFAULT, ...snap.data() } as Configuracion)
-  })
+  return onSnapshot(
+    configuracionDoc,
+    snap => {
+      if (!snap.exists()) callback({ ...CONFIG_DEFAULT } as Configuracion)
+      else callback({ ...CONFIG_DEFAULT, ...snap.data() } as Configuracion)
+    },
+    err => {
+      console.error('[configuracion] snapshot error:', err.code, err.message)
+      callback({ ...CONFIG_DEFAULT } as Configuracion)   // resuelve loading, no cuelga
+    }
+  )
 }
 
 // ─── GUARDAR ──────────────────────────────────────────────────────────────────

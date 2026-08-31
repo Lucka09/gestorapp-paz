@@ -1,7 +1,7 @@
 import { initializeApp, getApps, getApp } from 'firebase/app'
 import { getAuth }       from 'firebase/auth'
 import { getFunctions }  from 'firebase/functions'
-import { getFirestore, initializeFirestore, persistentLocalCache, persistentMultipleTabManager } from 'firebase/firestore'
+import { getFirestore, initializeFirestore, memoryLocalCache } from 'firebase/firestore'
 import { getStorage }    from 'firebase/storage'
 import { ENV }           from './env'
 
@@ -29,13 +29,10 @@ export const secondaryAuth = getAuth(secondaryApp)
 export const db = (() => {
   try {
     return initializeFirestore(app, {
-      localCache: persistentLocalCache({
-        tabManager: persistentMultipleTabManager(),
-      }),
+      localCache: memoryLocalCache(),
       experimentalForceLongPolling: true,
     })
   } catch {
-    // Fallback si el browser no soporta IndexedDB (modo in-memory)
     return getFirestore(app)
   }
 })()

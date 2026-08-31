@@ -109,12 +109,12 @@ export default function ClientesPage() {
   const { gestoria } = useGestoria()
   const [modalOpen, setModal] = useState(false)
 
-    const {
-    clientes, total, loading,
+  const {
+    clientes, total, loading, error,
     page, hasPrev, hasNext, goNext, goPrev,
     search, setSearch, isSearching, searchLoading,
-    exportar, exportLoading,
     verProspectos, setVerProspectos,
+    exportar, exportLoading,
   } = useClientesPaginados()
 
   const {
@@ -217,8 +217,26 @@ export default function ClientesPage() {
         </p>
       )}
 
+      {/* Toggle Ver prospectos — solo en modo browse (no en búsqueda) */}
+      {!isSearching && (
+        <label className="flex items-center gap-2 mb-3 text-xs text-gp-text-3 cursor-pointer select-none">
+          <input
+            type="checkbox"
+            checked={verProspectos}
+            onChange={e => setVerProspectos(e.target.checked)}
+            className="accent-gp-orange"
+          />
+          Ver prospectos (registros de leads sin convertir)
+        </label>
+      )}
+
       {loading ? (
         <Spinner />
+      ) : error && !isSearching ? (
+        <EmptyState
+          title="No se pudo cargar el listado"
+          description={error}
+        />
       ) : clientes.length === 0 ? (
         <EmptyState
           title={search ? 'Sin resultados' : 'No hay clientes todavía'}
@@ -294,15 +312,6 @@ export default function ClientesPage() {
               </div>
             ))}
           </div>
-  <label className="flex items-center gap-2 mb-3 text-xs text-gp-text-3 cursor-pointer select-none">
-    <input
-      type="checkbox"
-      checked={verProspectos}
-      onChange={e => setVerProspectos(e.target.checked)}
-      className="accent-gp-orange"
-    />
-    Ver prospectos (registros de leads sin convertir)
-  </label>
           <PaginacionBar
             page={page}
             hasPrev={hasPrev}

@@ -6,7 +6,8 @@ import {
   ChevronDown, Trash2, Edit2, Filter,
   CheckCheck, ListTodo,
 } from 'lucide-react'
-import { useAuth }     from '@/hooks/useAuth'
+import { useAuth }       from '@/hooks/useAuth'
+import { useGestoriaId } from '@/context/GestoriaContext'
 import { useEquipo }   from '@/hooks/useEquipo'
 import { useClientes } from '@/hooks/useClientes'
 import { useTareas, useMisTareas } from '@/hooks/useTareas'
@@ -57,6 +58,7 @@ function ModalTarea({
   tareaEdit?: Tarea | null
 }) {
   const { user }     = useAuth()
+  const gestoriaId   = useGestoriaId()
   const { activos }  = useEquipo()
   const { clientes } = useClientes()
   const esEdicion    = !!tareaEdit
@@ -89,7 +91,7 @@ function ModalTarea({
     const recordatorioDate = recordatorio ? new Date(recordatorio) : undefined
 
     const inputBase = {
-      gestoriaId:     user?.uid ?? '',
+            gestoriaId:     gestoriaId ?? '',
       titulo:         titulo.trim(),
       descripcion:    descripcion.trim() || undefined,
       prioridad,

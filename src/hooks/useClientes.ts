@@ -72,6 +72,10 @@ const PAGE_SIZE = 25
  *    y filtra client-side. La carga ocurre cuando el usuario empieza a escribir
  *    (no al montar el componente).
  *
+ * Filtro de ciclo de vida:
+ *  - verProspectos = false (default) → solo cicloVida == 'cliente'.
+ *  - verProspectos = true            → sin filtro (clientes + prospectos).
+ *
  * El stack de cursores se guarda en un useRef para no causar re-renders
  * ni loops en useEffect.
  */
@@ -84,6 +88,14 @@ export function useClientesPaginados(pageSize = PAGE_SIZE) {
   const [total, setTotal]       = useState(0)
   const [hasNext, setHasNext]   = useState(false)
   const [loading, setLoading]   = useState(true)
+  // Mensaje de error de carga del listado (p. ej. índice Firestore faltante).
+  // Permite distinguir "vacío real" de "falló la query" en la UI.
+  const [error, setError]       = useState<string | null>(null)
+
+  // ── Ciclo de vida (toggle "Ver prospectos") ───────────────────────────────
+  const [verProspectos, setVerProspectosState] = useState(false)
+  // undefined → trae todo (clientes + prospectos); 'cliente' → solo clientes.
+  const cicloVida: 'cliente' | undefined = verProspectos ? undefined : 'cliente'
 
   // Stack de cursores en ref — no dispara efectos.
   // cursorsRef.current[i] = cursor para cargar la página i+1.
@@ -92,6 +104,14 @@ export function useClientesPaginados(pageSize = PAGE_SIZE) {
   // Último doc de la página actual — goNext lo usa como cursor de la siguiente.
   const lastDocRef = useRef<QueryDocumentSnapshot<Cliente> | null>(null)
 
+  // Cambiar el filtro invalida los cursores: reseteamos a página 1.
+  const setVerProspectos = useCallback((v: boolean) => {
+    cursorsRef.current = [null]
+    lastDocRef.current = null
+    setPage(1)
+    setVerProspectosState(v)
+  }, [])
+
   // ── Búsqueda ──────────────────────────────────────────────────────────────
   // inputSearch: valor del <input> (reactivo, sin debounce)
   // debouncedSearch: valor que dispara la carga de todos los docs
@@ -99,19 +119,17 @@ export function useClientesPaginados(pageSize = PAGE_SIZE) {
   const [debouncedSearch, setDebouncedSearch] = useState('')
   const [searchAll, setSearchAll]         = useState<Cliente[] | null>(null)
   const [searchLoading, setSearchLoading] = useState(false)
-  // Toggle: false = solo clientes reales (default) · true = incluye prospectos
-  const [verProspectos, setVerProspectos] = useState(false)
+
   // ── Exportar ──────────────────────────────────────────────────────────────
   const [exportLoading, setExportLoading] = useState(false)
 
   // ── Efectos ───────────────────────────────────────────────────────────────
 
-  // 1. Contar total del tenant (una vez al montar)
-    useEffect(() => {
+  // 1. Contar total del tenant (según filtro de ciclo de vida)
+  useEffect(() => {
     if (!gestoriaId) return
-    getClientesCount(gestoriaId, verProspectos ? undefined : 'cliente')
-      .then(setTotal).catch(console.warn)
-  }, [gestoriaId, verProspectos])
+    getClientesCount(gestoriaId, cicloVida).then(setTotal).catch(console.warn)
+  }, [gestoriaId, cicloVida])
 
   // 2. Debounce del input de búsqueda
   useEffect(() => {
@@ -120,24 +138,32 @@ export function useClientesPaginados(pageSize = PAGE_SIZE) {
   }, [inputSearch])
 
   // 3. Cargar página (solo cuando no hay búsqueda activa)
-    useEffect(() => {
+  useEffect(() => {
     if (!gestoriaId || debouncedSearch.trim()) return
     setLoading(true)
+    setError(null)
+
     const cursor = cursorsRef.current[page - 1] ?? null
-    getClientesPagina(gestoriaId, cursor, pageSize, verProspectos ? undefined : 'cliente')
+    getClientesPagina(gestoriaId, cursor, pageSize, cicloVida)
       .then(({ clientes: data, lastDoc }) => {
         setItems(data)
         lastDocRef.current = lastDoc
         setHasNext(data.length === pageSize)
         setLoading(false)
       })
-      .catch(err => { console.error('[useClientesPaginados]', err); setLoading(false) })
-  }, [gestoriaId, page, pageSize, debouncedSearch, verProspectos])
+      .catch(err => {
+        console.error('[useClientesPaginados]', err)
+        setError(
+          err?.code === 'failed-precondition'
+            ? 'Falta un índice de Firestore para ordenar los clientes (revisá Firestore → Índices).'
+            : 'No se pudo cargar el listado de clientes.'
+        )
+        setItems([])
+        setHasNext(false)
+        setLoading(false)
+      })
+  }, [gestoriaId, page, pageSize, debouncedSearch, cicloVida])
 
-    useEffect(() => {
-    cursorsRef.current = [null]
-    setPage(1)
-  }, [verProspectos])
   // 4. Cargar TODOS los clientes para búsqueda (solo cuando hay texto)
   useEffect(() => {
     if (!debouncedSearch.trim() || !gestoriaId) {
@@ -145,6 +171,7 @@ export function useClientesPaginados(pageSize = PAGE_SIZE) {
       return
     }
     setSearchLoading(true)
+    setError(null)
     getClientesTodos(gestoriaId)
       .then(todos => {
         setSearchAll(todos)
@@ -152,10 +179,14 @@ export function useClientesPaginados(pageSize = PAGE_SIZE) {
       })
       .catch(err => {
         console.error('[useClientesPaginados:search]', err)
+        setError(
+          err?.code === 'failed-precondition'
+            ? 'Falta un índice de Firestore para la búsqueda de clientes (revisá Firestore → Índices).'
+            : 'No se pudo completar la búsqueda de clientes.'
+        )
         setSearchLoading(false)
       })
   }, [debouncedSearch, gestoriaId])
-  
 
   // ── Acciones de paginación ────────────────────────────────────────────────
 
@@ -191,29 +222,31 @@ export function useClientesPaginados(pageSize = PAGE_SIZE) {
 
   const isSearching = debouncedSearch.trim() !== ''
 
-   const clientesFiltrados = useMemo(() => {
+  const clientesFiltrados = useMemo(() => {
     if (!searchAll) return null
     const q = debouncedSearch.toLowerCase()
-    return searchAll.filter(c =>
-      (verProspectos || c.cicloVida !== 'prospecto') && (
+    return searchAll
+      // Respeta el toggle: si no se ven prospectos, excluye solo los explícitos.
+      // (Los registros legacy sin cicloVida se consideran clientes.)
+      .filter(c => verProspectos || (c as { cicloVida?: string }).cicloVida !== 'prospecto')
+      .filter(c =>
         c.nombre.toLowerCase().includes(q)   ||
         c.apellido.toLowerCase().includes(q) ||
         c.dni.includes(q)                    ||
         c.telefono.includes(q)               ||
         c.email.toLowerCase().includes(q)
       )
-    )
   }, [searchAll, debouncedSearch, verProspectos])
 
   return {
     // Datos a mostrar
     clientes:  clientesFiltrados ?? items,
     total,
-    verProspectos,
-    setVerProspectos,
+
     // Estado de carga
     loading:       isSearching ? searchLoading : loading,
     searchLoading,
+    error,
 
     // Paginación (irrelevante en modo búsqueda)
     page,
@@ -226,6 +259,10 @@ export function useClientesPaginados(pageSize = PAGE_SIZE) {
     search:      inputSearch,
     setSearch:   setInputSearch,
     isSearching,
+
+    // Ciclo de vida
+    verProspectos,
+    setVerProspectos,
 
     // Exportar
     exportar,

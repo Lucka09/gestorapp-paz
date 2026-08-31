@@ -67,11 +67,13 @@ service cloud.firestore {
       allow write:  if esSuperAdmin();
     }
 
-    // ─── CONFIGURACIÓN ────────────────────────────────────────────────────────
+        // ─── CONFIGURACIÓN ────────────────────────────────────────────────────────
+    // Doc legacy single-tenant en configuracion/gestor (id != gestoriaId).
+    // Aislamos por el campo gestoriaId del doc, no por el id.
     match /configuracion/{docId} {
-      allow read:  if isStaff() && miPerfil().gestoriaId == docId;
+      allow read:  if isStaff() && resource.data.gestoriaId == miPerfil().gestoriaId;
       allow read:  if esSuperAdmin();
-      allow write: if isPropietario() && miPerfil().gestoriaId == docId;
+      allow write: if isPropietario() && request.resource.data.gestoriaId == miPerfil().gestoriaId;
       allow write: if esSuperAdmin();
     }
 

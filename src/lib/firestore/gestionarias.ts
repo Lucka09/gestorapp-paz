@@ -113,10 +113,17 @@ export function subscribeGestoria(
   id:       string,
   callback: (g: Gestoria | null) => void
 ): Unsubscribe {
-  return onSnapshot(gestoriaDoc(id), snap => {
-    if (!snap.exists()) callback(null)
-    else callback({ ...snap.data(), id: snap.id } as Gestoria)
-  })
+  return onSnapshot(
+    gestoriaDoc(id),
+    snap => {
+      if (!snap.exists()) callback(null)
+      else callback({ ...snap.data(), id: snap.id } as Gestoria)
+    },
+    err => {
+      console.error('[gestionarias] snapshot error:', err.code, err.message)
+      callback(null)
+    }
+  )
 }
 
 // ─── MIGRACIÓN: agregar gestoriaId a documentos existentes ───────────────────
