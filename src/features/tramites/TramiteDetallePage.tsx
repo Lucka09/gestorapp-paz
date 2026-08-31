@@ -28,6 +28,10 @@ import { PanelDocumentacion } from '@/components/shared/PanelDocumentacion'
 import GestorMultaWorkflow     from '@/components/GestorMultaWorkflow'
 import NumeroBadge             from '@/components/shared/NumeroBadge'
 import { TIPO_TRAMITE_LABELS, type EstadoTramite } from '@/types'
+import {
+  estadoMultaEfectivo, ESTADO_MULTA_OP_LABELS, ESTADO_MULTA_OP_COLORS,
+  type MultaWorkflow,
+} from '@/types/multa_types'
 import type { InscripcionWorkflow, GeoRegistro } from '@/torre_types'
 import { formatFecha, formatFechaHora, formatPesos, nombreCompleto } from '@/utils'
 import toast from 'react-hot-toast'
@@ -101,10 +105,13 @@ export default function TramiteDetallePage() {
   // Tipos de workflow
   const esInscripcion   = tramite?.tipo === 'inscripcion_inicial'
   const esMulta         = tramite?.tipo === 'descargo_multa'
+  const estadoMulta     = esMulta && wfMulta ? estadoMultaEfectivo(wfMulta) : null
+  const multaReportada  = esMulta && !!wfMulta?.reporteControl
   const esTransferencia = tramite?.tipo === 'transferencia'
   const [wfInscripcion, setWfInscripcion] = useState<InscripcionWorkflow | null>(null)
   const [montoMulta, setMontoMulta] = useState(0)
   const [wfMultaCompletado, setWfMultaCompletado] = useState(false)
+  const [wfMulta, setWfMulta] = useState<MultaWorkflow | null>(null)
 
   // Suscribir al workflow de inscripción
   useEffect(() => {
@@ -124,6 +131,7 @@ export default function TramiteDetallePage() {
         const data = snap.data()
         const monto = data?.paso2?.montoTotal ?? data?.paso7?.pagoTotalRecibo ?? 0
         setMontoMulta(monto)
+        setWfMulta({ id, ...data } as MultaWorkflow)
         // El workflow está completo cuando alcanza pasoActual 8 o estadoWorkflow='completado'
         const completado = data?.pasoActual >= 8 || data?.estadoWorkflow === 'completado'
         setWfMultaCompletado(completado)
@@ -277,8 +285,22 @@ export default function TramiteDetallePage() {
             <BotonComprobantePago tramite={tramite} cliente={cliente} vehiculo={vehiculo} montoOverride={esMulta && montoMulta > 0 ? montoMulta : undefined} />
             <div>
               <p className="text-xs text-gray-400 mb-2 uppercase tracking-wide font-semibold">Estado</p>
-              <EstadoSelector estadoActual={tramite.estado} onCambiar={handleCambiarEstado} />
-
+              {esMulta ? (
+                <div className="flex items-center gap-2 flex-wrap">
+                  {estadoMulta ? (
+                    <span className={`inline-flex items-center text-sm font-bold px-3 py-1.5 rounded-lg ${ESTADO_MULTA_OP_COLORS[estadoMulta]}`}>
+                      {ESTADO_MULTA_OP_LABELS[estadoMulta]}
+                    </span>
+                  ) : (
+                    <span className="text-sm text-gray-400">—</span>
+                  )}
+                  {multaReportada && (
+                    <span className="inline-flex items-center text-xs font-bold px-2 py-1 rounded-lg bg-amber-100 text-amber-800 border border-amber-200">A Controlar</span>
+                  )}
+                </div>
+              ) : (
+                <EstadoSelector estadoActual={tramite.estado} onCambiar={handleCambiarEstado} />
+              )}
             </div>
           </div>
         </div>
