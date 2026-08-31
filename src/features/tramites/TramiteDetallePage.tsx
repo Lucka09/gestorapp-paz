@@ -152,7 +152,7 @@ export default function TramiteDetallePage() {
     try {
       await eliminarTramite(id)
       toast.success('Trámite eliminado')
-      navigate('/admin/tramites')
+      navigate(esMulta ? '/admin/revision-multas' : '/admin/tramites')
     } catch {
       toast.error('Error al eliminar')
     }
@@ -221,9 +221,9 @@ export default function TramiteDetallePage() {
 
       {/* Topbar */}
       <div className="flex items-center justify-between">
-        <button onClick={() => navigate('/admin/tramites')}
+        <button onClick={() => navigate(esMulta ? '/admin/revision-multas' : '/admin/tramites')}
           className="flex items-center gap-2 text-sm text-gray-500 hover:text-gray-800 transition-colors">
-          <ArrowLeft size={16} /> Volver a Trámites
+          <ArrowLeft size={16} /> {esMulta ? 'Volver a Revisión de Multas' : 'Volver a Trámites'}
         </button>
         <div className="flex gap-2">
           {puede('verMetricasFinancieras') && (

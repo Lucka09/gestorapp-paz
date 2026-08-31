@@ -97,7 +97,7 @@ export function useTorreControl() {
   // Filtro por visibilidad según permiso del rol
   const tramitesVisibles = useMemo(() => {
     // Excluir trámites en estado final — completados/entregados no generan alertas
-    const base = tramites.filter(t => !ESTADOS_FINALES.has(t.estado))
+    const base = tramites.filter(t => !ESTADOS_FINALES.has(t.estado) && t.tipo !== 'descargo_multa')
     // Propietario y Admin ven todo
     if (verTodo) return base
     // Gestor/Mandatario solo ve los suyos
@@ -106,7 +106,7 @@ export function useTorreControl() {
       return base.filter(t => t.asignadoA === uid || t.creadoPor === uid)
     }
     return base
-  }, [tramites, user])
+  }, [tramites, verTodo, soloPropia, user?.uid])
 
   // ── Enriquecimiento: tramites + alertLevel + alertas ──────────────────────
 
@@ -135,7 +135,7 @@ export function useTorreControl() {
         } as TramiteEnriquecido
       })
       .sort((a, b) => nivelPeso(b.alertLevel) - nivelPeso(a.alertLevel))
-  }, [tramitesVisibles, workflowMap])
+  }, [tramitesVisibles, workflowMap, clienteNombreMap])
 
   // ── KPIs derivados ────────────────────────────────────────────────────────
 
