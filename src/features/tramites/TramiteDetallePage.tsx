@@ -672,7 +672,8 @@ export default function TramiteDetallePage() {
         </div>
       )}
 
-      {/* Historial de estados */}
+      {/* Historial de estados (genérico) — en multas la progresión es el workflow */}
+      {!esMulta && (
       <Card className="p-5">
         <div className="flex items-center gap-2 mb-4">
           <Clock size={14} className="text-gray-400" />
@@ -701,6 +702,7 @@ export default function TramiteDetallePage() {
           </div>
         )}
       </Card>
+      )}
 
       {/* Observaciones internas */}
       {tramite.observacionesInternas && (
