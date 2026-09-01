@@ -6,6 +6,8 @@
   "permissions": ["storage", "activeTab", "scripting"],
   "host_permissions": [
     "https://infraccionesba.gba.gob.ar/",
+     "https://buenosaires.gob.ar/licenciasdeconducir/*",
+    "https://buenosaires.gob.ar/comprobante-de-legajo/*",
     "https://*.googleapis.com/*",
     "https://*.cloudfunctions.net/*",
     "https://crearconsultapublica-jgbhipicma-uc.a.run.app/",
@@ -19,7 +21,9 @@
   },
   "content_scripts": [
     {
-      "matches": ["https://infraccionesba.gba.gob.ar/consulta-infraccion*"],
+      "matches": ["https://infraccionesba.gba.gob.ar/consulta-infraccion*",
+       "https://buenosaires.gob.ar/licenciasdeconducir/*",
+       "https://buenosaires.gob.ar/comprobante-de-legajo/*"],
       "js": ["content.js"],
       "run_at": "document_start"
     },{

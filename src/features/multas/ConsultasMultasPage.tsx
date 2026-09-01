@@ -19,13 +19,10 @@ import {
 import { money } from '@/lib/calcularPresupuesto'
 import type { ConsultaInfraccion } from '@/infraccion_types'
 import type { DatosPresupuesto } from '@/lib/armarDatosPresupuesto'
-
 const NARANJA = '#D4621A'
 type Tab = 'cola' | 'cotizadas' | 'sin_deuda'
-
 // Roles que pueden asignar y ver todas las consultas.
 const ROLES_ADMIN = ['propietario', 'admin', 'admin_gral', 'superadmin']
-
 function valorConsulta(c: ConsultaInfraccion): string {
   return c.tipoConsulta === 'dni' ? (c.dni ?? '—') : (c.dominio ?? '—')
 }
@@ -34,7 +31,6 @@ function waLink(whatsapp: string, mensaje: string): string {
   return `https://wa.me/${num}?text=${encodeURIComponent(mensaje)}`
 }
 const trabajables = (c: ConsultaInfraccion) => c.cotizacion?.cantidadTrabajable ?? 0
-
 export default function ConsultasMultasPage() {
   const { puede } = usePermisos()
   const user = useAuthStore(s => s.user)
@@ -46,10 +42,8 @@ export default function ConsultasMultasPage() {
   const [tab, setTab] = useState<Tab>('cola')
   const [abierta, setAbierta] = useState<ConsultaInfraccion | null>(null)
   const [otrosPagosOpen, setOtrosPagos] = useState(false)
-
   if (!puedeVer) return <div className="p-6 text-sm text-gray-500">No tenés acceso a esta sección.</div>
-
-  // ── Grupos por pestaña ────────────────────────────────────────────────
+  // ── Grupos por pestaña ───────────────────────────────────────────────
   const enCola = [...(porEstado.pendiente || []), ...(porEstado.consultada || [])]
   const cotizadas = [
     ...paraEnviar.filter(c => trabajables(c) > 0),
@@ -60,13 +54,11 @@ export default function ConsultasMultasPage() {
     ...paraEnviar.filter(c => trabajables(c) === 0),
     ...(porEstado.enviada || []).filter(c => trabajables(c) === 0),
   ]
-
   const tabs: { key: Tab; label: string; count: number }[] = [
     { key: 'cola',      label: 'En cola',                  count: enCola.length },
     { key: 'cotizadas', label: 'Cotizadas / trabajables',  count: cotizadas.length },
     { key: 'sin_deuda', label: 'Sin deuda / sin trabajables', count: sinDeuda.length },
   ]
-
   async function handleAsignar(consultaId: string, uid: string) {
     try {
       if (!uid) { await asignarConsulta(consultaId, null); toast('Consulta liberada'); return }
@@ -75,7 +67,6 @@ export default function ConsultasMultasPage() {
       toast.success('Consulta asignada')
     } catch (e: any) { toast.error(e?.message ?? 'No se pudo asignar') }
   }
-
   async function handleEnviar(consulta: ConsultaInfraccion, datos: DatosPresupuesto) {
     try {
       await persistirDatosPresupuesto(consulta.id, datos)
@@ -96,8 +87,7 @@ export default function ConsultasMultasPage() {
     try { await descartarConsulta(id); toast('Consulta descartada') }
     catch (e: any) { toast.error(e?.message ?? 'Error al descartar') }
   }
-
-  // ── Sub-componentes ────────────────────────────────────────────────────
+  // ─ Sub-componentes ────────────────────────────────────────────────────
   const AsignarSelect = ({ c }: { c: ConsultaInfraccion }) => {
     if (!esAdmin) return null
     return (
@@ -114,12 +104,10 @@ export default function ConsultasMultasPage() {
       </select>
     )
   }
-
   const BadgeAsignado = ({ c }: { c: ConsultaInfraccion }) =>
     c.asignadoANombre
       ? <span className="text-[10px] rounded-full px-2 py-0.5 bg-blue-50 text-blue-700 whitespace-nowrap">{c.asignadoANombre}</span>
       : null
-
   return (
     <div className="p-4 md:p-6 max-w-3xl mx-auto">
       <header className="mb-4 flex items-start justify-between gap-3">
@@ -140,7 +128,6 @@ export default function ConsultasMultasPage() {
         )}
       </header>
       <ModalOtrosPagos open={otrosPagosOpen} onClose={() => setOtrosPagos(false)} />
-
       {/* ── PESTAÑAS ─────────────────────────────────────────────────── */}
       <div className="flex gap-2 mb-5 overflow-x-auto">
         {tabs.map(t => (
@@ -158,9 +145,7 @@ export default function ConsultasMultasPage() {
           </button>
         ))}
       </div>
-
       {loading && <div className="text-sm text-gray-400 mb-4">Cargando…</div>}
-
       {/* ── PESTAÑA: EN COLA ─────────────────────────────────────────── */}
       {tab === 'cola' && (
         <div className="grid gap-2">
@@ -182,7 +167,6 @@ export default function ConsultasMultasPage() {
           ))}
         </div>
       )}
-
       {/* ── PESTAÑA: COTIZADAS / TRABAJABLES ─────────────────────────── */}
       {tab === 'cotizadas' && (
         <div className="grid gap-3">
@@ -223,46 +207,46 @@ export default function ConsultasMultasPage() {
           ))}
         </div>
       )}
-
       {tab === 'sin_deuda' && (
-  <div className="grid gap-3">
-    {sinDeuda.length === 0 && !loading && <p className="text-sm text-gray-400">Sin consultas en esta categoría.</p>}
-    {sinDeuda.map(c => (
-      <article key={c.id} className="rounded-xl border border-gray-200 bg-white p-4">
-        <div className="flex items-start justify-between gap-3">
-          <div>
-            <div className="font-semibold text-gray-900">{valorConsulta(c)}</div>
-            <div className="text-sm text-gray-500">{c.contacto?.nombre || 'Lead'}</div>
-          </div>
-          <div className="flex items-center gap-2">
-            <BadgeAsignado c={c} />
-            <span className="text-[11px] rounded-full px-2 py-0.5 bg-gray-100 text-gray-500 whitespace-nowrap">
-              {c.cotizacion ? `${c.cotizacion.cantidadExcluida} excluida(s)` : 'sin deuda'}
-            </span>
-          </div>
-        </div>
-        {c.cotizacion && c.cotizacion.actasExcluidas.length > 0 && (
-          <div className="mt-3 space-y-1">
-            {c.cotizacion.actasExcluidas.map(a => (
-              <div key={a.nroActa} className="flex items-center justify-between gap-2 text-xs text-gray-500 bg-gray-50 rounded-lg px-2 py-1.5">
-                <span className="font-mono shrink-0">{a.nroActa}</span>
-                <span className="flex-1 truncate">{a.estadoCausa}</span>
-                <span className="text-gray-400 flex-1 truncate">{a.clasificacion.motivoExclusion}</span>
-                <span className="shrink-0">{money(a.importeTotal)}</span>
+        <div className="grid gap-3">
+          {sinDeuda.length === 0 && !loading && <p className="text-sm text-gray-400">Sin consultas en esta categoría.</p>}
+          {sinDeuda.map(c => (
+            <article key={c.id} className="rounded-xl border border-gray-200 bg-white p-4">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <div className="font-semibold text-gray-900">{valorConsulta(c)}</div>
+                  <div className="text-sm text-gray-500">{c.contacto?.nombre || 'Lead'}</div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <BadgeAsignado c={c} />
+                  <span className="text-[11px] rounded-full px-2 py-0.5 bg-gray-100 text-gray-500 whitespace-nowrap">
+                    {c.cotizacion ? `${c.cotizacion.cantidadExcluida} excluida(s)` : 'sin deuda'}
+                  </span>
+                </div>
               </div>
-            ))}
-          </div>
-        )}
-      </article>
-    ))}
-  </div>
-)}
+              {c.cotizacion && c.cotizacion.actasExcluidas.length > 0 && (
+                <div className="mt-3 space-y-1">
+                  {c.cotizacion.actasExcluidas.map(a => (
+                    <div key={a.nroActa} className="flex items-center justify-between gap-2 text-xs text-gray-500 bg-gray-50 rounded-lg px-2 py-1.5">
+                      <span className="font-mono shrink-0">{a.nroActa}</span>
+                      <span className="flex-1 truncate">{a.estadoCausa}</span>
+                      <span className="text-gray-400 flex-1 truncate">{a.clasificacion.motivoExclusion}</span>
+                      <span className="shrink-0">{money(a.importeTotal)}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </article>
+          ))}
+        </div>
+      )}
       {/* ── MODAL PRESUPUESTO ─────────────────────────────────────────── */}
       <Modal open={!!abierta} onClose={() => setAbierta(null)} title="Presupuesto de multas" subtitle={abierta ? valorConsulta(abierta) : undefined} size="lg">
-        {abierta?.cotizacion && (
+        {abierta && (abierta.cotizacion || abierta.cotizacionCABA) && (
           <PresupuestoMultas
             dominio={valorConsulta(abierta)}
-            cotizacion={abierta.cotizacion}
+            cotizacion={abierta.cotizacion!}
+            cotizacionCABA={abierta.cotizacionCABA}
             clienteNombre={abierta.contacto?.nombre}
             onEnviar={puedeEnviar ? (datos) => handleEnviar(abierta, datos) : undefined}
           />
@@ -271,7 +255,6 @@ export default function ConsultasMultasPage() {
     </div>
   )
 }
-
 function Metric({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded-lg bg-gray-50 py-2">

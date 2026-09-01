@@ -8,27 +8,24 @@ import {
   type ConfigPresupuesto, type FilaPresupuesto,
 } from '@/lib/calcularPresupuesto'
 import { dibujarPresupuesto } from '@/lib/renderPresupuestoCanvas'
-import type { CotizacionMultas, Acta } from '@/infraccion_types'
+import type { CotizacionMultas, Acta, CotizacionCABA } from '@/infraccion_types'
 import type { DatosPresupuesto } from '@/lib/armarDatosPresupuesto'
-
 const NARANJA = '#F28F07'
-
 interface Props {
   dominio:        string
   cotizacion:     CotizacionMultas
+  cotizacionCABA?: CotizacionCABA   // ← NUEVO: opcional
   configInicial?: Partial<ConfigPresupuesto>
   clienteNombre?: string
   onEnviarWhatsapp?: (mensaje: string) => void
   onEnviar?: (datos: DatosPresupuesto) => void | Promise<void>
 }
-
 const hoyISO = () => new Date().toISOString().slice(0, 10)
 const fechaLarga = (iso: string) => {
   if (!iso) return ''
   const [a, m, d] = iso.split('-')
   return `${d}/${m}/${a}`
 }
-
 // ─── ESTILOS (más grandes y espaciados para edición cómoda) ──────────────────
 const lbl: React.CSSProperties = { fontSize: 12, fontWeight: 700, color: '#555', display: 'block', marginBottom: 6 }
 const inp: React.CSSProperties = { width: '100%', padding: '11px 13px', border: '1.5px solid #d8d8d8', borderRadius: 10, fontSize: 15, background: '#fff' }
@@ -40,7 +37,6 @@ const btn = (bg: string, color: string): React.CSSProperties => ({
   padding: '12px 12px', border: 'none', borderRadius: 10, cursor: 'pointer',
   fontWeight: 700, fontSize: 13.5, background: bg, color, width: '100%',
 })
-
 function TabBtn({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
   return (
     <button onClick={onClick} style={{
@@ -50,7 +46,6 @@ function TabBtn({ active, onClick, children }: { active: boolean; onClick: () =>
     }}>{children}</button>
   )
 }
-
 function Badge({ children, color }: { children: React.ReactNode; color?: 'red' | 'green' | 'gray' }) {
   const bg = color === 'red' ? '#fdecec' : color === 'green' ? '#e8f6e8' : '#efefef'
   const fg = color === 'red' ? '#c0392b' : color === 'green' ? '#1e7e34' : '#666'
@@ -60,7 +55,6 @@ function Badge({ children, color }: { children: React.ReactNode; color?: 'red' |
     </span>
   )
 }
-
 function ActaCard({ acta, excluida }: { acta: Acta; excluida?: boolean }) {
   return (
     <div style={{
@@ -86,10 +80,9 @@ function ActaCard({ acta, excluida }: { acta: Acta; excluida?: boolean }) {
     </div>
   )
 }
-
-// ─── COMPONENTE ──────────────────────────────────────────────────────────────
+// ─── COMPONENTE ─────────────────────────────────────────────────────────────
 export default function PresupuestoMultas({
-  dominio, cotizacion, configInicial, clienteNombre, onEnviarWhatsapp, onEnviar,
+  dominio, cotizacion, cotizacionCABA, configInicial, clienteNombre, onEnviarWhatsapp, onEnviar,
 }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const [fontsReady, setFontsReady] = useState(false)
@@ -98,7 +91,7 @@ export default function PresupuestoMultas({
   const [meta, setMeta] = useState({ fecha: hoyISO(), cliente: clienteNombre ?? '', plazo: '72 hs hábiles promedio', validez: 5 })
   const [defaults, setDefaults] = useState({
     transfModo: 'pct' as 'manual' | 'pct', transfPct: 40,
-efvoModo: 'pct' as 'pct' | 'manual', efvoPct: 35,
+    efvoModo: 'pct' as 'pct' | 'manual', efvoPct: 35,
     recargoChica: 15, recargoLarga: 35,
   })
   const nuevaFila = (): FilaPresupuesto => ({
@@ -107,21 +100,42 @@ efvoModo: 'pct' as 'pct' | 'manual', efvoPct: 35,
     efvoModo: defaults.efvoModo, efvoPct: defaults.efvoPct,
     recargoChica: defaults.recargoChica, recargoLarga: defaults.recargoLarga,
   })
-  const [filas, setFilas] = useState<FilaPresupuesto[]>([{
-    jur: 'Pag. Provincia de Buenos Aires',
-    cant: cotizacion.cantidadTrabajable,
-    deuda: cotizacion.importeTotalDeuda,
-    resol: Math.round(cotizacion.importeTotalDeuda * 40 / 100),
-transfModo: 'pct', transfPct: 40, efvoModo: 'pct', efvoPct: 35, efvoMonto: 0,
-    recargoChica: 15, recargoLarga: 35,
-  }])
+  const [filas, setFilas] = useState<FilaPresupuesto[]>(() => {
+    const filaPBA: FilaPresupuesto = {
+      jur: 'Pag. Provincia de Buenos Aires',
+      cant: cotizacion.cantidadTrabajable,
+      deuda: cotizacion.importeTotalDeuda,
+      resol: Math.round(cotizacion.importeTotalDeuda * 40 / 100),
+      transfModo: 'pct', transfPct: 40,
+      efvoModo: 'pct', efvoPct: 35, efvoMonto: 0,
+      recargoChica: 15, recargoLarga: 35,
+    }
+    const filasIniciales: FilaPresupuesto[] = [filaPBA]
 
+    // Agregar fila CABA si viene cotizada (valores ya calculados por la extensión)
+    if (cotizacionCABA && cotizacionCABA.actas.length > 0) {
+      filasIniciales.push({
+        jur: 'CABA',
+        cant: cotizacionCABA.cantidad,
+        deuda: cotizacionCABA.deudaTotal,
+        resol: Math.round(cotizacionCABA.montoACobrarAlCliente),
+        transfModo: 'manual',
+        transfPct: 0,
+        efvoModo: 'manual',
+        efvoPct: 0,
+        efvoMonto: Math.round(cotizacionCABA.montoACobrarAlCliente),
+        recargoChica: 15,
+        recargoLarga: 35,
+      })
+    }
+
+    return filasIniciales
+  })
   const totales = useMemo(() => calcularPresupuesto(filas, config), [filas, config])
   const mensaje = useMemo(
     () => textoWhatsappPresupuesto({ totales, dominio, filas, plazo: meta.plazo, validez: meta.validez }),
     [totales, dominio, filas, meta.plazo, meta.validez],
   )
-
   useEffect(() => {
     let vivo = true
     const fuentes = ["800 40px Syne", "700 25px 'DM Sans'", "700 40px 'JetBrains Mono'"]
@@ -131,7 +145,6 @@ transfModo: 'pct', transfPct: 40, efvoModo: 'pct', efvoPct: 35, efvoMonto: 0,
       .catch(() => { if (vivo) setFontsReady(true) })
     return () => { vivo = false }
   }, [])
-
   useEffect(() => {
     const cv = canvasRef.current
     if (!cv) return
@@ -141,11 +154,44 @@ transfModo: 'pct', transfPct: 40, efvoModo: 'pct', efvoPct: 35, efvoMonto: 0,
     })
   }, [filas, totales, config, meta, dominio, fontsReady])
 
+  // ─── Listener para captura CABA desde la extensión ─────────────────────────
+  useEffect(() => {
+    const handler = (event: MessageEvent) => {
+      if (event.data?.type !== 'GP_CABA_CAPTURADO') return
+      const datos: CotizacionCABA = event.data.payload
+      console.log('[PresupuestoMultas] CABA capturado:', datos)
+
+      setFilas(fs => {
+        const idx = fs.findIndex(f => f.jur === 'CABA')
+        const filaCABA: FilaPresupuesto = {
+          jur: 'CABA',
+          cant: datos.cantidad,
+          deuda: datos.deudaTotal,
+          resol: Math.round(datos.montoACobrarAlCliente),
+          transfModo: 'manual',
+          transfPct: 0,
+          efvoModo: 'manual',
+          efvoPct: 0,
+          efvoMonto: Math.round(datos.montoACobrarAlCliente),
+          recargoChica: 15,
+          recargoLarga: 35,
+        }
+        if (idx >= 0) {
+          return fs.map((f, i) => i === idx ? filaCABA : f)
+        }
+        return [...fs, filaCABA]
+      })
+
+      toast.success(`✅ CABA cotizada: ${money(datos.deudaTotal)} (${datos.tienePuntosRojos ? 'con puntos rojos' : 'sin puntos rojos'})`)
+    }
+    window.addEventListener('message', handler)
+    return () => window.removeEventListener('message', handler)
+  }, [])
+
   const setCfg = (p: Partial<ConfigPresupuesto>) => setConfig(c => ({ ...c, ...p }))
   const setFila = (i: number, p: Partial<FilaPresupuesto>) => setFilas(fs => fs.map((f, j) => (j === i ? { ...f, ...p } : f)))
   const agregar = () => setFilas(fs => [...fs, nuevaFila()])
   const quitar = (i: number) => setFilas(fs => fs.filter((_, j) => j !== i))
-
   const descargarPNG = () => {
     canvasRef.current?.toBlob(blob => {
       if (!blob) return
@@ -167,7 +213,6 @@ transfModo: 'pct', transfPct: 40, efvoModo: 'pct', efvoPct: 35, efvoMonto: 0,
     try { await navigator.clipboard.writeText(mensaje); toast.success('Texto copiado — pegalo en WhatsApp') }
     catch { toast.error('No se pudo copiar') }
   }
-
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       {/* ── PESTAÑAS ── */}
@@ -178,7 +223,6 @@ transfModo: 'pct', transfPct: 40, efvoModo: 'pct', efvoPct: 35, efvoMonto: 0,
           📋 Detalle de actas ({cotizacion.cantidadTrabajable} trab. / {cotizacion.cantidadExcluida} excl.)
         </TabBtn>
       </div>
-
       {/* ── TAB: VISTA PREVIA (canvas grande; siempre montado) ── */}
       <div style={{ display: tab === 'preview' ? 'block' : 'none' }}>
         <div style={{ display: 'flex', justifyContent: 'center', background: '#f2f2f2', borderRadius: 12, padding: 18 }}>
@@ -188,18 +232,15 @@ transfModo: 'pct', transfPct: 40, efvoModo: 'pct', efvoPct: 35, efvoMonto: 0,
           />
         </div>
       </div>
-
-      {/* ── TAB: AJUSTES (layout vertical y espacioso) ── */}
+      {/* ─ TAB: AJUSTES (layout vertical y espacioso) ── */}
       {tab === 'ajustes' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16, maxWidth: 780 }}>
-
           {/* Cliente */}
           <div>
             <label style={lbl}>Cliente (opcional)</label>
             <input style={inp} value={meta.cliente} placeholder="Nombre y apellido"
               onChange={e => setMeta(m => ({ ...m, cliente: e.target.value }))} />
           </div>
-
           {/* Jurisdicciones */}
           <section>
             <div style={secTitulo}>Jurisdicciones</div>
@@ -214,10 +255,8 @@ transfModo: 'pct', transfPct: 40, efvoModo: 'pct', efvoPct: 35, efvoMonto: 0,
                 <div style={{ fontSize: 11, fontWeight: 800, color: NARANJA, letterSpacing: 1.2, marginBottom: 10 }}>
                   JURISDICCIÓN {String(i + 1).padStart(2, '0')}
                 </div>
-
                 <input style={inp} value={f.jur} placeholder="Organismo / Jurisdicción"
                   onChange={e => setFila(i, { jur: e.target.value })} />
-
                 <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 12, marginTop: 14 }}>
                   <div>
                     <label style={lbl}>Deuda total</label>
@@ -230,7 +269,6 @@ transfModo: 'pct', transfPct: 40, efvoModo: 'pct', efvoPct: 35, efvoMonto: 0,
                       onChange={e => setFila(i, { cant: parseInt(e.target.value) || 0 })} />
                   </div>
                 </div>
-
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginTop: 14 }}>
                   <div>
                     <label style={lbl}>Transferencia ("Queda en")</label>
@@ -254,7 +292,6 @@ transfModo: 'pct', transfPct: 40, efvoModo: 'pct', efvoPct: 35, efvoMonto: 0,
                     </div>
                   )}
                 </div>
-
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginTop: 14 }}>
                   <div>
                     <label style={lbl}>Efectivo</label>
@@ -278,7 +315,6 @@ transfModo: 'pct', transfPct: 40, efvoModo: 'pct', efvoPct: 35, efvoMonto: 0,
                     </div>
                   )}
                 </div>
-
                 {/* Resumen calculado (solo lectura) */}
                 <div style={{ display: 'flex', gap: 10, marginTop: 16, flexWrap: 'wrap' }}>
                   <span style={chip}>Transferencia: {money(totales.quedaFila[i] ?? 0)}</span>
@@ -288,7 +324,6 @@ transfModo: 'pct', transfPct: 40, efvoModo: 'pct', efvoPct: 35, efvoMonto: 0,
             ))}
             <button style={btn('#EAEAEA', '#121212')} onClick={agregar}>+ Agregar jurisdicción</button>
           </section>
-
           {/* SUATS */}
           <section style={card}>
             <div style={secTitulo}>SUATS</div>
@@ -304,7 +339,6 @@ transfModo: 'pct', transfPct: 40, efvoModo: 'pct', efvoPct: 35, efvoMonto: 0,
               </div>
             )}
           </section>
-
           {/* Cuotas */}
           <section style={card}>
             <div style={secTitulo}>Financiación en cuotas</div>
@@ -327,7 +361,6 @@ transfModo: 'pct', transfPct: 40, efvoModo: 'pct', efvoPct: 35, efvoMonto: 0,
               </div>
             )}
           </section>
-
           {/* Condiciones */}
           <section style={card}>
             <div style={secTitulo}>Condiciones</div>
@@ -344,7 +377,6 @@ transfModo: 'pct', transfPct: 40, efvoModo: 'pct', efvoPct: 35, efvoMonto: 0,
               </div>
             </div>
           </section>
-
           {cotizacion.cantidadExcluida > 0 && (
             <p style={{ fontSize: 12, color: '#8A8A8A', lineHeight: 1.5 }}>
               {cotizacion.cantidadExcluida} acta(s) excluida(s) del presupuesto (sentencia, descargo en curso o sin DI).
@@ -353,7 +385,6 @@ transfModo: 'pct', transfPct: 40, efvoModo: 'pct', efvoPct: 35, efvoMonto: 0,
           )}
         </div>
       )}
-
       {/* ── TAB: DETALLE DE ACTAS ── */}
       {tab === 'actas' && (
         <div>
@@ -362,21 +393,52 @@ transfModo: 'pct', transfPct: 40, efvoModo: 'pct', efvoPct: 35, efvoMonto: 0,
             <Badge color="red">✕ {cotizacion.cantidadExcluida} excluida(s)</Badge>
             <Badge color="gray">Honorarios: {money(cotizacion.honorariosGestoria)}</Badge>
           </div>
-
           <div style={secTitulo}>Trabajables (entran al presupuesto)</div>
           {cotizacion.actasTrabajables.length === 0 && (
             <p style={{ fontSize: 12.5, color: '#8A8A8A', marginBottom: 12 }}>No hay actas trabajables en esta consulta.</p>
           )}
           {cotizacion.actasTrabajables.map(a => <ActaCard key={a.id} acta={a} />)}
-
           <div style={{ ...secTitulo, marginTop: 16 }}>Excluidas (NO entran al presupuesto)</div>
           {cotizacion.actasExcluidas.length === 0 && (
             <p style={{ fontSize: 12.5, color: '#8A8A8A' }}>No hay actas excluidas.</p>
           )}
           {cotizacion.actasExcluidas.map(a => <ActaCard key={a.id} acta={a} excluida />)}
+
+          {/* ─── NUEVO: Actas CABA ─── */}
+          {cotizacionCABA && cotizacionCABA.actas.length > 0 && (
+            <>
+              <div style={{ ...secTitulo, marginTop: 24 }}>
+                CABA — {cotizacionCABA.cantidad} acta(s)
+                {cotizacionCABA.tienePuntosRojos && (
+                  <Badge color="red"> Puntos Rojos (×2.25)</Badge>
+                )}
+              </div>
+              <div style={{ fontSize: 12, color: '#555', marginBottom: 12, lineHeight: 1.5 }}>
+                Monto 1: {money(cotizacionCABA.monto1)}
+                {cotizacionCABA.tienePuntosRojos && <> · Monto 2: {money(cotizacionCABA.monto2)}</>}
+                <br />
+                Deuda total: {money(cotizacionCABA.deudaTotal)} · Abona el {Math.round(cotizacionCABA.porcentajePagoCliente * 100)}%
+              </div>
+              {cotizacionCABA.actas.map(a => (
+                <div key={a.id} style={{
+                  border: '1.5px solid #cfe6cf',
+                  background: '#f8fcf8',
+                  borderRadius: 12, padding: '10px 12px', marginBottom: 8,
+                }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
+                    <span style={{ fontFamily: "'JetBrains Mono',monospace", fontWeight: 700, fontSize: 13 }}>{a.nroActa}</span>
+                    <span style={{ fontWeight: 700, fontSize: 13 }}>{money(a.importeBase)}</span>
+                  </div>
+                  <div style={{ display: 'flex', gap: 6, marginTop: 7, flexWrap: 'wrap' }}>
+                    {a.esPuntosRojos && <Badge color="red">Puntos Rojos</Badge>}
+                    <Badge color="green">CABA</Badge>
+                  </div>
+                </div>
+              ))}
+            </>
+          )}
         </div>
       )}
-
       {/* ── BARRA DE ACCIONES (siempre visible) ── */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8, position: 'sticky', bottom: 0, background: '#fff', paddingTop: 10 }}>
         <button style={btn(NARANJA, '#121212')} onClick={descargarPDF}>Descargar PDF</button>
