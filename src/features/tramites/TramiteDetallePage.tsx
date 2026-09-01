@@ -105,13 +105,13 @@ export default function TramiteDetallePage() {
   // Tipos de workflow
   const esInscripcion   = tramite?.tipo === 'inscripcion_inicial'
   const esMulta         = tramite?.tipo === 'descargo_multa'
-  const estadoMulta     = esMulta && wfMulta ? estadoMultaEfectivo(wfMulta) : null
-  const multaReportada  = esMulta && !!wfMulta?.reporteControl
   const esTransferencia = tramite?.tipo === 'transferencia'
   const [wfInscripcion, setWfInscripcion] = useState<InscripcionWorkflow | null>(null)
   const [montoMulta, setMontoMulta] = useState(0)
   const [wfMultaCompletado, setWfMultaCompletado] = useState(false)
   const [wfMulta, setWfMulta] = useState<MultaWorkflow | null>(null)
+  const estadoMulta     = esMulta && wfMulta ? estadoMultaEfectivo(wfMulta) : null
+  const multaReportada  = esMulta && !!wfMulta?.reporteControl
 
   // Suscribir al workflow de inscripción
   useEffect(() => {
@@ -131,7 +131,7 @@ export default function TramiteDetallePage() {
         const data = snap.data()
         const monto = data?.paso2?.montoTotal ?? data?.paso7?.pagoTotalRecibo ?? 0
         setMontoMulta(monto)
-        setWfMulta({ id, ...data } as MultaWorkflow)
+        setWfMulta({ ...data, id } as MultaWorkflow)
         // El workflow está completo cuando alcanza pasoActual 8 o estadoWorkflow='completado'
         const completado = data?.pasoActual >= 8 || data?.estadoWorkflow === 'completado'
         setWfMultaCompletado(completado)
