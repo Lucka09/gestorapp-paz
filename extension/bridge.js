@@ -1,6 +1,11 @@
 // extension/bridge.js
 // Puente app ↔ extensión en el dominio de GestorApp.
 (function () {
+  // 0) Marca este equipo como "con extensión" para que la app publique el token.
+  //    puenteExtension.ts solo emite el ID token si localStorage.gp_ext === '1'.
+  //    (los content scripts comparten el localStorage del origen de la página).
+  try { window.localStorage.setItem('gp_ext', '1') } catch (e) {}
+
   // 1) Avisa que la extensión está lista (por si el login ya ocurrió).
   window.postMessage({ source: 'GP_EXT_READY' }, window.location.origin)
 
