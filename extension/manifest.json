@@ -1,34 +1,26 @@
 {
   "manifest_version": 3,
-  "name": "GestorApp — Consulta de Infracciones PBA",
-  "version": "0.1.2",
-  "description": "Captura las actas del portal de infracciones de PBA y las envía a GestorApp.",
-  "permissions": ["storage", "activeTab", "scripting"],
+  "name": "GestorApp — Consulta de Infracciones PBA y CABA",
+  "version": "0.1.3",
+  "description": "Captura las actas de los portales de infracciones de PBA y CABA y las envía a GestorApp.",
+  "permissions": ["storage", "activeTab"],
   "host_permissions": [
-    "https://infraccionesba.gba.gob.ar/",
-     "https://buenosaires.gob.ar/licenciasdeconducir/*",
+    "https://infraccionesba.gba.gob.ar/*",
+    "https://buenosaires.gob.ar/licenciasdeconducir/*",
     "https://buenosaires.gob.ar/comprobante-de-legajo/*",
-    "https://*.googleapis.com/*",
-    "https://*.cloudfunctions.net/*",
-    "https://crearconsultapublica-jgbhipicma-uc.a.run.app/",
-    "https://colaproximaconsulta-jgbhipicma-uc.a.run.app/",
-    "https://guardarconsultainfraccion-jgbhipicma-uc.a.run.app/",
-    "https://gestorapp-tau.vercel.app/",
-    "https://gestorapp-paz.web.app/"
+    "https://gestorapp-tau.vercel.app/*",
+    "https://gestorapp-paz.web.app/*",
+    "https://colaproximaconsulta-jgbhipicma-uc.a.run.app/*",
+    "https://guardarconsultainfraccion-jgbhipicma-uc.a.run.app/*"
   ],
-   "background": {
-    "service_worker": "background.js"
-  },
   "content_scripts": [
     {
-      "matches": ["https://infraccionesba.gba.gob.ar/consulta-infraccion*",
-       "https://buenosaires.gob.ar/licenciasdeconducir/*",
-       "https://buenosaires.gob.ar/comprobante-de-legajo/*"],
+      "matches": [
+        "https://infraccionesba.gba.gob.ar/*",
+        "https://buenosaires.gob.ar/licenciasdeconducir/*",
+        "https://buenosaires.gob.ar/comprobante-de-legajo/*"
+      ],
       "js": ["content.js"],
-      "run_at": "document_start"
-    },{
-      "matches": ["https://infraccionesba.gba.gob.ar/*"],
-      "js": ["content.js", "interceptor.js", "bridge.js"],
       "run_at": "document_idle"
     },
     {
@@ -36,9 +28,7 @@
         "https://gestorapp-tau.vercel.app/*",
         "https://gestorapp-paz.web.app/*",
         "http://localhost:5173/*",
-        "http://localhost:5174/*",
-        "http://127.0.0.1:5173/*",
-        "http://127.0.0.1:5174/*"
+        "http://localhost:5174/*"
       ],
       "js": ["bridge.js"],
       "run_at": "document_idle"
