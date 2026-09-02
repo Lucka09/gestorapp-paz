@@ -34,4 +34,15 @@
       })
     }
   })
+
+  // 4) Relay de captura CABA: el portal la escribe en chrome.storage;
+  //    la reenviamos a la app por postMessage (postMessage no cruza pestañas,
+  //    chrome.storage sí) para que PresupuestoMultas la reciba y sume la fila.
+  chrome.storage.onChanged.addListener(function (changes, area) {
+    if (area !== 'local' || !changes.gpCabaCaptura) return
+    var v = changes.gpCabaCaptura.newValue
+    if (v && v.payload) {
+      window.postMessage({ type: 'GP_CABA_CAPTURADO', payload: v.payload }, window.location.origin)
+    }
+  })
 })()
