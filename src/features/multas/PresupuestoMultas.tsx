@@ -13,7 +13,7 @@ import type { DatosPresupuesto } from '@/lib/armarDatosPresupuesto'
 const NARANJA = '#F28F07'
 interface Props {
   dominio:        string
-  cotizacion:     CotizacionMultas
+  cotizacion?:    CotizacionMultas
   cotizacionCABA?: CotizacionCABA   // ← NUEVO: opcional
   configInicial?: Partial<ConfigPresupuesto>
   clienteNombre?: string
@@ -101,16 +101,20 @@ export default function PresupuestoMultas({
     recargoChica: defaults.recargoChica, recargoLarga: defaults.recargoLarga,
   })
   const [filas, setFilas] = useState<FilaPresupuesto[]>(() => {
-    const filaPBA: FilaPresupuesto = {
-      jur: 'Pag. Provincia de Buenos Aires',
-      cant: cotizacion.cantidadTrabajable,
-      deuda: cotizacion.importeTotalDeuda,
-      resol: Math.round(cotizacion.importeTotalDeuda * 40 / 100),
-      transfModo: 'pct', transfPct: 40,
-      efvoModo: 'pct', efvoPct: 35, efvoMonto: 0,
-      recargoChica: 15, recargoLarga: 35,
+    const filasIniciales: FilaPresupuesto[] = []
+
+    // Fila PBA solo si hay cotización de PBA (puede ser un presupuesto CABA-only).
+    if (cotizacion) {
+      filasIniciales.push({
+        jur: 'Pag. Provincia de Buenos Aires',
+        cant: cotizacion.cantidadTrabajable,
+        deuda: cotizacion.importeTotalDeuda,
+        resol: Math.round(cotizacion.importeTotalDeuda * 40 / 100),
+        transfModo: 'pct', transfPct: 40,
+        efvoModo: 'pct', efvoPct: 35, efvoMonto: 0,
+        recargoChica: 15, recargoLarga: 35,
+      })
     }
-    const filasIniciales: FilaPresupuesto[] = [filaPBA]
 
     // Agregar fila CABA si viene cotizada (valores ya calculados por la extensión)
     if (cotizacionCABA && cotizacionCABA.actas.length > 0) {
@@ -139,8 +143,7 @@ export default function PresupuestoMultas({
   useEffect(() => {
     let vivo = true
     const fuentes = ["800 40px Syne", "700 25px 'DM Sans'", "700 40px 'JetBrains Mono'"]
-    Promise.all(fuentes.map(f => (document as any).fonts?.load(f).catch(() => null)))
-      .then(() => (document as any).fonts?.ready)
+    Promise.all(fuentes.map(f => (document as any).fonts?.load(f).catch(() => null)))      .then(() => (document as any).fonts?.ready)
       .then(() => { if (vivo) setFontsReady(true) })
       .catch(() => { if (vivo) setFontsReady(true) })
     return () => { vivo = false }
@@ -184,9 +187,7 @@ export default function PresupuestoMultas({
 
       toast.success(`✅ CABA cotizada: ${money(datos.deudaTotal)} (${datos.tienePuntosRojos ? 'con puntos rojos' : 'sin puntos rojos'})`)
     }
-        window.addEventListener('message', handler)
-    // Pedir a la extensión la última captura CABA pendiente (presupuesto cerrado).
-    window.postMessage({ source: 'GP_PEDIR_CABA' }, window.location.origin)
+    window.addEventListener('message', handler)
     return () => window.removeEventListener('message', handler)
   }, [])
 
@@ -222,7 +223,7 @@ export default function PresupuestoMultas({
         <TabBtn active={tab === 'preview'} onClick={() => setTab('preview')}>🖼️ Vista previa</TabBtn>
         <TabBtn active={tab === 'ajustes'} onClick={() => setTab('ajustes')}>⚙️ Ajustes</TabBtn>
         <TabBtn active={tab === 'actas'} onClick={() => setTab('actas')}>
-          📋 Detalle de actas ({cotizacion.cantidadTrabajable} trab. / {cotizacion.cantidadExcluida} excl.)
+          📋 Detalle de actas {cotizacion ? `(${cotizacion.cantidadTrabajable} trab. / ${cotizacion.cantidadExcluida} excl.)` : cotizacionCABA ? `(${cotizacionCABA.cantidad} CABA)` : ''}
         </TabBtn>
       </div>
       {/* ── TAB: VISTA PREVIA (canvas grande; siempre montado) ── */}
@@ -379,7 +380,7 @@ export default function PresupuestoMultas({
               </div>
             </div>
           </section>
-          {cotizacion.cantidadExcluida > 0 && (
+          {cotizacion && cotizacion.cantidadExcluida > 0 && (
             <p style={{ fontSize: 12, color: '#8A8A8A', lineHeight: 1.5 }}>
               {cotizacion.cantidadExcluida} acta(s) excluida(s) del presupuesto (sentencia, descargo en curso o sin DI).
               Ver pestaña "Detalle de actas".
@@ -390,6 +391,7 @@ export default function PresupuestoMultas({
       {/* ── TAB: DETALLE DE ACTAS ── */}
       {tab === 'actas' && (
         <div>
+          {cotizacion && (<>
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 12 }}>
             <Badge color="green">✓ {cotizacion.cantidadTrabajable} trabajable(s) · {money(cotizacion.importeTotalDeuda)}</Badge>
             <Badge color="red">✕ {cotizacion.cantidadExcluida} excluida(s)</Badge>
@@ -405,6 +407,11 @@ export default function PresupuestoMultas({
             <p style={{ fontSize: 12.5, color: '#8A8A8A' }}>No hay actas excluidas.</p>
           )}
           {cotizacion.actasExcluidas.map(a => <ActaCard key={a.id} acta={a} excluida />)}
+          </>)}
+
+          {!cotizacion && (!cotizacionCABA || cotizacionCABA.actas.length === 0) && (
+            <p style={{ fontSize: 12.5, color: '#8A8A8A' }}>Todavía no hay actas. Capturá CABA desde el portal con el presupuesto abierto.</p>
+          )}
 
           {/* ─── NUEVO: Actas CABA ─── */}
           {cotizacionCABA && cotizacionCABA.actas.length > 0 && (

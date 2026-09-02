@@ -153,12 +153,17 @@ export default function ConsultasMultasPage() {
           {enCola.map(c => (
             <div key={c.id} className="flex items-center justify-between gap-2 rounded-lg border border-gray-100 bg-white px-3 py-2 text-sm">
               <div className="min-w-0">
-                <span className="font-medium text-gray-800">{valorConsulta(c)}</span>
-                <span className="text-gray-400 ml-2">{c.contacto?.nombre || 'Lead'}</span>
+                <span className="font-medium text-gray-800">{valorConsulta(c)}</span>                <span className="text-gray-400 ml-2">{c.contacto?.nombre || 'Lead'}</span>
               </div>
               <div className="flex items-center gap-2 shrink-0">
                 <BadgeAsignado c={c} />
                 <AsignarSelect c={c} />
+                {puede('gestionarMultas') && (
+                  <button onClick={() => setAbierta(c)}
+                    className="shrink-0 text-[11px] font-semibold px-2 py-1 rounded-lg border border-orange-200 text-orange-700 hover:bg-orange-50 whitespace-nowrap">
+                    Cotizar CABA
+                  </button>
+                )}
                 <span className="text-gray-400 text-xs whitespace-nowrap">
                   {c.estado === 'consultada' ? 'procesando…' : c.tipoConsulta === 'dni' ? 'DNI · esperando extensión' : 'esperando extensión'}
                 </span>
@@ -242,10 +247,10 @@ export default function ConsultasMultasPage() {
       )}
       {/* ── MODAL PRESUPUESTO ─────────────────────────────────────────── */}
       <Modal open={!!abierta} onClose={() => setAbierta(null)} title="Presupuesto de multas" subtitle={abierta ? valorConsulta(abierta) : undefined} size="lg">
-        {abierta && (abierta.cotizacion || abierta.cotizacionCABA) && (
+        {abierta && (
           <PresupuestoMultas
             dominio={valorConsulta(abierta)}
-            cotizacion={abierta.cotizacion!}
+            cotizacion={abierta.cotizacion}
             cotizacionCABA={abierta.cotizacionCABA}
             clienteNombre={abierta.contacto?.nombre}
             onEnviar={puedeEnviar ? (datos) => handleEnviar(abierta, datos) : undefined}
