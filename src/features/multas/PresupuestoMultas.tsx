@@ -184,7 +184,9 @@ export default function PresupuestoMultas({
 
       toast.success(`✅ CABA cotizada: ${money(datos.deudaTotal)} (${datos.tienePuntosRojos ? 'con puntos rojos' : 'sin puntos rojos'})`)
     }
-    window.addEventListener('message', handler)
+        window.addEventListener('message', handler)
+    // Pedir a la extensión la última captura CABA pendiente (presupuesto cerrado).
+    window.postMessage({ source: 'GP_PEDIR_CABA' }, window.location.origin)
     return () => window.removeEventListener('message', handler)
   }, [])
 

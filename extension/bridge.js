@@ -45,4 +45,19 @@
       window.postMessage({ type: 'GP_CABA_CAPTURADO', payload: v.payload }, window.location.origin)
     }
   })
+
+  // 5) Persistencia: al abrir un presupuesto, la app pide la última captura
+  //    CABA pendiente (por si se capturó con el presupuesto cerrado). Se
+  //    entrega una sola vez y solo si es reciente (≤30 min).
+  window.addEventListener('message', function (e) {
+    if (e.origin !== window.location.origin) return
+    if (!e.data || e.data.source !== 'GP_PEDIR_CABA') return
+    chrome.storage.local.get('gpCabaCaptura', function (r) {
+      var c = r && r.gpCabaCaptura
+      chrome.storage.local.remove('gpCabaCaptura')  // consumir (una sola vez)
+      if (!c || !c.payload) return
+      if (Date.now() - (c.ts || 0) > 30 * 60 * 1000) return  // vencida
+      window.postMessage({ type: 'GP_CABA_CAPTURADO', payload: c.payload }, window.location.origin)
+    })
+  })
 })()
