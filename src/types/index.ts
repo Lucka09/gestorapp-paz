@@ -242,19 +242,21 @@ export interface Tramite {
 }
 
 export interface Turno {
-  id:          string
-  gestoriaId:  string
-  clienteId:   string
-  clienteNombre: string;
-  tramiteId:   string | null
+  id: string
+  gestoriaId: string
+  clienteId: string
+  clienteNombre: string
+  tramiteId: string | null
   tipoTramite: TipoTramite
-  fecha:       Timestamp
-  horaInicio:  string
-  horaFin:     string
-  estado:      EstadoTurno
+  fecha: Timestamp
+  horaInicio: string
+  horaFin: string
+  estado: EstadoTurno
   motivoCancelacion: string
-  notas:       string
-  creadoEn:    Timestamp
+  notas: string
+  creadoEn: Timestamp
+  creadoPor?: string
+  creadoPorNombre?: string
 }
 
 export interface Notificacion {

@@ -12,7 +12,7 @@
   "dependencies": {
     "@tanstack/react-query": "^5.96.2",
     "date-fns": "^4.1.0",
-    "firebase": "^12.11.0",
+    "firebase": "12.10.0",
     "firebase-functions": "^7.2.5",
     "jspdf": "^4.2.1",
     "jszip": "^3.10.1",

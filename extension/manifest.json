@@ -8,6 +8,7 @@
     "https://infraccionesba.gba.gob.ar/*",
     "https://buenosaires.gob.ar/licenciasdeconducir/*",
     "https://buenosaires.gob.ar/comprobante-de-legajo/*",
+    "https://panel.gestoriapaz.com/*",
     "https://gestorapp-tau.vercel.app/*",
     "https://gestorapp-paz.web.app/*",
     "https://colaproximaconsulta-jgbhipicma-uc.a.run.app/*",
@@ -25,6 +26,7 @@
     },
     {
       "matches": [
+        "https://panel.gestoriapaz.com/*",
         "https://gestorapp-tau.vercel.app/*",
         "https://gestorapp-paz.web.app/*",
         "http://localhost:5173/*",

@@ -325,7 +325,7 @@ if (isCABA) {
     return deudaTotal <= UMBRAL_CABA ? PCT_PAGO_MENOR_UMBRAL : PCT_PAGO_MAYOR_UMBRAL
   }
 
-    function enviarCABAAlFrontend(payload) {
+  function enviarCABAAlFrontend(payload) {
     // chrome.storage SÍ cruza pestañas; bridge.js (en la app) lo escucha y lo
     // reinyecta en la página para que PresupuestoMultas lo reciba.
     chrome.storage.local.set({ gpCabaCaptura: { payload, ts: Date.now() } })
@@ -521,7 +521,9 @@ let panel
 function montarPanel() {
   panel = document.createElement('div')
   panel.style.cssText = [
-    'position:fixed', 'bottom:20px', 'right:20px', 'z-index:2147483647',
+    'position:fixed', 'bottom:20px',
+    isCABA ? 'left:20px' : 'right:20px',
+    'z-index:2147483647',
     'width:280px', 'background:#fff', 'border:1px solid #e5e5e5',
     'border-radius:12px', 'box-shadow:0 4px 16px rgba(0,0,0,.12)',
     'font-family:system-ui,sans-serif', 'font-size:13px', 'color:#1a1a1a',
@@ -709,10 +711,8 @@ if (window.location.hostname.includes('infraccionesba.gba.gob.ar')) {
     if (document.getElementById('gp-panel-descarga')) return
     const panel = document.createElement('div')
     panel.id = 'gp-panel-descarga'
-      panel.style.cssText = [
-    'position:fixed', 'bottom:20px',
-    isCABA ? 'left:20px' : 'right:20px',
-    'z-index:2147483647',
+    panel.style.cssText = [
+      'position:fixed', 'bottom:20px', 'left:20px', 'z-index:2147483647',
       'width:300px', 'background:#fff', 'border:1px solid #e5e5e5',
       'border-radius:12px', 'box-shadow:0 4px 16px rgba(0,0,0,.12)',
       'font-family:system-ui,sans-serif', 'font-size:13px', 'color:#1a1a1a',

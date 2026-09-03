@@ -35,8 +35,8 @@ export interface RegistroPago {
 
 // ─── COSTOS OPERATIVOS (fallback si la gestoría no configuró montos) ──────────
 // Fuente de verdad configurable: configuracion.costosMulta.{suats,informePersona}
-export const MONTO_SUATS_DEFAULT           = 20_000
-export const MONTO_INFORME_PERSONA_DEFAULT = 35_000
+export const MONTO_SUATS_DEFAULT           = 25_000
+export const MONTO_INFORME_PERSONA_DEFAULT = 45_000
 
 // ─── PASO 1 — Recepción de datos (Asesor) ─────────────────────────────────────
 

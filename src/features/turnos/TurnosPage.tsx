@@ -1,23 +1,41 @@
-import { useState } from 'react'
-import { ChevronLeft, ChevronRight, Plus, CalendarDays, Clock, User } from 'lucide-react'
-import { useTurnosPorFecha } from '@/hooks/useTurnos'
-import { useCliente } from '@/hooks/useClientes'
-import { confirmarTurno, cancelarTurno, cumplirTurno } from '@/lib/firestore/turnos'
-import { Button, Card, PageHeader, Spinner, Badge } from '@/components/ui'
-import Modal from '@/components/shared/Modal'
-import NuevoTurnoForm   from './NuevoTurnoForm'
-import { useGestoriaId } from '@/context/GestoriaContext'
-import { TIPO_TRAMITE_LABELS, type Turno } from '@/types'
-import { format, addDays, startOfWeek, isSameDay, isToday } from 'date-fns'
+import { useEffect, useState } from 'react'
+import {
+  AlertTriangle,
+  CalendarDays,
+  ChevronLeft,
+  ChevronRight,
+  Clock,
+  Plus,
+  User,
+} from 'lucide-react'
+import {
+  addDays,
+  differenceInMinutes,
+  format,
+  isSameDay,
+  isToday,
+  startOfWeek,
+} from 'date-fns'
 import { es } from 'date-fns/locale'
 import toast from 'react-hot-toast'
+
+import { Badge, Button, Card, PageHeader } from '@/components/ui'
+import Modal from '@/components/shared/Modal'
+import { useAuth } from '@/hooks/useAuth'
+import { useCliente } from '@/hooks/useClientes'
 import { usePageTitle } from '@/hooks/usePageTitle'
+import { useTurnosPorFecha } from '@/hooks/useTurnos'
+import { cancelarTurno, cumplirTurno, confirmarTurno } from '@/lib/firestore/turnos'
+import { mostrarNotificacionLocal } from '@/lib/firestore/push'
+import { TIPO_TRAMITE_LABELS, type Turno } from '@/types'
+
+import NuevoTurnoForm from './NuevoTurnoForm'
 
 const ESTADO_COLORS: Record<string, string> = {
-  reservado:  'bg-yellow-100 text-yellow-700',
+  reservado: 'bg-yellow-100 text-yellow-700',
   confirmado: 'bg-emerald-100 text-emerald-700',
-  cancelado:  'bg-red-100 text-red-500',
-  cumplido:   'bg-gray-100 text-gray-500',
+  cancelado: 'bg-red-100 text-red-500',
+  cumplido: 'bg-gray-100 text-gray-500',
 }
 
 function ClienteNombre({ clienteId }: { clienteId: string }) {
@@ -27,12 +45,43 @@ function ClienteNombre({ clienteId }: { clienteId: string }) {
 
 function TurnoCard({ turno, onAccion }: { turno: Turno; onAccion: () => void }) {
   const [loading, setLoading] = useState(false)
+  const [modalCancelar, setModalCancelar] = useState(false)
+  const [motivoCancelacion, setMotivoCancelacion] = useState('')
+  const { user } = useAuth()
+
+  const esPropietario = user?.rol === 'propietario'
+  const esSecretario = user?.rol === 'asesor_comercial'
+  const esCreador =
+    turno.creadoPor === user?.uid ||
+    turno.creadoPorNombre === `${user?.nombre ?? ''} ${user?.apellido ?? ''}`.trim()
+
+  const puedeCancelar = esPropietario || (esSecretario && esCreador)
 
   const accion = async (fn: () => Promise<void>, msg: string) => {
     setLoading(true)
-    try { await fn(); toast.success(msg); onAccion() }
-    catch { toast.error('Error al actualizar el turno') }
-    finally { setLoading(false) }
+    try {
+      await fn()
+      toast.success(msg)
+      onAccion()
+    } catch {
+      toast.error('Error al actualizar el turno')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleCancelar = async () => {
+    if (!motivoCancelacion.trim()) {
+      toast.error('Ingresá un motivo de cancelación')
+      return
+    }
+
+    await accion(
+      () => cancelarTurno(turno.id, motivoCancelacion),
+      'Turno cancelado',
+    )
+    setModalCancelar(false)
+    setMotivoCancelacion('')
   }
 
   return (
@@ -48,70 +97,182 @@ function TurnoCard({ turno, onAccion }: { turno: Turno; onAccion: () => void }) 
               {turno.estado.charAt(0).toUpperCase() + turno.estado.slice(1)}
             </Badge>
           </div>
+
           <p className="text-sm font-semibold text-gray-700">
             {TIPO_TRAMITE_LABELS[turno.tipoTramite]}
           </p>
+
           <p className="text-xs text-gray-400 mt-0.5 flex items-center gap-1">
             <User size={11} />
             <ClienteNombre clienteId={turno.clienteId} />
           </p>
+
           {turno.notas && (
-            <p className="text-xs text-gray-500 mt-1 italic">"{turno.notas}"</p>
+            <p className="text-xs text-gray-500 mt-1 italic">&ldquo;{turno.notas}&rdquo;</p>
           )}
+
           {turno.motivoCancelacion && (
             <p className="text-xs text-red-400 mt-1">Motivo: {turno.motivoCancelacion}</p>
           )}
         </div>
 
-        {/* Acciones según estado */}
         {turno.estado === 'reservado' && (
           <div className="flex flex-col gap-1.5 shrink-0">
             <button
+              type="button"
               onClick={() => accion(() => confirmarTurno(turno.id), 'Turno confirmado')}
               disabled={loading}
-              className="text-xs bg-emerald-500 hover:bg-emerald-600 text-white px-3 py-1.5
-                         rounded-lg font-medium transition-colors disabled:opacity-50"
+              className="text-xs bg-emerald-500 hover:bg-emerald-600 text-white px-3 py-1.5 rounded-lg font-medium transition-colors disabled:opacity-50"
             >
               Confirmar
             </button>
-            <button
-              onClick={() => accion(() => cancelarTurno(turno.id, 'Cancelado por gestoría'), 'Turno cancelado')}
-              disabled={loading}
-              className="text-xs bg-gray-100 hover:bg-red-50 text-gray-500 hover:text-red-500
-                         px-3 py-1.5 rounded-lg font-medium transition-colors disabled:opacity-50"
-            >
-              Cancelar
-            </button>
+
+            {puedeCancelar && (
+              <button
+                type="button"
+                onClick={() => setModalCancelar(true)}
+                disabled={loading}
+                className="text-xs bg-gray-100 hover:bg-red-50 text-gray-500 hover:text-red-500 px-3 py-1.5 rounded-lg font-medium transition-colors disabled:opacity-50"
+              >
+                Cancelar
+              </button>
+            )}
           </div>
         )}
+
         {turno.estado === 'confirmado' && (
-          <button
-            onClick={() => accion(() => cumplirTurno(turno.id), 'Turno marcado como cumplido')}
-            disabled={loading}
-            className="text-xs bg-[#D4621A] hover:bg-[#B8521A] text-white px-3 py-1.5
-                       rounded-lg font-medium transition-colors disabled:opacity-50 shrink-0"
-          >
-            Cumplido
-          </button>
+          <div className="flex flex-col gap-1.5 shrink-0">
+            <button
+              type="button"
+              onClick={() => accion(() => cumplirTurno(turno.id), 'Turno marcado como cumplido')}
+              disabled={loading}
+              className="text-xs bg-[#D4621A] hover:bg-[#B8521A] text-white px-3 py-1.5 rounded-lg font-medium transition-colors disabled:opacity-50 shrink-0"
+            >
+              Cumplido
+            </button>
+
+            {puedeCancelar && (
+              <button
+                type="button"
+                onClick={() => setModalCancelar(true)}
+                disabled={loading}
+                className="text-xs bg-gray-100 hover:bg-red-50 text-gray-500 hover:text-red-500 px-3 py-1.5 rounded-lg font-medium transition-colors disabled:opacity-50"
+              >
+                Cancelar
+              </button>
+            )}
+          </div>
         )}
       </div>
+
+      <Modal
+        open={modalCancelar}
+        onClose={() => {
+          setModalCancelar(false)
+          setMotivoCancelacion('')
+        }}
+        title="Cancelar turno"
+        subtitle="Ingresá el motivo de cancelación"
+        size="sm"
+      >
+        <div className="space-y-4">
+          <div className="bg-amber-50 border border-amber-200 rounded-xl p-3">
+            <p className="text-xs text-amber-800">
+              <strong>Turno:</strong> {turno.horaInicio} hs — {TIPO_TRAMITE_LABELS[turno.tipoTramite]}
+            </p>
+            <p className="text-xs text-amber-700 mt-1">
+              <strong>Cliente:</strong> <ClienteNombre clienteId={turno.clienteId} />
+            </p>
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-gray-700 mb-2">
+              Motivo de cancelación *
+            </label>
+            <textarea
+              value={motivoCancelacion}
+              onChange={e => setMotivoCancelacion(e.target.value)}
+              placeholder="Ej: Cliente no asistió, cambio de horario, error en la carga..."
+              rows={3}
+              className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm outline-none focus:border-[#D4621A] resize-none"
+              autoFocus
+            />
+          </div>
+
+          <div className="flex gap-3">
+            <Button onClick={handleCancelar} loading={loading} className="flex-1">
+              Confirmar cancelación
+            </Button>
+            <Button
+              variant="secondary"
+              onClick={() => {
+                setModalCancelar(false)
+                setMotivoCancelacion('')
+              }}
+            >
+              Volver
+            </Button>
+          </div>
+        </div>
+      </Modal>
     </div>
   )
 }
 
 export default function TurnosPage() {
-  const gestoriaId = useGestoriaId()
   usePageTitle('Agenda / Turnos')
+
   const [fechaSeleccionada, setFecha] = useState(new Date())
-  const [semanaBase, setSemana]       = useState(startOfWeek(new Date(), { weekStartsOn: 1 }))
-  const [modalOpen, setModal]         = useState(false)
+  const [semanaBase, setSemana] = useState(startOfWeek(new Date(), { weekStartsOn: 1 }))
+  const [modalOpen, setModal] = useState(false)
   const { turnos, loading } = useTurnosPorFecha(fechaSeleccionada)
   const [, forceUpdate] = useState(0)
+  const { user } = useAuth()
 
   const diasSemana = Array.from({ length: 7 }, (_, i) => addDays(semanaBase, i))
 
-  const turnosPorDia = (dia: Date) =>
-    turnos.filter(() => isSameDay(dia, fechaSeleccionada)).length
+  useEffect(() => {
+    if (!user) return
+
+    const turnosProximos = turnos.filter(t => {
+      if (t.estado === 'cancelado' || t.estado === 'cumplido') return false
+
+      const fechaTurno = t.fecha?.toDate?.()
+      if (!fechaTurno) return false
+      if (!isSameDay(fechaTurno, new Date())) return false
+
+      const ahora = new Date()
+      const minutos = differenceInMinutes(fechaTurno, ahora)
+      return minutos > 0 && minutos <= 30
+    })
+
+    if (turnosProximos.length === 0) return
+
+    const turno = turnosProximos[0]
+    const fechaTurno = turno.fecha?.toDate?.()
+    const horaTurno = turno.horaInicio
+
+    toast(
+      () => (
+        <div className="flex items-start gap-3">
+          <AlertTriangle size={20} className="text-[#D4621A] shrink-0 mt-0.5" />
+          <div>
+            <p className="font-semibold text-sm">Turno próximo</p>
+            <p className="text-xs text-gray-600 mt-1">
+              {turno.horaInicio} hs — {TIPO_TRAMITE_LABELS[turno.tipoTramite]}
+            </p>
+          </div>
+        </div>
+      ),
+      { duration: 8000 },
+    )
+
+    mostrarNotificacionLocal({
+      titulo: '🔔 Turno próximo',
+      cuerpo: `${horaTurno} hs — ${TIPO_TRAMITE_LABELS[turno.tipoTramite]}`,
+      tag: `turno-${turno.id}`,
+    })
+  }, [turnos, user])
 
   return (
     <div>
@@ -125,37 +286,42 @@ export default function TurnosPage() {
         }
       />
 
-      {/* Navegación semanal */}
       <Card className="p-4 mb-5">
         <div className="flex items-center justify-between mb-3">
-          <button onClick={() => setSemana(d => addDays(d, -7))}
-            className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors">
+          <button
+            type="button"
+            onClick={() => setSemana(d => addDays(d, -7))}
+            className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors"
+          >
             <ChevronLeft size={18} className="text-gray-500" />
           </button>
           <span className="text-sm font-semibold text-gray-700">
-            {format(semanaBase, "MMMM yyyy", { locale: es })}
+            {format(semanaBase, 'MMMM yyyy', { locale: es })}
           </span>
-          <button onClick={() => setSemana(d => addDays(d, 7))}
-            className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors">
+          <button
+            type="button"
+            onClick={() => setSemana(d => addDays(d, 7))}
+            className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors"
+          >
             <ChevronRight size={18} className="text-gray-500" />
           </button>
         </div>
 
-        {/* Días */}
         <div className="grid grid-cols-7 gap-1">
           {diasSemana.map(dia => {
-            const selec   = isSameDay(dia, fechaSeleccionada)
-            const hoy     = isToday(dia)
+            const selec = isSameDay(dia, fechaSeleccionada)
+            const hoy = isToday(dia)
             return (
               <button
                 key={dia.toISOString()}
+                type="button"
                 onClick={() => setFecha(dia)}
                 className={`flex flex-col items-center py-2.5 rounded-xl transition-all ${
                   selec
                     ? 'bg-[#D4621A] text-white shadow-md shadow-[#D4621A]/30'
                     : hoy
-                    ? 'bg-[#D4621A]/10 text-[#D4621A]'
-                    : 'hover:bg-gray-50 text-gray-600'
+                      ? 'bg-[#D4621A]/10 text-[#D4621A]'
+                      : 'hover:bg-gray-50 text-gray-600'
                 }`}
               >
                 <span className="text-xs font-medium uppercase tracking-wide">
@@ -170,7 +336,6 @@ export default function TurnosPage() {
         </div>
       </Card>
 
-      {/* Turnos del día seleccionado */}
       <div className="flex items-center gap-2 mb-3">
         <CalendarDays size={16} className="text-[#D4621A]" />
         <h2 className="font-semibold text-gray-800 text-sm">
@@ -187,27 +352,38 @@ export default function TurnosPage() {
         <div className="text-center py-12 bg-white rounded-xl border border-dashed border-gray-200">
           <CalendarDays size={36} className="text-gray-200 mx-auto mb-3" />
           <p className="text-gray-400 text-sm">Sin turnos para este día.</p>
-          <button onClick={() => setModal(true)}
-            className="text-[#D4621A] text-sm mt-2 hover:underline font-medium">
+          <button
+            type="button"
+            onClick={() => setModal(true)}
+            className="text-[#D4621A] text-sm mt-2 hover:underline font-medium"
+          >
             + Agregar turno
           </button>
         </div>
       ) : (
         <div className="space-y-3">
           {turnos
+            .slice()
             .sort((a, b) => a.horaInicio.localeCompare(b.horaInicio))
             .map(t => (
               <TurnoCard key={t.id} turno={t} onAccion={() => forceUpdate(n => n + 1)} />
-            ))
-          }
+            ))}
         </div>
       )}
 
-      <Modal open={modalOpen} onClose={() => setModal(false)} title="Nuevo Turno"
-             subtitle="Reservá un turno para un cliente" size="md">
+      <Modal
+        open={modalOpen}
+        onClose={() => setModal(false)}
+        title="Nuevo Turno"
+        subtitle="Reservá un turno para un cliente"
+        size="md"
+      >
         <NuevoTurnoForm
           fechaInicial={fechaSeleccionada}
-          onSuccess={() => { setModal(false); toast.success('Turno reservado') }}
+          onSuccess={() => {
+            setModal(false)
+            toast.success('Turno reservado')
+          }}
           onCancel={() => setModal(false)}
         />
       </Modal>
@@ -215,20 +391,20 @@ export default function TurnosPage() {
   )
 }
 
-// ─── SKELETON ─────────────────────────────────────────────────────────────────
 function SkeletonTurnos() {
   return (
     <div className="space-y-3">
       {Array.from({ length: 5 }).map((_, i) => (
-        <div key={i}
-          className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 flex items-center gap-4">
-          {/* Hora */}
+        <div
+          key={i}
+          className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 flex items-center gap-4"
+        >
           <div className="shrink-0 text-center w-14">
             <div className="h-5 w-12 bg-gray-200 rounded-full animate-pulse mx-auto mb-1" />
             <div className="h-3 w-10 bg-gray-100 rounded-full animate-pulse mx-auto" />
           </div>
           <div className="w-px h-10 bg-gray-100 shrink-0" />
-          {/* Info */}
+
           <div className="flex-1 space-y-2">
             <div className="h-4 w-40 bg-gray-200 rounded-full animate-pulse" />
             <div className="flex gap-2">
@@ -236,7 +412,7 @@ function SkeletonTurnos() {
               <div className="h-3 w-16 bg-gray-100 rounded-full animate-pulse" />
             </div>
           </div>
-          {/* Badge */}
+
           <div className="h-6 w-20 bg-gray-100 rounded-full animate-pulse shrink-0" />
         </div>
       ))}

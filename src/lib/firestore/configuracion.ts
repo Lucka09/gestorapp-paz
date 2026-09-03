@@ -57,7 +57,7 @@ export const CONFIG_DEFAULT: Omit<Configuracion,'actualizadoEn'|'actualizadoPor'
   mensajeListoRetirar: 'Tu trámite de {tipo} ya está listo para retirar. ¡Pasá cuando quieras!',
 
   // ─── COSTOS OPERATIVOS DE MULTAS (se deducen, no son ingreso) ──────────────
-  costosMulta: { suats: 20_000, informePersona: 35_000 },
+  costosMulta: { suats: 25_000, informePersona: 45_000 },
 
   // ─── PREMIOS & OBJETIVOS — Asesor Comercial ───────────────────────────────
   // Configurables por el propietario desde ConfiguracionPage > tab Premios

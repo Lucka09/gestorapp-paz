@@ -34,7 +34,7 @@ export interface ConfigPresupuesto {
 }
 export const CONFIG_PRESUPUESTO_DEFAULT: ConfigPresupuesto = {
   transfAuto: true, transfPct: 40,
-  suatsOn: true, suatsMonto: 20_000,
+  suatsOn: true, suatsMonto: 25_000,
   efvoManual: false, efvoMonto: 0, efvoPct: 35,
   mostrarCuotas: false, cuotasManual: false,
   nChica: 3, nLarga: 6, recargoChica: 15, recargoLarga: 35,
