@@ -7,7 +7,7 @@
 
 import { useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Search, AlertTriangle, FileWarning, X, ChevronRight, Download, CreditCard, ShieldAlert, RotateCcw } from 'lucide-react'
+import { Search, AlertTriangle, FileWarning, X, ChevronRight, Download, CreditCard, ShieldAlert, RotateCcw, Plus } from 'lucide-react'
 import { useMultaWorkflows } from '@/hooks/useMultaWorkflow'
 import ModalOtrosPagos from '@/components/multas/ModalOtrosPagos'
 import ModalReporteControl from '@/components/multas/ModalReporteControl'
@@ -27,6 +27,13 @@ import {
 import type { Tramite } from '@/types'
 import { usePermisos } from '@/hooks/usePermisos'
 import { exportarMultas } from '@/utils/exportarMultas'   // ajustá la ruta a la real de exportar.ts
+import { useAuth } from '@/hooks/useAuth'
+import { useGestoriaId } from '@/context/GestoriaContext'
+import { useClientes } from '@/hooks/useClientes'
+import Modal from '@/components/shared/Modal'
+import ClienteCombobox from '@/components/shared/ClienteCombobox'
+import { Input, Button } from '@/components/ui'
+import { crearTramite, type TramiteInput } from '@/lib/firestore/tramites'
 
 // ─── HELPERS ──────────────────────────────────────────────────────────────────
 
@@ -97,6 +104,9 @@ export default function RevisionMultasPage() {
   const { multas, loading } = useMultaWorkflows()
   const { puede, rol } = usePermisos()
   const esControl = ['propietario','admin_gral','admin'].includes(rol)
+  const { user }   = useAuth()
+  const gestoriaId = useGestoriaId()
+  const { clientes } = useClientes()
 const [exportando, setExportando] = useState(false)
 const handleExportar = async () => {
   setExportando(true)
@@ -108,6 +118,41 @@ const handleExportar = async () => {
   const [search, setSearch] = useState('')
   const [otrosPagosOpen, setOtrosPagos] = useState(false)
   const [reporteModal, setReporteModal] = useState<MultaWorkflow | null>(null)
+
+  // ── Alta liviana de Revisión de Multas ──────────────────────────────────────
+  const [nuevaOpen, setNuevaOpen] = useState(false)
+  const [creando, setCreando]     = useState(false)
+  const [nuevaMulta, setNuevaMulta] = useState({ clienteId: '', patente: '', nota: '' })
+
+  const handleCrearMulta = async () => {
+    if (!user) return
+    if (!nuevaMulta.clienteId) { toast.error('Seleccioná un cliente'); return }
+    setCreando(true)
+    try {
+      const data: TramiteInput = {
+        gestoriaId,
+        tipo:                  'descargo_multa',
+        clienteId:             nuevaMulta.clienteId,
+        vehiculoId:            '',                                  // opcional en multas (guard en crearTramite)
+        patente:               nuevaMulta.patente.trim().toUpperCase(),
+        descripcion:           '',
+        observacionesInternas: nuevaMulta.nota.trim(),
+        honorarios:            0,
+        asignadoA:             null,
+      }
+      const id = await crearTramite(data, user.uid)
+      toast.success('Revisión de multa creada')
+      setNuevaOpen(false)
+      setNuevaMulta({ clienteId: '', patente: '', nota: '' })
+      navigate(`/admin/tramites/${id}`)   // el workflow se inicializa en el detalle (Paso 1)
+    } catch (e) {
+      console.error('[crearMulta]', e)
+      toast.error('No se pudo crear la revisión de multa')
+    } finally {
+      setCreando(false)
+    }
+  }
+
   const resolverControl = async (id: string) => {
     try { await resolverReporteControlMulta(id); toast.success('Multa devuelta al flujo') }
     catch { toast.error('No se pudo resolver') }
@@ -174,6 +219,12 @@ const handleExportar = async () => {
       {/* Encabezado */}
       <div className="flex justify-end gap-2 mb-3">
         {puede('gestionarMultas') && (
+          <button onClick={() => setNuevaOpen(true)}
+            className="inline-flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-semibold bg-[var(--gp-orange)] text-white hover:opacity-90">
+            <Plus size={15} /> Nueva Revisión de Multas
+          </button>
+        )}
+        {puede('gestionarMultas') && (
           <button onClick={() => setOtrosPagos(true)}
             className="inline-flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-semibold border border-[var(--gp-orange)] text-[var(--gp-orange)] hover:bg-orange-50">
             <CreditCard size={15} /> Otros Pagos
@@ -188,6 +239,47 @@ const handleExportar = async () => {
       </div>
       <ModalOtrosPagos open={otrosPagosOpen} onClose={() => setOtrosPagos(false)} />
       <ModalReporteControl w={reporteModal} onClose={() => setReporteModal(null)} />
+
+      {/* Alta liviana de Revisión de Multas */}
+      <Modal
+        open={nuevaOpen}
+        onClose={() => setNuevaOpen(false)}
+        title="Nueva Revisión de Multas"
+        subtitle="Cargá el cliente. La patente, el DNI y la fecha se completan en el Paso 1 del workflow."
+        size="md"
+      >
+        <div className="space-y-4">
+          <ClienteCombobox
+            label="Cliente"
+            required
+            value={nuevaMulta.clienteId}
+            onChange={id => setNuevaMulta(p => ({ ...p, clienteId: id }))}
+            clientes={clientes}
+          />
+          <Input
+            label="Patente (opcional)"
+            value={nuevaMulta.patente}
+            onChange={e => setNuevaMulta(p => ({ ...p, patente: e.target.value }))}
+            placeholder="Se puede completar después"
+            className="uppercase"
+          />
+          <Input
+            label="Nota interna (opcional)"
+            value={nuevaMulta.nota}
+            onChange={e => setNuevaMulta(p => ({ ...p, nota: e.target.value }))}
+            placeholder="Referencia del caso…"
+          />
+          <div className="flex gap-3 pt-2 border-t border-gray-100">
+            <Button type="button" onClick={handleCrearMulta} loading={creando} className="flex-1">
+              Crear revisión de multa
+            </Button>
+            <Button type="button" variant="secondary" onClick={() => setNuevaOpen(false)}>
+              Cancelar
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
       <div className="flex items-center gap-3 mb-5">
         <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ background: 'var(--gp-orange)' }}>
           <FileWarning size={18} className="text-white" />

@@ -113,8 +113,10 @@ service cloud.firestore {
       allow update: if isStaff() && docDeMiGestoria();
     }
 
-    match /multaWorkflow/{wfId} {
-      allow read:   if isStaff() && docDeMiGestoria();
+        match /multaWorkflow/{wfId} {
+      // resource == null → doc inexistente: permitir el get para que el listener
+      // NO muera con permission-denied y pueda observar la auto-creación.
+      allow read:   if isStaff() && (resource == null || docDeMiGestoria());
       allow create: if isStaff() && nuevaDocDeMiGestoria();
       allow update: if isStaff() && docDeMiGestoria();
     }

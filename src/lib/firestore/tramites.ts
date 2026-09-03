@@ -188,14 +188,15 @@ export async function crearTramite(
     actualizadoEn:    serverTimestamp(),
   })
 
-  // Vincular al vehículo (existente)
-  const vRef  = vehiculoDoc(data.vehiculoId)
-  const vSnap = await getDoc(vRef)
-  if (vSnap.exists()) {
-    const ids: string[] = vSnap.data().tramitesIds ?? []
-    await updateDoc(vRef, { tramitesIds: [...ids, ref.id] })
+    // Vincular al vehículo (existente) — opcional: las multas pueden no tener vehículo
+  if (data.vehiculoId) {
+    const vRef  = vehiculoDoc(data.vehiculoId)
+    const vSnap = await getDoc(vRef)
+    if (vSnap.exists()) {
+      const ids: string[] = vSnap.data().tramitesIds ?? []
+      await updateDoc(vRef, { tramitesIds: [...ids, ref.id] })
+    }
   }
-
   // Evento fire-and-forget — todos los datos están en memoria
   emitirEventoSilencioso(crearEvento({
     gestoriaId:   data.gestoriaId,
