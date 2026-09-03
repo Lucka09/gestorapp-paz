@@ -782,6 +782,25 @@
       "queryScope": "COLLECTION",
       "fields": [
         {
+          "fieldPath": "estado",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "fecha",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "__name__",
+          "order": "ASCENDING"
+        }
+      ],
+      "density": "SPARSE_ALL"
+    },
+    {
+      "collectionGroup": "turnos",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
           "fieldPath": "clienteId",
           "order": "ASCENDING"
         },

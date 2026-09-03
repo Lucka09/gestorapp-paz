@@ -9,7 +9,7 @@ import {
 } from './clasificador'
 import type {
   MetaWebhookPayload, MetaIncomingMessage, MetaMetadata,
-  MetaReferral, EstadoConversacion,
+  MetaReferral, MetaError, EstadoConversacion,
 } from './types'
 
 const db  = () => admin.firestore()
@@ -43,7 +43,12 @@ export async function handleIncomingMessage(payload: MetaWebhookPayload): Promis
 
   for (const entry of payload.entry ?? []) {
     for (const change of entry.changes ?? []) {
-      const { messages = [], contacts = [], statuses = [], metadata } = change.value
+      const { messages = [], contacts = [], statuses = [], metadata, errors = [] } = change.value
+
+      for (const error of errors) {
+        console.warn('[WA] Error de mensaje:', error)
+        await registrarErrorMensaje(gestoriaId, error)
+      }
 
       for (const status of statuses) {
         await actualizarEstadoMensaje(gestoriaId, status.id, status.status)
@@ -174,6 +179,7 @@ async function procesarMensaje(
       waPhoneNumberId: phoneNumberId,
       waDisplayPhone:  displayPhone,
       creadoEn:        ts,
+      lineaOrigen:     owner?.nombre ?? 'sin ruteo',
     }
     if (clienteId)   convData.clienteId   = clienteId
     if (prospectoId) convData.prospectoId = prospectoId
@@ -347,6 +353,21 @@ async function actualizarEstadoMensaje(
     }
     await snap.docs[0].ref.update({ estado: estadoMap[status] ?? status })
   }
+}
+
+// ─── REGISTRAR ERROR DE MENSAJE ──────────────────────────────────────────────
+
+async function registrarErrorMensaje(
+  gestoriaId: string,
+  error: MetaError,
+): Promise<void> {
+  await db().collection('whatsappErrors').add({
+    gestoriaId,
+    codigo: error.code,
+    titulo: error.title,
+    detalles: error.error_data?.details ?? '',
+    timestamp: now(),
+  })
 }
 
 // ─── MENSAJE DE BIENVENIDA ────────────────────────────────────────────────────

@@ -107,8 +107,9 @@ service cloud.firestore {
       allow delete: if isPropietario() && docDeMiGestoria();
     }
 
-    match /inscripcionWorkflow/{wfId} {
-      allow read:   if isStaff() && docDeMiGestoria();
+       match /inscripcionWorkflow/{wfId} {
+      // resource == null → doc inexistente: el get no muere con permission-denied.
+      allow read:   if isStaff() && (resource == null || docDeMiGestoria());
       allow create: if isStaff() && nuevaDocDeMiGestoria();
       allow update: if isStaff() && docDeMiGestoria();
     }
@@ -121,8 +122,9 @@ service cloud.firestore {
       allow update: if isStaff() && docDeMiGestoria();
     }
 
-    match /transferenciaWorkflow/{wfId} {
-      allow read:   if isStaff() && docDeMiGestoria();
+        match /transferenciaWorkflow/{wfId} {
+      // resource == null → doc inexistente: el get no muere con permission-denied.
+      allow read:   if isStaff() && (resource == null || docDeMiGestoria());
       allow create: if isStaff() && nuevaDocDeMiGestoria();
       allow update: if isStaff() && docDeMiGestoria();
     }

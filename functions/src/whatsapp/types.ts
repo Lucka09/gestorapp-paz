@@ -27,6 +27,7 @@ export interface MetaWebhookPayload {
         }>
         messages?: Array<MetaIncomingMessage>
         statuses?: Array<MetaStatusUpdate>
+        errors?: Array<MetaError>
       }
       field: string
     }>
@@ -69,6 +70,12 @@ export interface MetaStatusUpdate {
   recipient_id: string
 }
 
+export interface MetaError {
+  code: number
+  title: string
+  error_data?: { details: string }
+}
+
 // ─── SEND MESSAGE REQUEST/RESPONSE ───────────────────────────────────────────
 
 export interface SendMessageRequest {
@@ -78,5 +85,23 @@ export interface SendMessageRequest {
 }
 
 export interface SendMessageResponse {
+  waMessageId: string
+}
+
+// ─── TEMPLATE MESSAGE ───────────────────────────────────────────────────────
+
+export interface TemplateMessage {
+  nombre: string
+  idioma: string
+  parametros: string[]
+}
+
+export interface SendTemplateRequest {
+  conversacionId: string
+  template: TemplateMessage
+  gestoriaId: string
+}
+
+export interface SendTemplateResponse {
   waMessageId: string
 }

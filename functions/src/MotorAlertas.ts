@@ -196,17 +196,55 @@ async function getRecordatoriosTransferenciaVencidos(): Promise<AlertaInput[]> {
  
   return alertas
 }
+
+// ── RECORDATORIOS DE TURNOS PRÓXIMOS ─────────────────────────────────────────
+
+async function getTurnosProximos(): Promise<AlertaInput[]> {
+  const db     = getFirestore()
+  const ahora  = Timestamp.now()
+  const en30min = Timestamp.fromMillis(ahora.toMillis() + 30 * 60 * 1000)
+  const alertas: AlertaInput[] = []
+
+  const snap = await db
+    .collection('turnos')
+    .where('estado', 'in', ['reservado', 'confirmado'])
+    .where('fecha', '>=', ahora)
+    .where('fecha', '<=', en30min)
+    .get()
+
+  snap.docs.forEach(doc => {
+    const data = doc.data()
+    const fechaTurno = (data.fecha as Timestamp).toDate()
+    const horaTurno = `${String(fechaTurno.getHours()).padStart(2, '0')}:${String(fechaTurno.getMinutes()).padStart(2, '0')}`
+
+    alertas.push({
+      gestoriaId:  data.gestoriaId,
+      tipo:        'vencimiento_proximo',
+      titulo:      'Turno en los próximos 30 minutos',
+      descripcion: `Turno de ${data.tipoTramite ?? 'trámite'} a las ${horaTurno} hs con ${data.clienteNombre ?? 'cliente'}.`,
+      entidadId:   doc.id,
+      entidadTipo: 'cliente',
+      fechaRef:    data.fecha,
+      prioridad:   'alta',
+    })
+  })
+
+  return alertas
+}
+
 // ─── CLOUD FUNCTION ───────────────────────────────────────────────────────────
 
-export const motorAlertasDiario = onSchedule('every 6 hours', async () => {
-  const [vencimientos, tramitesSinActualizar, recordatoriosTransferencia] = await Promise.all([
+export const motorAlertasDiario = onSchedule('every 15 minutes', async () => {
+  const [vencimientos, tramitesSinActualizar, recordatoriosTransferencia, turnosProximos] = await Promise.all([
     getVencimientosProximos(7),
     getTramitesInactivos(30),
     getRecordatoriosTransferenciaVencidos(),
+    getTurnosProximos(),
   ])
   await procesarYGuardarAlertas([
     ...vencimientos,
     ...tramitesSinActualizar,
     ...recordatoriosTransferencia,
+    ...turnosProximos,
   ])
 })

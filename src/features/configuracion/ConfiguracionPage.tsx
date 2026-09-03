@@ -8,6 +8,7 @@ import {
 import { useConfiguracion }    from '@/hooks/useConfiguracion'
 import { useAuth }             from '@/hooks/useAuth'
 import { guardarConfiguracion } from '@/lib/firestore/configuracion'
+import RuteoWhatsAppEditor from '@/features/admin/RuteoWhatsAppEditor'
 import { PageHeader, Button, Input, Textarea, Spinner } from '@/components/ui'
 import { PanelConfigPush } from '@/components/shared/PushNotifications'
 import { TIPO_TRAMITE_LABELS, type TipoTramite, type Configuracion } from '@/types'
@@ -15,7 +16,7 @@ import toast from 'react-hot-toast'
 
 // ─── TABS ─────────────────────────────────────────────────────────────────────
 
-type Tab = 'gestor' | 'horarios' | 'tarifas' | 'multas' | 'banco' | 'mensajes' | 'push' | 'premios'
+type Tab = 'gestor' | 'horarios' | 'tarifas' | 'multas' | 'banco' | 'mensajes' | 'push' | 'premios' | 'whatsapp'
 
 const TABS: { id: Tab; label: string; icon: React.ElementType }[] = [
   { id: 'gestor',   label: 'La Gestoría',  icon: Building2     },
@@ -26,6 +27,7 @@ const TABS: { id: Tab; label: string; icon: React.ElementType }[] = [
   { id: 'mensajes', label: 'Mensajes',     icon: MessageSquare },
   { id: 'push',     label: 'Notificaciones', icon: Bell          },
   { id: 'premios',  label: 'Premios',        icon: Trophy        },
+  { id: 'whatsapp', label: 'WhatsApp',      icon: MessageSquare },
 ]
 
 const DIAS_CONFIG = [
@@ -863,6 +865,7 @@ export default function ConfiguracionPage() {
         {tabActiva === 'mensajes' && <TabMensajes   form={form} set={set} />}
         {tabActiva === 'push'     && <PanelConfigPush />}
         {tabActiva === 'premios'  && <TabPremios  form={form} set={set} />}
+        {tabActiva === 'whatsapp' && <RuteoWhatsAppEditor />}
       </div>
 
       {/* Botón guardar al pie */}

@@ -147,17 +147,49 @@ async function getRecordatoriosTransferenciaVencidos() {
     });
     return alertas;
 }
+// ── RECORDATORIOS DE TURNOS PRÓXIMOS ─────────────────────────────────────────
+async function getTurnosProximos() {
+    const db = (0, firestore_1.getFirestore)();
+    const ahora = firestore_1.Timestamp.now();
+    const en30min = firestore_1.Timestamp.fromMillis(ahora.toMillis() + 30 * 60 * 1000);
+    const alertas = [];
+    const snap = await db
+        .collection('turnos')
+        .where('estado', 'in', ['reservado', 'confirmado'])
+        .where('fecha', '>=', ahora)
+        .where('fecha', '<=', en30min)
+        .get();
+    snap.docs.forEach(doc => {
+        var _a, _b;
+        const data = doc.data();
+        const fechaTurno = data.fecha.toDate();
+        const horaTurno = `${String(fechaTurno.getHours()).padStart(2, '0')}:${String(fechaTurno.getMinutes()).padStart(2, '0')}`;
+        alertas.push({
+            gestoriaId: data.gestoriaId,
+            tipo: 'vencimiento_proximo',
+            titulo: 'Turno en los próximos 30 minutos',
+            descripcion: `Turno de ${(_a = data.tipoTramite) !== null && _a !== void 0 ? _a : 'trámite'} a las ${horaTurno} hs con ${(_b = data.clienteNombre) !== null && _b !== void 0 ? _b : 'cliente'}.`,
+            entidadId: doc.id,
+            entidadTipo: 'cliente',
+            fechaRef: data.fecha,
+            prioridad: 'alta',
+        });
+    });
+    return alertas;
+}
 // ─── CLOUD FUNCTION ───────────────────────────────────────────────────────────
-exports.motorAlertasDiario = (0, scheduler_1.onSchedule)('every 6 hours', async () => {
-    const [vencimientos, tramitesSinActualizar, recordatoriosTransferencia] = await Promise.all([
+exports.motorAlertasDiario = (0, scheduler_1.onSchedule)('every 15 minutes', async () => {
+    const [vencimientos, tramitesSinActualizar, recordatoriosTransferencia, turnosProximos] = await Promise.all([
         getVencimientosProximos(7),
         getTramitesInactivos(30),
         getRecordatoriosTransferenciaVencidos(),
+        getTurnosProximos(),
     ]);
     await procesarYGuardarAlertas([
         ...vencimientos,
         ...tramitesSinActualizar,
         ...recordatoriosTransferencia,
+        ...turnosProximos,
     ]);
 });
 //# sourceMappingURL=MotorAlertas.js.map

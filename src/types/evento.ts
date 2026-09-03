@@ -72,6 +72,10 @@ export type TipoEventoSistema =
   | 'backup.completado'
   | 'vencimiento.alertado'
 
+export type TipoEventoOperativo =
+  | 'presupuesto.enviado'
+  | 'turno.confirmado'
+
 export type TipoEvento =
   | TipoEventoLead
   | TipoEventoProspecto
@@ -80,6 +84,7 @@ export type TipoEvento =
   | TipoEventoPago
   | TipoEventoComunicacion
   | TipoEventoSistema
+  | TipoEventoOperativo
 
 // ─── ENTIDADES REFERENCIABLES ───────────────────────────────────────────────
 
@@ -88,6 +93,8 @@ export type EntidadEvento =
   | 'prospecto'
   | 'cliente'
   | 'tramite'
+  | 'consulta'
+  | 'turno'
   | 'vehiculo'
   | 'pago'
   | 'recibo'
@@ -227,6 +234,8 @@ export const TIPO_EVENTO_LABELS: Partial<Record<TipoEvento, string>> = {
   'wa.mensaje_enviado': 'Mensaje WA enviado',
   'automatizacion.disparada': 'Automatización ejecutada',
   'automatizacion.fallida': 'Automatización falló',
+  'presupuesto.enviado': 'Presupuesto enviado',
+  'turno.confirmado': 'Turno confirmado',
 }
 
 export const TIPO_EVENTO_EMOJI: Partial<Record<TipoEvento, string>> = {
@@ -243,4 +252,6 @@ export const TIPO_EVENTO_EMOJI: Partial<Record<TipoEvento, string>> = {
   'automatizacion.disparada': '⚙️',
   'automatizacion.fallida': '⚠️',
   'usuario.login': '🔑',
+  'presupuesto.enviado': '📨',
+  'turno.confirmado': '📅',
 }

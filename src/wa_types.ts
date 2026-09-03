@@ -97,10 +97,37 @@ export interface MetaWebhookPayload {
           timestamp:  string
           recipient_id: string
         }>
+        errors?: Array<MetaError>
       }
       field: 'messages'
     }>
   }>
+}
+
+export interface MetaError {
+  code: number
+  title: string
+  error_data?: {
+    details: string
+  }
+}
+
+// ─── TEMPLATE MESSAGE ───────────────────────────────────────────────────────
+
+export interface TemplateMessage {
+  nombre: string
+  idioma: string
+  parametros: string[]
+}
+
+export interface SendTemplateRequest {
+  conversacionId: string
+  template: TemplateMessage
+  gestoriaId: string
+}
+
+export interface SendTemplateResponse {
+  waMessageId: string
 }
 
 // ─── MÉTRICAS ─────────────────────────────────────────────────────────────────

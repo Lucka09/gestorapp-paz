@@ -14,7 +14,10 @@ import * as functions        from 'firebase-functions'
 import { onRequest }         from 'firebase-functions/v2/https'
 import { handleVerification, handleIncomingMessage } from './whatsapp/Webhook'
 import { handleSendMessage }  from './whatsapp/Send'
-import type { MetaWebhookPayload, SendMessageRequest } from './whatsapp/types'
+import { handleSendTemplate } from './whatsapp/Template'
+import type {
+  MetaWebhookPayload, SendMessageRequest, SendTemplateRequest,
+} from './whatsapp/types'
 import { onCall, HttpsError } from 'firebase-functions/v2/https'
 import { defineSecret }       from 'firebase-functions/params'
 import * as https             from 'https'
@@ -242,6 +245,25 @@ export const whatsappSend = onCall(
     )
   }
 )
+
+// ─── WHATSAPP TEMPLATE (Callable) ───────────────────────────────────────────
+
+export const whatsappTemplate = onCall(
+  {
+    region:  'us-central1',
+    secrets: ['WHATSAPP_TOKEN', 'WHATSAPP_PHONE_NUMBER_ID', 'GESTORIA_ID'],
+    enforceAppCheck: false,
+  },
+  async (request) => {
+    return handleSendTemplate(
+      request.data as SendTemplateRequest,
+      request.auth
+        ? { auth: { uid: request.auth.uid, token: request.auth.token as any } }
+        : {},
+    )
+  },
+)
+
 // ─── INFRACCIONES / MULTAS ───────────────────────────────────────────────────
 export { crearConsultaPublica }      from './infracciones/crearConsultaPublica'
 export { guardarConsultaInfraccion } from './infracciones/guardarConsultaInfraccion'

@@ -9,6 +9,7 @@ exports.getVerifyToken = getVerifyToken;
 exports.getGestoriaId = getGestoriaId;
 exports.normalizarTelefono = normalizarTelefono;
 exports.sendTextMessage = sendTextMessage;
+exports.sendTemplateMessage = sendTemplateMessage;
 exports.markMessageRead = markMessageRead;
 const axios_1 = __importDefault(require("axios"));
 const META_API_VERSION = 'v20.0';
@@ -48,6 +49,16 @@ function resolverEmisor(phoneNumberId) {
         throw new Error('[WA] Sin phone_number_id emisor (ni parámetro ni WHATSAPP_PHONE_NUMBER_ID)');
     return id;
 }
+function describirErrorMeta(error) {
+    var _a, _b, _c;
+    if (axios_1.default.isAxiosError(error)) {
+        const mensaje = (_c = (_b = (_a = error.response) === null || _a === void 0 ? void 0 : _a.data) === null || _b === void 0 ? void 0 : _b.error) === null || _c === void 0 ? void 0 : _c.message;
+        if (typeof mensaje === 'string' && mensaje)
+            return mensaje;
+        return error.message;
+    }
+    return error instanceof Error ? error.message : String(error);
+}
 // ─── NORMALIZAR TELÉFONO ─────────────────────────────────────────────────────
 // Meta envía el número sin "+" ej: "5491155667788"
 // Usamos ese mismo formato como ID de documento en Firestore
@@ -71,13 +82,61 @@ text, phoneNumberId) {
         type: 'text',
         text: { preview_url: false, body: text },
     };
-    const { data } = await axios_1.default.post(url, body, {
-        headers: {
-            Authorization: `Bearer ${token}`,
-            'Content-Type': 'application/json',
-        },
-    });
+    let data;
+    try {
+        const response = await axios_1.default.post(url, body, {
+            headers: {
+                Authorization: `Bearer ${token}`,
+                'Content-Type': 'application/json',
+            },
+        });
+        data = response.data;
+    }
+    catch (error) {
+        const detalle = describirErrorMeta(error);
+        console.error('[WA] Error enviando mensaje:', detalle);
+        throw new Error(`[WA] Error enviando mensaje: ${detalle}`);
+    }
     // data.messages[0].id es el WA message ID
+    const waMessageId = (_c = (_b = (_a = data === null || data === void 0 ? void 0 : data.messages) === null || _a === void 0 ? void 0 : _a[0]) === null || _b === void 0 ? void 0 : _b.id) !== null && _c !== void 0 ? _c : `local_${Date.now()}`;
+    return waMessageId;
+}
+// ─── ENVIAR TEMPLATE APROBADO ───────────────────────────────────────────────
+// Los templates deben estar pre-aprobados en Meta Business Manager. Se usan
+// para mensajes fuera de la ventana de 24 horas.
+async function sendTemplateMessage(to, templateName, language = 'es_AR', parameters = [], phoneNumberId) {
+    var _a, _b, _c;
+    const emisor = resolverEmisor(phoneNumberId);
+    const token = getMetaToken();
+    const url = `${META_API_BASE}/${emisor}/messages`;
+    const body = {
+        messaging_product: 'whatsapp',
+        to,
+        type: 'template',
+        template: {
+            name: templateName,
+            language: { code: language },
+            components: parameters.length > 0 ? [{
+                    type: 'body',
+                    parameters: parameters.map(text => ({ type: 'text', text })),
+                }] : [],
+        },
+    };
+    let data;
+    try {
+        const response = await axios_1.default.post(url, body, {
+            headers: {
+                Authorization: `Bearer ${token}`,
+                'Content-Type': 'application/json',
+            },
+        });
+        data = response.data;
+    }
+    catch (error) {
+        const detalle = describirErrorMeta(error);
+        console.error('[WA] Error enviando template:', detalle);
+        throw new Error(`[WA] Error enviando template: ${detalle}`);
+    }
     const waMessageId = (_c = (_b = (_a = data === null || data === void 0 ? void 0 : data.messages) === null || _a === void 0 ? void 0 : _a[0]) === null || _b === void 0 ? void 0 : _b.id) !== null && _c !== void 0 ? _c : `local_${Date.now()}`;
     return waMessageId;
 }

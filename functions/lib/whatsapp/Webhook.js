@@ -52,7 +52,11 @@ async function handleIncomingMessage(payload) {
     const gestoriaId = (0, Utils_1.getGestoriaId)();
     for (const entry of (_a = payload.entry) !== null && _a !== void 0 ? _a : []) {
         for (const change of (_b = entry.changes) !== null && _b !== void 0 ? _b : []) {
-            const { messages = [], contacts = [], statuses = [], metadata } = change.value;
+            const { messages = [], contacts = [], statuses = [], metadata, errors = [] } = change.value;
+            for (const error of errors) {
+                console.warn('[WA] Error de mensaje:', error);
+                await registrarErrorMensaje(gestoriaId, error);
+            }
             for (const status of statuses) {
                 await actualizarEstadoMensaje(gestoriaId, status.id, status.status);
             }
@@ -100,7 +104,7 @@ async function resolverDueno(cfg, phoneNumberId, displayPhoneRaw) {
 }
 // ─── PROCESAR UN MENSAJE INDIVIDUAL ──────────────────────────────────────────
 async function procesarMensaje(gestoriaId, msg, nombre, metadata) {
-    var _a, _b, _c, _d, _e, _f, _g, _h;
+    var _a, _b, _c, _d, _e, _f, _g, _h, _j;
     const telefono = (0, Utils_1.normalizarTelefono)(msg.from);
     const waMessageId = msg.id;
     const texto = extraerTexto(msg);
@@ -146,6 +150,7 @@ async function procesarMensaje(gestoriaId, msg, nombre, metadata) {
             waPhoneNumberId: phoneNumberId,
             waDisplayPhone: displayPhone,
             creadoEn: ts,
+            lineaOrigen: (_f = owner === null || owner === void 0 ? void 0 : owner.nombre) !== null && _f !== void 0 ? _f : 'sin ruteo',
         };
         if (clienteId)
             convData.clienteId = clienteId;
@@ -167,7 +172,7 @@ async function procesarMensaje(gestoriaId, msg, nombre, metadata) {
         batch.set(convRef, convData);
     }
     else {
-        const prev = (_f = convSnap.data()) !== null && _f !== void 0 ? _f : {};
+        const prev = (_g = convSnap.data()) !== null && _g !== void 0 ? _g : {};
         const update = Object.assign({ ultimoMensaje: texto, ultimaActividad: ts, noLeidos: admin.firestore.FieldValue.increment(1) }, (nombre && prev.nombre === telefono ? { nombre } : {}));
         // La patente/multa puede llegar recién en un mensaje posterior. Si ya hay
         // una consulta CONFIRMADA, no la tocamos.
@@ -195,7 +200,7 @@ async function procesarMensaje(gestoriaId, msg, nombre, metadata) {
     if (esNueva) {
         await enviarBienvenida(telefono, phoneNumberId).catch(err => console.warn('[WA] No se pudo enviar bienvenida:', err));
     }
-    console.log(`[WA] ${telefono} -> "${texto.slice(0, 40)}" | multa:${esMulta} dato:${(_g = dato === null || dato === void 0 ? void 0 : dato.valor) !== null && _g !== void 0 ? _g : '-'} dueno:${(_h = owner === null || owner === void 0 ? void 0 : owner.nombre) !== null && _h !== void 0 ? _h : 'sin ruteo'}`);
+    console.log(`[WA] ${telefono} -> "${texto.slice(0, 40)}" | multa:${esMulta} dato:${(_h = dato === null || dato === void 0 ? void 0 : dato.valor) !== null && _h !== void 0 ? _h : '-'} dueno:${(_j = owner === null || owner === void 0 ? void 0 : owner.nombre) !== null && _j !== void 0 ? _j : 'sin ruteo'}`);
 }
 // Construye el objeto consultaSugerida (estado 'sugerida', pendiente de confirmar).
 function construirSugerida(dato, ts) {
@@ -283,6 +288,17 @@ async function actualizarEstadoMensaje(gestoriaId, waMessageId, status) {
         };
         await snap.docs[0].ref.update({ estado: (_a = estadoMap[status]) !== null && _a !== void 0 ? _a : status });
     }
+}
+// ─── REGISTRAR ERROR DE MENSAJE ──────────────────────────────────────────────
+async function registrarErrorMensaje(gestoriaId, error) {
+    var _a, _b;
+    await db().collection('whatsappErrors').add({
+        gestoriaId,
+        codigo: error.code,
+        titulo: error.title,
+        detalles: (_b = (_a = error.error_data) === null || _a === void 0 ? void 0 : _a.details) !== null && _b !== void 0 ? _b : '',
+        timestamp: now(),
+    });
 }
 // ─── MENSAJE DE BIENVENIDA ────────────────────────────────────────────────────
 async function enviarBienvenida(telefono, phoneNumberId) {

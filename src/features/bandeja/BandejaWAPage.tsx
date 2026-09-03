@@ -671,6 +671,49 @@ function PanelVacio() {
   )
 }
 
+// ─── PESTAÑA DE SECRETARIO (barra superior en vista de control) ───────────────
+
+function TabAgente({
+  label, activa, noLeidos, onClick, nombreAvatar,
+}: {
+  label:         string
+  activa:        boolean
+  noLeidos:      number
+  onClick:       () => void
+  nombreAvatar?: string
+}) {
+  return (
+    <button
+      onClick={onClick}
+      style={{
+        display: 'flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap',
+        cursor: 'pointer', flexShrink: 0, borderRadius: 999,
+        padding: nombreAvatar ? '3px 12px 3px 3px' : '6px 14px',
+        fontSize: 12, fontWeight: 700,
+        background: activa ? WA_GREEN : WA_PANEL,
+        color:      activa ? '#0B141A' : WA_SUBTEXT,
+        border: `1px solid ${activa ? WA_GREEN : WA_DIVIDER}`,
+        transition: 'background 0.12s',
+      }}
+    >
+      {nombreAvatar && <Avatar nombre={nombreAvatar} size={22} />}
+      <span>{label}</span>
+      {noLeidos > 0 && (
+        <span style={{
+          minWidth: 18, height: 18, borderRadius: 999,
+          background: activa ? '#0B141A' : WA_GREEN,
+          color:      activa ? WA_GREEN : '#0B141A',
+          fontSize: 10, fontWeight: 800,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          padding: '0 4px',
+        }}>
+          {noLeidos > 99 ? '99+' : noLeidos}
+        </span>
+      )}
+    </button>
+  )
+}
+
 // ─── PÁGINA PRINCIPAL ─────────────────────────────────────────────────────────
 
 export default function BandejaWAPage() {
@@ -687,13 +730,54 @@ export default function BandejaWAPage() {
   }, [])
   const {
     conversaciones, loading, metricas,
-    cambiarEstado,
+    cambiarEstado, verTodo,
   } = useConversacionesWA()
+  const { activos } = useEquipo()
 
   const [seleccionada, setSeleccionada]   = useState<ConversacionWA | null>(null)
   const [busqueda, setBusqueda]           = useState('')
   const [filtroEstado, setFiltroEstado]   = useState<EstadoConversacion | 'todas'>('todas')
   const [mostrarChat, setMostrarChat]     = useState(false)   // mobile toggle
+  // Pestaña de secretario (solo roles de control). 'todos' | uid | 'sin_asignar'
+  const [tabAgente, setTabAgente]         = useState<string>('todos')
+
+  // Secretarios activos con acceso a la Bandeja → una pestaña cada uno.
+  // Reactivo: si se desactiva/crea/renombra un miembro, las pestañas se ajustan
+  // solas (useEquipo vive por onSnapshot). No hay nombres hardcodeados.
+  const agentesWA = useMemo(
+    () => activos.filter(m => getPermisos(m.rol).verBandejaWA),
+    [activos],
+  )
+  const uidsActivos = useMemo(
+    () => new Set(agentesWA.map(a => a.uid)),
+    [agentesWA],
+  )
+
+  // Si estabas parado en la pestaña de un secretario que se desactivó/salió,
+  // volvemos a "Todos" para no quedar en una vista sin pestaña resaltada.
+  useEffect(() => {
+    if (
+      tabAgente !== 'todos' &&
+      tabAgente !== 'sin_asignar' &&
+      !uidsActivos.has(tabAgente)
+    ) {
+      setTabAgente('todos')
+    }
+  }, [tabAgente, uidsActivos])
+
+  // No leídos por pestaña (sobre TODO el scope, no el filtrado por búsqueda).
+  // "sin_asignar" junta el pool ('') + huérfanos (dueño que ya no está activo).
+  const noLeidosPorTab = useMemo(() => {
+    const acc: Record<string, number> = { todos: 0, sin_asignar: 0 }
+    agentesWA.forEach(a => { acc[a.uid] = 0 })
+    conversaciones.forEach(c => {
+      const n = c.noLeidos ?? 0
+      acc.todos += n
+      if (!c.asignadoA || !uidsActivos.has(c.asignadoA)) acc.sin_asignar += n
+      else acc[c.asignadoA] = (acc[c.asignadoA] ?? 0) + n
+    })
+    return acc
+  }, [conversaciones, agentesWA, uidsActivos])
 
   const convsFiltradas = useMemo(() => {
     return conversaciones.filter(c => {
@@ -702,9 +786,16 @@ export default function BandejaWAPage() {
         || c.telefono.includes(busqueda)
         || c.ultimoMensaje.toLowerCase().includes(busqueda.toLowerCase())
       const matchEstado = filtroEstado === 'todas' || c.estado === filtroEstado
-      return matchBusq && matchEstado
+      // Pestaña de secretario — solo aplica a roles de control (verTodo).
+      const matchTab =
+        !verTodo || tabAgente === 'todos'
+          ? true
+          : tabAgente === 'sin_asignar'
+            ? (!c.asignadoA || !uidsActivos.has(c.asignadoA))
+            : c.asignadoA === tabAgente
+      return matchBusq && matchEstado && matchTab
     })
-  }, [conversaciones, busqueda, filtroEstado])
+  }, [conversaciones, busqueda, filtroEstado, tabAgente, verTodo, uidsActivos])
 
   const handleSelect = (conv: ConversacionWA) => {
     setSeleccionada(conv)
@@ -801,6 +892,38 @@ export default function BandejaWAPage() {
             />
           </div>
         </div>
+
+        {/* Pestañas por secretario — solo roles de control (CEO / Admin Gral) */}
+        {verTodo && agentesWA.length > 0 && (
+          <div style={{
+            display: 'flex', gap: 6, overflowX: 'auto', flexShrink: 0,
+            padding: '8px 10px', background: WA_DARK,
+            borderBottom: `1px solid ${WA_DIVIDER}`,
+          }}>
+            <TabAgente
+              label="Todos"
+              activa={tabAgente === 'todos'}
+              noLeidos={noLeidosPorTab.todos}
+              onClick={() => setTabAgente('todos')}
+            />
+            {agentesWA.map(a => (
+              <TabAgente
+                key={a.uid}
+                label={a.nombre}
+                nombreAvatar={`${a.nombre} ${a.apellido ?? ''}`}
+                activa={tabAgente === a.uid}
+                noLeidos={noLeidosPorTab[a.uid] ?? 0}
+                onClick={() => setTabAgente(a.uid)}
+              />
+            ))}
+            <TabAgente
+              label="Sin asignar"
+              activa={tabAgente === 'sin_asignar'}
+              noLeidos={noLeidosPorTab.sin_asignar}
+              onClick={() => setTabAgente('sin_asignar')}
+            />
+          </div>
+        )}
 
         {/* Lista */}
         <div style={{ flex: 1, overflowY: 'auto' }}>

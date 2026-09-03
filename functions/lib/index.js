@@ -23,7 +23,7 @@ var __importStar = (this && this.__importStar) || function (mod) {
     return result;
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.gestionarEquipo = exports.kommoRecibirLead = exports.iniciarDescargaCupones = exports.subirCuponInfraccion = exports.seedAutomatizaciones = exports.motorAutomatizaciones = exports.motorAlertasDiario = exports.colaProximaConsulta = exports.guardarConsultaInfraccion = exports.crearConsultaPublica = exports.whatsappSend = exports.whatsappWebhook = exports.claudeProxy = void 0;
+exports.gestionarEquipo = exports.kommoRecibirLead = exports.iniciarDescargaCupones = exports.subirCuponInfraccion = exports.seedAutomatizaciones = exports.motorAutomatizaciones = exports.motorAlertasDiario = exports.colaProximaConsulta = exports.guardarConsultaInfraccion = exports.crearConsultaPublica = exports.whatsappTemplate = exports.whatsappSend = exports.whatsappWebhook = exports.claudeProxy = void 0;
 // functions/src/index.ts
 // ─── PROXY SEGURO PARA LA API DE CLAUDE ──────────────────────────────────────
 // La API key de Anthropic NUNCA llega al cliente.
@@ -40,6 +40,7 @@ const functions = __importStar(require("firebase-functions"));
 const https_1 = require("firebase-functions/v2/https");
 const Webhook_1 = require("./whatsapp/Webhook");
 const Send_1 = require("./whatsapp/Send");
+const Template_1 = require("./whatsapp/Template");
 const https_2 = require("firebase-functions/v2/https");
 const params_1 = require("firebase-functions/params");
 const https = __importStar(require("https"));
@@ -198,6 +199,16 @@ exports.whatsappSend = (0, https_2.onCall)({
     enforceAppCheck: false, // activar en producción si se usa App Check
 }, async (request) => {
     return (0, Send_1.handleSendMessage)(request.data, request.auth
+        ? { auth: { uid: request.auth.uid, token: request.auth.token } }
+        : {});
+});
+// ─── WHATSAPP TEMPLATE (Callable) ───────────────────────────────────────────
+exports.whatsappTemplate = (0, https_2.onCall)({
+    region: 'us-central1',
+    secrets: ['WHATSAPP_TOKEN', 'WHATSAPP_PHONE_NUMBER_ID', 'GESTORIA_ID'],
+    enforceAppCheck: false,
+}, async (request) => {
+    return (0, Template_1.handleSendTemplate)(request.data, request.auth
         ? { auth: { uid: request.auth.uid, token: request.auth.token } }
         : {});
 });
