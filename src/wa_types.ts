@@ -37,6 +37,8 @@ export interface ConversacionWA {
   leadId?:         string          // lead creado por el webhook al abrir la conversación
   // Clasificación de multas
   consultaSugerida?: ConsultaSugeridaWA | null   // chip de "consultar infracciones"
+  esConsultaMulta?:  boolean                     // la conversación es sobre multas
+  consultasEncoladas?: number                    // cuántas consultas se mandaron a la cola
   // Meta
   waPhoneNumberId: string          // ID de Meta del número que RECIBIÓ (clave de ruteo)
   waDisplayPhone?: string          // número visible de la gestoría que recibió

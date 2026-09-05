@@ -48,29 +48,41 @@ export const colaProximaConsulta = onRequest(async (req, res) => {
       .limit(50)
       .get()
 
-    // 4) Descartar bloqueadas recientes + ordenar por antigüedad (en memoria)
+    // 4) Descartar bloqueadas recientes (en memoria)
     const ahora = Date.now()
-    const disponibles = snap.docs
-      .filter(d => {
-        const b = (d.data() as any).bloqueadoEn
-        if (!b) return true
-        const t = b.toMillis ? b.toMillis() : 0
-        return ahora - t > BLOQUEO_MS
-      })
-      .sort((a, b) => {
-        const ta = (a.data() as any).creadaEn?.toMillis?.() ?? 0
-        const tb = (b.data() as any).creadaEn?.toMillis?.() ?? 0
-        return ta - tb
-      })
-
-    logger.info('[cola] búsqueda', {
-      gestoriaId, pendientes: snap.size, disponibles: disponibles.length,
+    const disponibles = snap.docs.filter(d => {
+      const b = (d.data() as any).bloqueadoEn
+      if (!b) return true
+      const t = b.toMillis ? b.toMillis() : 0
+      return ahora - t > BLOQUEO_MS
     })
 
-    if (!disponibles.length) { res.status(200).json({ consulta: null }); return }
+    // 5) Prioridad por secretario: primero LAS MÍAS (asignadoA == uid), luego el
+    //    POOL (sin asignar). Nunca tomamos consultas asignadas a OTRO secretario:
+    //    cada uno resuelve el captcha de sus propios leads.
+    const porAntiguedad = (a: admin.firestore.QueryDocumentSnapshot,
+                           b: admin.firestore.QueryDocumentSnapshot) => {
+      const ta = (a.data() as any).creadaEn?.toMillis?.() ?? 0
+      const tb = (b.data() as any).creadaEn?.toMillis?.() ?? 0
+      return ta - tb
+    }
+    const mias = disponibles
+      .filter(d => (d.data() as any).asignadoA === decoded.uid)
+      .sort(porAntiguedad)
+    const pool = disponibles
+      .filter(d => !(d.data() as any).asignadoA)
+      .sort(porAntiguedad)
+    const elegida = mias[0] ?? pool[0] ?? null
 
-    // 5) Bloquear la más antigua y devolverla
-    const doc = disponibles[0]
+    logger.info('[cola] búsqueda', {
+      gestoriaId, uid: decoded.uid,
+      pendientes: snap.size, mias: mias.length, pool: pool.length,
+    })
+
+    if (!elegida) { res.status(200).json({ consulta: null }); return }
+
+    // 6) Bloquear la elegida y devolverla
+    const doc = elegida
     await doc.ref.update({
       bloqueadoEn: admin.firestore.FieldValue.serverTimestamp(),
     })

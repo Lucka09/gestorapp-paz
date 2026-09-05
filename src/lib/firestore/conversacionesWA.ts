@@ -1,7 +1,7 @@
 import {
   collection, doc, addDoc, updateDoc, onSnapshot,
   query, where, orderBy, serverTimestamp,
-  getDocs, limit,
+  getDocs, limit, writeBatch,
   type Unsubscribe, type CollectionReference,
 } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
@@ -242,6 +242,43 @@ export async function guardarMensajeSaliente(
     ultimaActividad: serverTimestamp(),
   })
   return ref.id
+}
+
+// ─── REASIGNACIÓN MASIVA ──────────────────────────────────────────────────────
+// "Pasar todos los chats de X a Y" — para cuando un secretario se va, cambia o
+// es reemplazado. Client-side, mismas reglas que la reasignación individual.
+// Dos where de igualdad (gestoriaId + asignadoA) → sin índice compuesto.
+// Chunkea de a 400 (writeBatch admite hasta 500). Devuelve cuántos chats movió.
+export async function reasignarChatsMasivo(
+  gestoriaId: string,
+  deUid:      string,
+  aUid:       string,
+  aNombre:    string,
+): Promise<number> {
+  if (!gestoriaId || !deUid || deUid === aUid) return 0
+
+  const q = query(
+    conversacionesCol,
+    where('gestoriaId', '==', gestoriaId),
+    where('asignadoA',  '==', deUid),
+  )
+  const snap = await getDocs(q)
+  if (snap.empty) return 0
+
+  const docs  = snap.docs
+  const CHUNK = 400
+  for (let i = 0; i < docs.length; i += CHUNK) {
+    const batch = writeBatch(db)
+    for (const d of docs.slice(i, i + CHUNK)) {
+      batch.update(d.ref, {
+        asignadoA:      aUid,
+        asignadoNombre: aNombre,
+        actualizadoEn:  serverTimestamp(),
+      })
+    }
+    await batch.commit()
+  }
+  return docs.length
 }
 
 // ─── MÉTRICAS ─────────────────────────────────────────────────────────────────

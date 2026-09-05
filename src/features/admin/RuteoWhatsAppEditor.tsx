@@ -22,12 +22,13 @@ import {
 } from 'firebase/firestore'
 import {
   Phone, Plus, Trash2, Save, Link2, AlertTriangle, Check,
+  Users, ArrowRight, RefreshCw,
 } from 'lucide-react'
 import { db }          from '@/lib/firebase'
 import { useAuth }     from '@/hooks/useAuth'
 import { useEquipo }   from '@/hooks/useEquipo'
 import { usePermisos } from '@/hooks/usePermisos'
-import { getPermisos } from '@/utils/permisos'
+import { reasignarChatsMasivo } from '@/lib/firestore/conversacionesWA'
 
 // ─── TIPO LOCAL (espejo de Webhook.ts) ───────────────────────────────────────
 
@@ -46,9 +47,9 @@ const soloDigitos = (s: string) => (s || '').replace(/\D/g, '')
 // ─── COMPONENTE ───────────────────────────────────────────────────────────────
 
 export default function RuteoWhatsAppEditor() {
-  const { user }    = useAuth()
-  const { puede }   = usePermisos()
-  const { activos } = useEquipo()
+  const { user }              = useAuth()
+  const { puede }             = usePermisos()
+  const { equipo, activos }   = useEquipo()
   const puedeEditar = puede('editarConfiguracion')
 
   const [lineas,   setLineas]   = useState<LineaRuteo[]>([])
@@ -57,11 +58,50 @@ export default function RuteoWhatsAppEditor() {
   const [guardado, setGuardado] = useState(false)
   const [error,    setError]    = useState<string | null>(null)
 
+  // Reasignación masiva de chats ("pasar todos los chats de X a Y")
+  const [deUid, setDeUid]         = useState('')
+  const [aUid,  setAUid]          = useState('')
+  const [movBusy, setMovBusy]     = useState(false)
+  const [movResult, setMovResult] = useState<string | null>(null)
+
   // Secretarios candidatos a dueños de línea (mismos que las pestañas de Bandeja)
   const agentes = useMemo(
-    () => activos.filter(m => getPermisos(m.rol).verBandejaWA),
+    () => activos.filter(m => m.rol === 'asesor_comercial'),
     [activos],
   )
+
+  const nombreDe = (uid: string) => {
+    const m = equipo.find(x => x.uid === uid)
+    return m ? `${m.nombre} ${m.apellido ?? ''}`.trim() : 'ese secretario'
+  }
+
+  const handleReasignarMasivo = async () => {
+    if (!puedeEditar || !deUid || !aUid || deUid === aUid) return
+    const aMiembro = activos.find(m => m.uid === aUid)
+    const aNombre  = aMiembro ? `${aMiembro.nombre} ${aMiembro.apellido ?? ''}`.trim() : ''
+    const ok = window.confirm(
+      `¿Pasar TODOS los chats de ${nombreDe(deUid)} a ${aNombre}? ` +
+      `Se reasignan las conversaciones de la Bandeja. Esta acción no se puede deshacer en lote.`,
+    )
+    if (!ok) return
+
+    setMovBusy(true)
+    setMovResult(null)
+    try {
+      const gestoriaId = String((user as any)?.gestoriaId ?? '')
+      const n = await reasignarChatsMasivo(gestoriaId, deUid, aUid, aNombre)
+      setMovResult(
+        n === 0
+          ? `${nombreDe(deUid)} no tenía chats asignados.`
+          : `Listo: ${n} chat(s) pasaron a ${aNombre}.`,
+      )
+      setDeUid(''); setAUid('')
+    } catch (e: any) {
+      setMovResult(`Error: ${e?.message ?? 'no se pudo reasignar'}`)
+    } finally {
+      setMovBusy(false)
+    }
+  }
 
   // ── Cargar líneas del doc de configuración (live) ──────────────────────────
   useEffect(() => {
@@ -285,6 +325,74 @@ export default function RuteoWhatsAppEditor() {
         <div className="flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
           <AlertTriangle size={16} className="mt-0.5 shrink-0" />
           <span>{error}</span>
+        </div>
+      )}
+
+      {/* ── Reasignación masiva de chats ─────────────────────────────────── */}
+      {puedeEditar && (
+        <div className="mt-2 rounded-xl border border-gray-200 bg-gray-50 p-4">
+          <div className="flex items-center gap-2">
+            <Users size={16} className="text-[#D4621A]" />
+            <h4 className="text-sm font-bold text-gray-900">Reasignar chats de un secretario</h4>
+          </div>
+          <p className="mt-1 text-xs text-gray-500">
+            Cuando un secretario se va o cambia: pasá todas sus conversaciones de
+            la Bandeja a otra persona de una sola vez.
+          </p>
+
+          <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-[1fr_auto_1fr_auto] sm:items-end">
+            {/* De */}
+            <div>
+              <label className="mb-1 block text-xs font-semibold text-gray-600">De</label>
+              <select
+                value={deUid}
+                onChange={e => { setDeUid(e.target.value); setMovResult(null) }}
+                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none focus:border-[#D4621A]"
+              >
+                <option value="">— Elegí un secretario —</option>
+                {equipo.map(m => (
+                  <option key={m.uid} value={m.uid}>
+                    {m.nombre} {m.apellido ?? ''}{m.activo ? '' : ' (inactivo)'}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="hidden pb-2 text-gray-400 sm:block">
+              <ArrowRight size={18} />
+            </div>
+
+            {/* A */}
+            <div>
+              <label className="mb-1 block text-xs font-semibold text-gray-600">A</label>
+              <select
+                value={aUid}
+                onChange={e => { setAUid(e.target.value); setMovResult(null) }}
+                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none focus:border-[#D4621A]"
+              >
+                <option value="">— Elegí un secretario —</option>
+                {agentes.map(m => (
+                  <option key={m.uid} value={m.uid}>
+                    {m.nombre} {m.apellido ?? ''}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <button
+              onClick={handleReasignarMasivo}
+              disabled={movBusy || !deUid || !aUid || deUid === aUid}
+              className="flex items-center justify-center gap-1.5 rounded-lg border border-[#D4621A] px-4 py-2 text-sm font-semibold text-[#D4621A] hover:bg-[#D4621A]/10 disabled:opacity-50"
+            >
+              {movBusy
+                ? <><RefreshCw size={16} className="animate-spin" /> Pasando…</>
+                : <>Pasar chats</>}
+            </button>
+          </div>
+
+          {movResult && (
+            <p className="mt-2 text-xs font-semibold text-emerald-700">{movResult}</p>
+          )}
         </div>
       )}
     </div>

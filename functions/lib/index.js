@@ -23,7 +23,7 @@ var __importStar = (this && this.__importStar) || function (mod) {
     return result;
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.gestionarEquipo = exports.kommoRecibirLead = exports.iniciarDescargaCupones = exports.subirCuponInfraccion = exports.seedAutomatizaciones = exports.motorAutomatizaciones = exports.motorAlertasDiario = exports.colaProximaConsulta = exports.guardarConsultaInfraccion = exports.crearConsultaPublica = exports.whatsappTemplate = exports.whatsappSend = exports.whatsappWebhook = exports.claudeProxy = void 0;
+exports.gestionarEquipo = exports.kommoRecibirLead = exports.iniciarDescargaCupones = exports.subirCuponInfraccion = exports.seedAutomatizaciones = exports.motorAutomatizaciones = exports.motorAlertasDiario = exports.colaProximaConsulta = exports.guardarConsultaInfraccion = exports.crearConsultaPublica = exports.enviarPushNotificacion = exports.whatsappTemplate = exports.whatsappSend = exports.whatsappWebhook = exports.claudeProxy = void 0;
 // functions/src/index.ts
 // ─── PROXY SEGURO PARA LA API DE CLAUDE ──────────────────────────────────────
 // La API key de Anthropic NUNCA llega al cliente.
@@ -213,6 +213,8 @@ exports.whatsappTemplate = (0, https_2.onCall)({
         : {});
 });
 // ─── INFRACCIONES / MULTAS ───────────────────────────────────────────────────
+var pushNotificacion_1 = require("./notificaciones/pushNotificacion");
+Object.defineProperty(exports, "enviarPushNotificacion", { enumerable: true, get: function () { return pushNotificacion_1.enviarPushNotificacion; } });
 var crearConsultaPublica_1 = require("./infracciones/crearConsultaPublica");
 Object.defineProperty(exports, "crearConsultaPublica", { enumerable: true, get: function () { return crearConsultaPublica_1.crearConsultaPublica; } });
 var guardarConsultaInfraccion_1 = require("./infracciones/guardarConsultaInfraccion");

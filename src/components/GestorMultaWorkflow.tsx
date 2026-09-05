@@ -29,6 +29,7 @@ import {
 import { PanelDescargaCupones } from '@/components/cupones/PanelDescargaCupones'
 import { getFunctions, httpsCallable } from 'firebase/functions'
 import { app } from '@/lib/firebase'
+import { Timestamp } from 'firebase/firestore'
 import { iniciarDescargaCuponesEnExtension } from '@/lib/puenteExtension'
 
 // ─── HELPERS ─────────────────────────────────────────────────────────────────
@@ -391,7 +392,7 @@ const iniciarJob = httpsCallable(functions, 'iniciarDescargaCupones')
       ...nuevoPago,
       registradoPor:       user.uid,
       registradoPorNombre: `${user.nombre} ${user.apellido}`.trim(),
-      registradoEn:        { toDate: () => new Date() } as any,
+      registradoEn:        Timestamp.now(),
     }
     const hist = [...p2.historialPagos, pago]
     setP2(prev => ({ ...prev, historialPagos: hist, montoTotal: hist.reduce((s, p) => s + p.monto, 0) }))

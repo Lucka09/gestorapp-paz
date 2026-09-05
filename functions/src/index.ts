@@ -265,6 +265,7 @@ export const whatsappTemplate = onCall(
 )
 
 // ─── INFRACCIONES / MULTAS ───────────────────────────────────────────────────
+export { enviarPushNotificacion } from './notificaciones/pushNotificacion'
 export { crearConsultaPublica }      from './infracciones/crearConsultaPublica'
 export { guardarConsultaInfraccion } from './infracciones/guardarConsultaInfraccion'
 export { colaProximaConsulta }       from './infracciones/colaProximaConsulta'

@@ -10,6 +10,7 @@ import type {
   CampanaInput, FiltroAudiencia, TemplateCampana, CriterioAudiencia,
 } from '@/campana_types'
 import { TIPO_TRAMITE_LABELS } from '@/types'
+import { Timestamp } from 'firebase/firestore'
 
 const PASOS = ['Audiencia', 'Template', 'Configurar', 'Confirmar']
 
@@ -46,7 +47,7 @@ export default function ModalNuevaCampana({ onClose, onCreada }: Props) {
       template,
       filtro,
       programadaPara: programada && fechaEnvio
-        ? { toDate: () => new Date(fechaEnvio) } as any
+        ? Timestamp.fromDate(new Date(fechaEnvio))
         : undefined,
     }
     const id = await crear(input)

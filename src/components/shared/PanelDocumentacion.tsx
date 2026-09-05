@@ -361,7 +361,7 @@ export function PanelDocumentacion({ tramiteId, tipo, defaultOpen = true }: Prop
     setLoading(true)
 
     let coleccion: string
-    if (tipo === 'inscripcion_inicial')    coleccion = 'inscripcionWorkflows'
+    if (tipo === 'inscripcion_inicial')    coleccion = 'inscripcionWorkflow'
     else if (tipo === 'descargo_multa')    coleccion = 'multaWorkflow'
     else if (tipo === 'transferencia')     coleccion = 'transferenciaWorkflow'
     else { setLoading(false); return }

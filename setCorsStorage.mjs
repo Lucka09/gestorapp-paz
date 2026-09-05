@@ -43,6 +43,7 @@ const corsConfiguration = [
       'https://gestorapp-paz.web.app',
       'https://gestorapp-paz.firebaseapp.com',
       'https://gestorapp-tau.vercel.app',
+      'https://panel.gestoriapaz.com',
     ],
     method: ['GET', 'POST', 'PUT', 'DELETE', 'HEAD', 'OPTIONS'],
     responseHeader: [

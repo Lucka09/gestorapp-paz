@@ -43,7 +43,7 @@ const https_1 = require("firebase-functions/v2/https");
 const firebase_functions_1 = require("firebase-functions");
 const BLOQUEO_MS = 10 * 60 * 1000; // 10 min: si no se procesa, vuelve a la cola
 exports.colaProximaConsulta = (0, https_1.onRequest)(async (req, res) => {
-    var _a, _b;
+    var _a, _b, _c, _d;
     res.set('Access-Control-Allow-Origin', '*');
     res.set('Access-Control-Allow-Headers', 'Content-Type, Authorization');
     res.set('Access-Control-Allow-Methods', 'GET, OPTIONS');
@@ -75,31 +75,41 @@ exports.colaProximaConsulta = (0, https_1.onRequest)(async (req, res) => {
             .where('estado', '==', 'pendiente')
             .limit(50)
             .get();
-        // 4) Descartar bloqueadas recientes + ordenar por antigüedad (en memoria)
+        // 4) Descartar bloqueadas recientes (en memoria)
         const ahora = Date.now();
-        const disponibles = snap.docs
-            .filter(d => {
+        const disponibles = snap.docs.filter(d => {
             const b = d.data().bloqueadoEn;
             if (!b)
                 return true;
             const t = b.toMillis ? b.toMillis() : 0;
             return ahora - t > BLOQUEO_MS;
-        })
-            .sort((a, b) => {
+        });
+        // 5) Prioridad por secretario: primero LAS MÍAS (asignadoA == uid), luego el
+        //    POOL (sin asignar). Nunca tomamos consultas asignadas a OTRO secretario:
+        //    cada uno resuelve el captcha de sus propios leads.
+        const porAntiguedad = (a, b) => {
             var _a, _b, _c, _d, _e, _f;
             const ta = (_c = (_b = (_a = a.data().creadaEn) === null || _a === void 0 ? void 0 : _a.toMillis) === null || _b === void 0 ? void 0 : _b.call(_a)) !== null && _c !== void 0 ? _c : 0;
             const tb = (_f = (_e = (_d = b.data().creadaEn) === null || _d === void 0 ? void 0 : _d.toMillis) === null || _e === void 0 ? void 0 : _e.call(_d)) !== null && _f !== void 0 ? _f : 0;
             return ta - tb;
-        });
+        };
+        const mias = disponibles
+            .filter(d => d.data().asignadoA === decoded.uid)
+            .sort(porAntiguedad);
+        const pool = disponibles
+            .filter(d => !d.data().asignadoA)
+            .sort(porAntiguedad);
+        const elegida = (_c = (_b = mias[0]) !== null && _b !== void 0 ? _b : pool[0]) !== null && _c !== void 0 ? _c : null;
         firebase_functions_1.logger.info('[cola] búsqueda', {
-            gestoriaId, pendientes: snap.size, disponibles: disponibles.length,
+            gestoriaId, uid: decoded.uid,
+            pendientes: snap.size, mias: mias.length, pool: pool.length,
         });
-        if (!disponibles.length) {
+        if (!elegida) {
             res.status(200).json({ consulta: null });
             return;
         }
-        // 5) Bloquear la más antigua y devolverla
-        const doc = disponibles[0];
+        // 6) Bloquear la elegida y devolverla
+        const doc = elegida;
         await doc.ref.update({
             bloqueadoEn: admin.firestore.FieldValue.serverTimestamp(),
         });
@@ -112,7 +122,7 @@ exports.colaProximaConsulta = (0, https_1.onRequest)(async (req, res) => {
                 dni: c.dni || '',
                 tipoDocumento: c.tipoDocumento || 'DNI',
                 genero: c.genero || '',
-                contactoNombre: ((_b = c.contacto) === null || _b === void 0 ? void 0 : _b.nombre) || '',
+                contactoNombre: ((_d = c.contacto) === null || _d === void 0 ? void 0 : _d.nombre) || '',
                 contacto: c.contacto || null,
             },
         });

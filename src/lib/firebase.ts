@@ -31,6 +31,7 @@ export const db = (() => {
     return initializeFirestore(app, {
       localCache: memoryLocalCache(),
       experimentalForceLongPolling: true,
+      ignoreUndefinedProperties: true,
     })
   } catch {
     return getFirestore(app)
@@ -43,6 +44,7 @@ export const secondaryDb = (() => {
   try {
     return initializeFirestore(secondaryApp, {
       experimentalForceLongPolling: true,
+      ignoreUndefinedProperties: true,
     })
   } catch {
     return getFirestore(secondaryApp)

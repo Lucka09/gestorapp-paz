@@ -10,7 +10,6 @@ import { es } from 'date-fns/locale'
 import { useConversacionesWA, useMensajesWA, useNoLeidosWA } from '@/hooks/useConversacionesWA'
 import { useAuth }          from '@/hooks/useAuth'
 import { useEquipo }        from '@/hooks/useEquipo'
-import { getPermisos }      from '@/utils/permisos'
 import { usePageTitle }     from '@/hooks/usePageTitle'
 import { useGestoria }      from '@/context/GestoriaContext'
 import { crearConsultaDesdeWA }       from '@/lib/firestore/consultasInfracciones'
@@ -222,7 +221,7 @@ function PanelChat({
 
   // Candidatos para reasignar: miembros activos con acceso a la Bandeja WA
   const agentesWA = useMemo(
-    () => activos.filter(m => getPermisos(m.rol).verBandejaWA),
+    () => activos.filter(m => m.rol === 'asesor_comercial'),
     [activos],
   )
 
@@ -474,7 +473,9 @@ function PanelChat({
         }}>
           <Check size={14} color={WA_GREEN} />
           <span style={{ color: WA_GREEN, fontSize: 12, fontWeight: 600 }}>
-            Consulta de infracciones enviada a la cola
+            {(conv.consultasEncoladas ?? 0) > 1
+              ? `${conv.consultasEncoladas} consultas de infracciones en la cola`
+              : 'Consulta de infracciones enviada a la cola'}
           </span>
         </div>
       )}
@@ -745,7 +746,7 @@ export default function BandejaWAPage() {
   // Reactivo: si se desactiva/crea/renombra un miembro, las pestañas se ajustan
   // solas (useEquipo vive por onSnapshot). No hay nombres hardcodeados.
   const agentesWA = useMemo(
-    () => activos.filter(m => getPermisos(m.rol).verBandejaWA),
+    () => activos.filter(m => m.rol === 'asesor_comercial'),
     [activos],
   )
   const uidsActivos = useMemo(
