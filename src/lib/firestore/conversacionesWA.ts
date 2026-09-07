@@ -1,7 +1,7 @@
 import {
   collection, doc, addDoc, updateDoc, onSnapshot,
   query, where, orderBy, serverTimestamp,
-  getDocs, limit, writeBatch,
+  getDoc, getDocs, limit, writeBatch,
   type Unsubscribe, type CollectionReference,
 } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
@@ -237,10 +237,30 @@ export async function guardarMensajeSaliente(
     estado:     'enviado'  as const,
     enviadoPor,
   })
-  await updateDoc(conversacionDoc(conversacionId), {
+
+  const update: Record<string, unknown> = {
     ultimoMensaje:   texto,
     ultimaActividad: serverTimestamp(),
-  })
+  }
+
+  // ── Tiempo de primera respuesta (se registra una sola vez por conversación) ──
+  // Segundos entre el primer mensaje del cliente (conv.creadoEn, que setea el
+  // webhook) y esta primera respuesta del agente. Forward-only: solo cuenta a
+  // partir de que este código está en producción.
+  try {
+    const convSnap = await getDoc(conversacionDoc(conversacionId))
+    const conv = convSnap.data() as any
+    if (conv && !conv.primeraRespuestaEn && conv.creadoEn?.toMillis) {
+      const segs = Math.max(0, Math.round((Date.now() - conv.creadoEn.toMillis()) / 1000))
+      update.primeraRespuestaEn   = serverTimestamp()
+      update.primeraRespuestaSegs = segs
+      update.primeraRespuestaPor  = enviadoPor
+    }
+  } catch (e) {
+    console.warn('[WA] no se pudo calcular primera respuesta:', e)
+  }
+
+  await updateDoc(conversacionDoc(conversacionId), update)
   return ref.id
 }
 

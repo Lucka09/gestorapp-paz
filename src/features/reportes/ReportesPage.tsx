@@ -22,6 +22,7 @@ import { usePageTitle } from '@/hooks/usePageTitle'
 import ControlPaginacion from '@/components/shared/ControlPaginacion'
 import { useCierreMensual } from '@/hooks/useCierreMensual'
 import { Archive, AlertTriangle as AlertWarn, ChevronDown, ChevronUp } from 'lucide-react'
+import MetricasSecretariosPanel from '@/features/reportes/MetricasSecretariosPanel'
 
 const MESES = [
   'Enero','Febrero','Marzo','Abril','Mayo','Junio',
@@ -204,7 +205,7 @@ export default function ReportesPage() {
 
   return (
     <div className="space-y-5 animate-fadein">
-
+    <MetricasSecretariosPanel />
       <PageHeader
         title="Reportes"
         subtitle="Resúmenes mensuales para análisis y contaduría"

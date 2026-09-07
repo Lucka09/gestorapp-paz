@@ -16,6 +16,7 @@ import { PageHeader, Card, Spinner } from '@/components/ui'
 import { formatPesos } from '@/utils'
 import { useGestoriaId } from '@/context/GestoriaContext'
 import { usePageTitle } from '@/hooks/usePageTitle'
+import MetricasSecretariosPanel from '@/features/reportes/MetricasSecretariosPanel'
 
 // ─── COLORES ──────────────────────────────────────────────────────────────────
 
@@ -161,7 +162,7 @@ export default function AnalyticsPage() {
 
   return (
     <div className="space-y-6 animate-fadein">
-
+     <MetricasSecretariosPanel />
       <PageHeader
         title="Analytics"
         subtitle="Tendencias, proyecciones y análisis de negocio"

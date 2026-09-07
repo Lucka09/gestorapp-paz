@@ -22,7 +22,7 @@ import {
 } from 'firebase/firestore'
 import {
   Phone, Plus, Trash2, Save, Link2, AlertTriangle, Check,
-  Users, ArrowRight, RefreshCw,
+  Users, ArrowRight, RefreshCw, BellRing, MessageCircle,
 } from 'lucide-react'
 import { db }          from '@/lib/firebase'
 import { useAuth }     from '@/hooks/useAuth'
@@ -64,6 +64,17 @@ export default function RuteoWhatsAppEditor() {
   const [movBusy, setMovBusy]     = useState(false)
   const [movResult, setMovResult] = useState<string | null>(null)
 
+  // Recordatorios de vencimiento por WhatsApp
+  const [recActivo,   setRecActivo]   = useState(false)
+  const [recDias,     setRecDias]     = useState('30, 7, 1')
+  const [recTemplate, setRecTemplate] = useState('recordatorio_vencimiento')
+  const [recBusy,     setRecBusy]     = useState(false)
+  const [recSaved,    setRecSaved]    = useState(false)
+
+  // Mensaje de bienvenida automático (on/off, guardado inmediato)
+  const [bienvActivo, setBienvActivo] = useState(true)
+  const [bienvSaved,  setBienvSaved]  = useState(false)
+
   // Secretarios candidatos a dueños de línea (mismos que las pestañas de Bandeja)
   const agentes = useMemo(
     () => activos.filter(m => m.rol === 'asesor_comercial'),
@@ -73,6 +84,54 @@ export default function RuteoWhatsAppEditor() {
   const nombreDe = (uid: string) => {
     const m = equipo.find(x => x.uid === uid)
     return m ? `${m.nombre} ${m.apellido ?? ''}`.trim() : 'ese secretario'
+  }
+
+  const toggleBienvenida = async (valor: boolean) => {
+    if (!puedeEditar || !user?.uid) return
+    setBienvActivo(valor)               // optimista
+    try {
+      await setDoc(
+        CONFIG_REF(),
+        { bienvenidaWA: { activo: valor }, actualizadoEn: serverTimestamp(), actualizadoPor: user.uid },
+        { merge: true },
+      )
+      setBienvSaved(true)
+      setTimeout(() => setBienvSaved(false), 2000)
+    } catch (e: any) {
+      setBienvActivo(!valor)            // revertir si falla
+      setError(e?.message ?? 'No se pudo cambiar la bienvenida.')
+    }
+  }
+
+  const guardarRecordatorios = async () => {
+    if (!puedeEditar || !user?.uid) return
+    const diasAviso = recDias
+      .split(',')
+      .map(s => Number(s.trim()))
+      .filter(n => Number.isFinite(n) && n >= 0)
+    setRecBusy(true)
+    try {
+      await setDoc(
+        CONFIG_REF(),
+        {
+          recordatoriosVencimiento: {
+            activo:         recActivo,
+            diasAviso:      diasAviso.length ? diasAviso : [30, 7, 1],
+            templateNombre: recTemplate.trim() || 'recordatorio_vencimiento',
+            idioma:         'es_AR',
+          },
+          actualizadoEn:  serverTimestamp(),
+          actualizadoPor: user.uid,
+        },
+        { merge: true },
+      )
+      setRecSaved(true)
+      setTimeout(() => setRecSaved(false), 2500)
+    } catch (e: any) {
+      setError(e?.message ?? 'No se pudo guardar la config de recordatorios.')
+    } finally {
+      setRecBusy(false)
+    }
   }
 
   const handleReasignarMasivo = async () => {
@@ -108,8 +167,21 @@ export default function RuteoWhatsAppEditor() {
     const unsub = onSnapshot(
       CONFIG_REF(),
       snap => {
-        const data = snap.data() as { ruteoWhatsApp?: { lineas?: LineaRuteo[] } } | undefined
+        const data = snap.data() as {
+          ruteoWhatsApp?: { lineas?: LineaRuteo[] }
+          recordatoriosVencimiento?: {
+            activo?: boolean; diasAviso?: number[]; templateNombre?: string
+          }
+          bienvenidaWA?: { activo?: boolean }
+        } | undefined
         setLineas(data?.ruteoWhatsApp?.lineas ?? [])
+        const rc = data?.recordatoriosVencimiento
+        if (rc) {
+          setRecActivo(!!rc.activo)
+          if (Array.isArray(rc.diasAviso) && rc.diasAviso.length) setRecDias(rc.diasAviso.join(', '))
+          if (rc.templateNombre) setRecTemplate(rc.templateNombre)
+        }
+        setBienvActivo(data?.bienvenidaWA?.activo ?? true)
         setCargando(false)
       },
       err => {
@@ -393,6 +465,95 @@ export default function RuteoWhatsAppEditor() {
           {movResult && (
             <p className="mt-2 text-xs font-semibold text-emerald-700">{movResult}</p>
           )}
+        </div>
+      )}
+
+      {/* ── Mensaje de bienvenida automático ─────────────────────────────── */}
+      {puedeEditar && (
+        <div className="mt-2 rounded-xl border border-gray-200 bg-white p-4">
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2">
+              <MessageCircle size={16} className="text-[#D4621A]" />
+              <div>
+                <h4 className="text-sm font-bold text-gray-900">Mensaje de bienvenida automático</h4>
+                <p className="text-xs text-gray-500">
+                  Se envía al recibir el primer mensaje de un contacto nuevo.
+                </p>
+              </div>
+            </div>
+            <label className="relative inline-flex cursor-pointer items-center">
+              <input
+                type="checkbox"
+                checked={bienvActivo}
+                onChange={e => toggleBienvenida(e.target.checked)}
+                className="peer sr-only"
+              />
+              <div className="h-6 w-11 rounded-full bg-gray-300 after:absolute after:left-0.5 after:top-0.5 after:h-5 after:w-5 after:rounded-full after:bg-white after:transition-all peer-checked:bg-[#D4621A] peer-checked:after:translate-x-5" />
+            </label>
+          </div>
+          {bienvSaved && <p className="mt-2 text-xs font-semibold text-emerald-700">Guardado</p>}
+        </div>
+      )}
+
+      {/* ── Recordatorios de vencimiento por WhatsApp ────────────────────── */}
+      {puedeEditar && (
+        <div className="mt-2 rounded-xl border border-gray-200 bg-white p-4">
+          <div className="flex items-center gap-2">
+            <BellRing size={16} className="text-[#D4621A]" />
+            <h4 className="text-sm font-bold text-gray-900">Recordatorios de vencimiento por WhatsApp</h4>
+          </div>
+          <p className="mt-1 text-xs text-gray-500">
+            Avisa al cliente antes de que venza VTV, patente, seguro o licencia.
+            Genera recurrencia sin trabajo manual. <strong>Requiere un template
+            aprobado en Meta</strong> — el envío corre todos los días a las 9:00.
+          </p>
+
+          <label className="mt-3 flex cursor-pointer items-center gap-2">
+            <input
+              type="checkbox"
+              checked={recActivo}
+              onChange={e => { setRecActivo(e.target.checked); setRecSaved(false) }}
+              className="h-4 w-4 accent-[#D4621A]"
+            />
+            <span className="text-sm font-semibold text-gray-800">Activar recordatorios automáticos</span>
+          </label>
+
+          <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div>
+              <label className="mb-1 block text-xs font-semibold text-gray-600">
+                Días de aviso (antes de vencer)
+              </label>
+              <input
+                value={recDias}
+                onChange={e => { setRecDias(e.target.value); setRecSaved(false) }}
+                placeholder="30, 7, 1"
+                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none focus:border-[#D4621A]"
+              />
+              <p className="mt-1 text-[11px] text-gray-400">Separados por coma. Agregá 0 para avisar el mismo día.</p>
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-semibold text-gray-600">
+                Nombre del template (Meta)
+              </label>
+              <input
+                value={recTemplate}
+                onChange={e => { setRecTemplate(e.target.value); setRecSaved(false) }}
+                placeholder="recordatorio_vencimiento"
+                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none focus:border-[#D4621A]"
+              />
+              <p className="mt-1 text-[11px] text-gray-400">Debe coincidir EXACTO con el aprobado en Meta.</p>
+            </div>
+          </div>
+
+          <button
+            onClick={guardarRecordatorios}
+            disabled={recBusy}
+            className="mt-3 flex items-center gap-1.5 rounded-lg bg-[#D4621A] px-4 py-2 text-sm font-semibold text-white hover:opacity-90 disabled:opacity-60"
+          >
+            {recSaved
+              ? <><Check size={16} /> Guardado</>
+              : <><Save size={16} /> {recBusy ? 'Guardando…' : 'Guardar recordatorios'}</>}
+          </button>
         </div>
       )}
     </div>

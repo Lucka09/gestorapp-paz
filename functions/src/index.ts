@@ -266,6 +266,7 @@ export const whatsappTemplate = onCall(
 
 // ─── INFRACCIONES / MULTAS ───────────────────────────────────────────────────
 export { enviarPushNotificacion } from './notificaciones/pushNotificacion'
+export { recordatoriosVencimientoWA } from './vencimientos/recordatoriosVencimientoWA'
 export { crearConsultaPublica }      from './infracciones/crearConsultaPublica'
 export { guardarConsultaInfraccion } from './infracciones/guardarConsultaInfraccion'
 export { colaProximaConsulta }       from './infracciones/colaProximaConsulta'
@@ -275,3 +276,5 @@ export { subirCuponInfraccion } from './cupones/subirCuponInfraccion'
 export { iniciarDescargaCupones } from './cupones/iniciarDescargaCupones'
 export { kommoRecibirLead }
 export { gestionarEquipo } from './equipo/gestionarEquipo'
+export { alertasSinRespuesta } from './alertas/alertasSinRespuesta'
+export { repescaLeadsFrios }   from './leads/repescaLeadsFrios'

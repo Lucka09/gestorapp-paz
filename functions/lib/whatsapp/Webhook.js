@@ -30,8 +30,6 @@ const Utils_1 = require("../utils/Utils");
 const clasificador_1 = require("./clasificador");
 const db = () => admin.firestore();
 const now = () => admin.firestore.FieldValue.serverTimestamp();
-// Limpia patente/DNI a solo A-Z0-9 en mayúsculas (mismo criterio que la web).
-const limpiarValor = (v) => (v || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
 // ─── VERIFICACIÓN DEL WEBHOOK (GET) ──────────────────────────────────────────
 function handleVerification(query, res) {
     const mode = query['hub.mode'];
@@ -57,27 +55,47 @@ async function handleIncomingMessage(payload) {
             const { messages = [], contacts = [], statuses = [], metadata, errors = [] } = change.value;
             for (const error of errors) {
                 console.warn('[WA] Error de mensaje:', error);
-                await registrarErrorMensaje(gestoriaId, error);
+                try {
+                    await registrarErrorMensaje(gestoriaId, error);
+                }
+                catch (e) {
+                    console.warn('[WA] fallo registrarErrorMensaje:', e === null || e === void 0 ? void 0 : e.message);
+                }
             }
             for (const status of statuses) {
-                await actualizarEstadoMensaje(gestoriaId, status.id, status.status);
+                try {
+                    await actualizarEstadoMensaje(gestoriaId, status.id, status.status);
+                }
+                catch (e) {
+                    console.warn('[WA] fallo actualizarEstadoMensaje:', e === null || e === void 0 ? void 0 : e.message);
+                }
             }
             for (let i = 0; i < messages.length; i++) {
                 const msg = messages[i];
                 const contact = (_c = contacts[i]) !== null && _c !== void 0 ? _c : contacts[0];
                 const nombre = (_e = (_d = contact === null || contact === void 0 ? void 0 : contact.profile) === null || _d === void 0 ? void 0 : _d.name) !== null && _e !== void 0 ? _e : '';
-                await procesarMensaje(gestoriaId, msg, nombre, metadata);
+                // Cada mensaje se procesa aislado: si uno falla, se loguea pero NO tira
+                // toda la invocación (si no, Meta reintenta el payload entero y se
+                // reprocesa/re-saluda). Meta siempre recibe 200 → no reintenta.
+                try {
+                    await procesarMensaje(gestoriaId, msg, nombre, metadata);
+                }
+                catch (e) {
+                    console.error('[WA] fallo procesarMensaje:', e === null || e === void 0 ? void 0 : e.message, e === null || e === void 0 ? void 0 : e.stack);
+                }
             }
         }
     }
 }
 async function cargarConfigWA() {
-    var _a, _b, _c, _d, _e;
+    var _a, _b, _c, _d, _e, _f, _g;
     const cfgRef = db().doc('configuracion/gestor');
     const data = (_a = (await cfgRef.get()).data()) !== null && _a !== void 0 ? _a : {};
     return {
         lineas: ((_c = (_b = data.ruteoWhatsApp) === null || _b === void 0 ? void 0 : _b.lineas) !== null && _c !== void 0 ? _c : []),
         keywords: ((_e = (_d = data.clasificacionMultas) === null || _d === void 0 ? void 0 : _d.keywords) !== null && _e !== void 0 ? _e : clasificador_1.KEYWORDS_MULTA_DEFAULT),
+        // Bienvenida ON por defecto; se apaga con configuracion/gestor.bienvenidaWA.activo = false
+        bienvenidaActiva: ((_g = (_f = data.bienvenidaWA) === null || _f === void 0 ? void 0 : _f.activo) !== null && _g !== void 0 ? _g : true),
         cfgRef,
     };
 }
@@ -106,7 +124,7 @@ async function resolverDueno(cfg, phoneNumberId, displayPhoneRaw) {
 }
 // ─── PROCESAR UN MENSAJE INDIVIDUAL ──────────────────────────────────────────
 async function procesarMensaje(gestoriaId, msg, nombre, metadata) {
-    var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k, _l, _m, _o, _p, _q, _r;
+    var _a, _b, _c, _d, _e, _f, _g, _h, _j;
     const telefono = (0, Utils_1.normalizarTelefono)(msg.from);
     const waMessageId = msg.id;
     const texto = extraerTexto(msg);
@@ -132,61 +150,8 @@ async function procesarMensaje(gestoriaId, msg, nombre, metadata) {
     const convRef = db().collection('conversacionesWA').doc(telefono);
     const convSnap = await convRef.get();
     const esNueva = !convSnap.exists;
-    const prev = esNueva ? {} : ((_d = convSnap.data()) !== null && _d !== void 0 ? _d : {});
-    // Dueño de la línea (solo al abrir) + GUARD DE INACTIVO: si el secretario dueño
-    // está desactivado, la conversación cae al pool en vez de asignarse a un fantasma.
-    const ownerLinea = esNueva ? await resolverDueno(cfg, phoneNumberId, displayPhone) : null;
-    const owner = ownerLinea && (await estaActivo(ownerLinea.uid)) ? ownerLinea : null;
-    if (ownerLinea && !owner) {
-        console.warn(`[WA] Dueño de línea inactivo (${ownerLinea.nombre}) → conversación al pool`);
-    }
-    // Responsable efectivo para consulta/aviso.
-    //   • conversación nueva → dueño de la línea (si está activo)
-    //   • conversación existente → su asignado actual (si sigue activo)
-    let asigneeUid = '';
-    let asigneeNombre = '';
-    if (esNueva) {
-        asigneeUid = (_e = owner === null || owner === void 0 ? void 0 : owner.uid) !== null && _e !== void 0 ? _e : '';
-        asigneeNombre = (_f = owner === null || owner === void 0 ? void 0 : owner.nombre) !== null && _f !== void 0 ? _f : '';
-    }
-    else {
-        const pu = String((_g = prev.asignadoA) !== null && _g !== void 0 ? _g : '');
-        if (pu && await estaActivo(pu)) {
-            asigneeUid = pu;
-            asigneeNombre = String((_h = prev.asignadoNombre) !== null && _h !== void 0 ? _h : '');
-        }
-    }
-    // ── UMBRAL CONSERVADOR + MÚLTIPLES CONSULTAS POR CHAT ─────────────────────
-    // Un chat puede ser una agencia/reventa que trae varios clientes: encolamos
-    // UNA consulta por cada patente/DNI VÁLIDO que llegue, siempre que la
-    // conversación tenga contexto de multa (keyword ahora o marcada antes).
-    // El dedupeKey incluye el valor → distintas patentes = distintas consultas;
-    // la misma patente el mismo día = no se duplica (create() idempotente).
-    const convEsMulta = esMulta || (!esNueva && (prev.esConsultaMulta === true || !!prev.consultaSugerida));
-    const datoValido = dato && (0, clasificador_1.esValorConsultable)(dato.valor) ? dato : null;
-    let consultaSugeridaConv = null;
-    let encolar = null;
-    if (convEsMulta && datoValido) {
-        const valor = limpiarValor(datoValido.valor);
-        const tipoC = (0, clasificador_1.tipoDeValor)(valor);
-        const dedupeKey = `wa_${gestoriaId}_${tipoC}_${valor}_${diaAR()}`.replace(/\//g, '_');
-        // 'confirmada' → la Bandeja muestra "enviada a la cola" (sin UI nueva).
-        consultaSugeridaConv = {
-            tipo: tipoC, valor, estado: 'confirmada', consultaId: dedupeKey, detectadoEn: ts,
-        };
-        encolar = { tipo: tipoC, valor, dedupeKey };
-    }
-    else if (convEsMulta && esMulta) {
-        // Keyword de multa sin dato válido aún → chip sugerido para completar a mano.
-        // No pisamos una consulta ya confirmada con una sugerencia vacía.
-        if (((_j = prev.consultaSugerida) === null || _j === void 0 ? void 0 : _j.estado) !== 'confirmada') {
-            consultaSugeridaConv = construirSugerida(dato !== null && dato !== void 0 ? dato : null, ts);
-        }
-    }
+    const owner = esNueva ? await resolverDueno(cfg, phoneNumberId, displayPhone) : null;
     const batch = db().batch();
-    let leadIdConv = esNueva
-        ? undefined
-        : (prev.leadId ? String(prev.leadId) : undefined);
     if (esNueva) {
         const clienteId = await buscarClientePorTelefono(gestoriaId, telefono);
         const prospectoId = clienteId
@@ -199,42 +164,45 @@ async function procesarMensaje(gestoriaId, msg, nombre, metadata) {
             ultimoMensaje: texto,
             ultimaActividad: ts,
             estado: 'nueva',
-            asignadoA: (_k = owner === null || owner === void 0 ? void 0 : owner.uid) !== null && _k !== void 0 ? _k : '',
-            asignadoNombre: (_l = owner === null || owner === void 0 ? void 0 : owner.nombre) !== null && _l !== void 0 ? _l : '',
+            asignadoA: (_d = owner === null || owner === void 0 ? void 0 : owner.uid) !== null && _d !== void 0 ? _d : '',
+            asignadoNombre: (_e = owner === null || owner === void 0 ? void 0 : owner.nombre) !== null && _e !== void 0 ? _e : '',
             noLeidos: 1,
             waPhoneNumberId: phoneNumberId,
             waDisplayPhone: displayPhone,
             creadoEn: ts,
-            lineaOrigen: (_m = owner === null || owner === void 0 ? void 0 : owner.nombre) !== null && _m !== void 0 ? _m : (ownerLinea ? `${ownerLinea.nombre} (inactivo)` : 'sin ruteo'),
+            lineaOrigen: (_f = owner === null || owner === void 0 ? void 0 : owner.nombre) !== null && _f !== void 0 ? _f : 'sin ruteo',
         };
         if (clienteId)
             convData.clienteId = clienteId;
         if (prospectoId)
             convData.prospectoId = prospectoId;
-        if (consultaSugeridaConv)
-            convData.consultaSugerida = consultaSugeridaConv;
-        if (convEsMulta)
-            convData.esConsultaMulta = true;
+        // Si es multa → dejamos una consulta SUGERIDA (la confirma la secretaria).
+        // Prellenamos con la patente/DNI detectado; si no hubo, queda vacío.
+        if (esMulta) {
+            convData.consultaSugerida = construirSugerida(dato, ts);
+        }
         if (!clienteId && !prospectoId) {
             const leadId = await crearLeadDesdeWA({
                 gestoriaId, telefono, nombre, texto,
                 owner, phoneNumberId, displayPhone, referral, esMulta, batch,
             });
-            if (leadId) {
+            if (leadId)
                 convData.leadId = leadId;
-                leadIdConv = leadId;
-            }
         }
         batch.set(convRef, convData);
     }
     else {
+        const prev = (_g = convSnap.data()) !== null && _g !== void 0 ? _g : {};
         const update = Object.assign({ ultimoMensaje: texto, ultimaActividad: ts, noLeidos: admin.firestore.FieldValue.increment(1) }, (nombre && prev.nombre === telefono ? { nombre } : {}));
-        if (consultaSugeridaConv)
-            update.consultaSugerida = consultaSugeridaConv;
-        if (convEsMulta && !prev.esConsultaMulta)
-            update.esConsultaMulta = true;
-        if (esMulta && prev.leadId) {
-            await marcarLeadComoMulta(String(prev.leadId)).catch(() => { });
+        // La patente/multa puede llegar recién en un mensaje posterior. Si ya hay
+        // una consulta CONFIRMADA, no la tocamos.
+        const sugActual = prev.consultaSugerida;
+        const yaConfirmada = (sugActual === null || sugActual === void 0 ? void 0 : sugActual.estado) === 'confirmada';
+        if (!yaConfirmada && (esMulta || dato)) {
+            update.consultaSugerida = construirSugerida(dato !== null && dato !== void 0 ? dato : (sugActual ? { tipo: sugActual.tipo, valor: sugActual.valor } : null), ts);
+            if (esMulta && prev.leadId) {
+                await marcarLeadComoMulta(String(prev.leadId)).catch(() => { });
+            }
         }
         // `update` es dinámico (Record<string, unknown>); batch.update usa UpdateData,
         // más estricto que set. Casteamos en el punto de uso.
@@ -247,38 +215,13 @@ async function procesarMensaje(gestoriaId, msg, nombre, metadata) {
         direccion: 'entrante', tipo, texto, timestamp: ts,
     });
     await batch.commit();
-    // ── 3b. AUTO-ENCOLADO (post-commit) ───────────────────────────────────────
-    // Crea la consulta en la cola de la extensión, ya asignada al secretario, y
-    // le avisa. Idempotente: mismo dato el mismo día ⇒ mismo doc ⇒ no re-encola
-    // ni re-notifica.
-    if (encolar) {
-        const nombreContacto = String(esNueva ? (nombre || telefono) : ((_o = prev.nombre) !== null && _o !== void 0 ? _o : telefono));
-        const creada = await crearConsultaEnCola({
-            gestoriaId, tipo: encolar.tipo, valor: encolar.valor, dedupeKey: encolar.dedupeKey,
-            contactoNombre: nombreContacto, telefono,
-            asigneeUid, asigneeNombre, leadId: leadIdConv,
-        });
-        if (creada) {
-            // Contador de consultas de la conversación (para el badge "N en cola").
-            await convRef.update({
-                consultasEncoladas: admin.firestore.FieldValue.increment(1),
-            }).catch(() => { });
-            if (asigneeUid) {
-                await crearAvisoConsulta({
-                    gestoriaId, destinatarioId: asigneeUid,
-                    tipo: encolar.tipo, valor: encolar.valor,
-                    contactoNombre: nombreContacto, dedupeKey: encolar.dedupeKey,
-                });
-            }
-        }
-        console.log(`[WA] auto-encolada ${encolar.tipo}:${encolar.valor} → ${asigneeUid || 'pool'} (nueva:${creada})`);
-    }
     // ── 4. Marcar leído + bienvenida (desde el MISMO número que recibió) ──────
     await (0, Utils_1.markMessageRead)(waMessageId, phoneNumberId).catch(() => { });
-    if (esNueva) {
+    if (esNueva && cfg.bienvenidaActiva) {
         await enviarBienvenida(telefono, phoneNumberId).catch(err => console.warn('[WA] No se pudo enviar bienvenida:', err));
+        await convRef.update({ bienvenidaEnviada: true }).catch(() => { });
     }
-    console.log(`[WA] ${telefono} -> "${texto.slice(0, 40)}" | multa:${esMulta} dato:${(_p = dato === null || dato === void 0 ? void 0 : dato.valor) !== null && _p !== void 0 ? _p : '-'} encolar:${(_q = encolar === null || encolar === void 0 ? void 0 : encolar.valor) !== null && _q !== void 0 ? _q : '-'} dueno:${(_r = owner === null || owner === void 0 ? void 0 : owner.nombre) !== null && _r !== void 0 ? _r : 'sin ruteo'}`);
+    console.log(`[WA] ${telefono} -> "${texto.slice(0, 40)}" | multa:${esMulta} dato:${(_h = dato === null || dato === void 0 ? void 0 : dato.valor) !== null && _h !== void 0 ? _h : '-'} dueno:${(_j = owner === null || owner === void 0 ? void 0 : owner.nombre) !== null && _j !== void 0 ? _j : 'sin ruteo'}`);
 }
 // Construye el objeto consultaSugerida (estado 'sugerida', pendiente de confirmar).
 function construirSugerida(dato, ts) {
@@ -289,62 +232,6 @@ function construirSugerida(dato, ts) {
         estado: 'sugerida',
         detectadoEn: ts,
     };
-}
-// ─── AUTO-ENCOLADO: HELPERS ──────────────────────────────────────────────────
-// Día AR (UTC-3) en formato YYYYMMDD. DEBE coincidir con diaAR() del frontend
-// (consultasInfracciones.crearConsultaDesdeWA) para compartir el mismo dedupeKey:
-// así una consulta auto-encolada y una confirmada a mano no se duplican.
-function diaAR() {
-    return new Date(Date.now() - 3 * 3600 * 1000).toISOString().slice(0, 10).replace(/-/g, '');
-}
-// ¿El usuario existe y no está desactivado? (guard de secretario inactivo)
-async function estaActivo(uid) {
-    var _a;
-    if (!uid)
-        return false;
-    try {
-        const s = await db().doc(`users/${uid}`).get();
-        return s.exists && ((_a = s.data()) === null || _a === void 0 ? void 0 : _a.activo) !== false;
-    }
-    catch (_b) {
-        return false;
-    }
-}
-// Crea la consulta en la cola con ID determinístico (dedupeKey). Usa create():
-// si el doc ya existe (encolada hoy, o confirmada a mano) NO la pisa y devuelve
-// false → así no reabrimos una consulta ya cotizada ni re-notificamos.
-async function crearConsultaEnCola(p) {
-    var _a;
-    const ref = db().collection('consultasInfracciones').doc(p.dedupeKey);
-    const data = Object.assign(Object.assign(Object.assign(Object.assign({ gestoriaId: p.gestoriaId, tipoConsulta: p.tipo }, (p.tipo === 'dominio'
-        ? { dominio: p.valor }
-        : { dni: p.valor, tipoDocumento: 'DNI' })), { contacto: { nombre: p.contactoNombre, whatsapp: p.telefono, email: '' }, origen: 'whatsapp', estado: 'pendiente' }), (p.leadId ? { leadId: p.leadId } : {})), { asignadoA: p.asigneeUid || '', asignadoANombre: p.asigneeNombre || '', creadoPor: p.asigneeUid || 'whatsapp', creadoPorNombre: p.asigneeNombre || 'WhatsApp (auto)', creadaEn: now() });
-    try {
-        await ref.create(data); // create → rechaza si ya existe (idempotencia dura)
-        return true;
-    }
-    catch (e) {
-        // ALREADY_EXISTS es lo esperado cuando ya se encoló hoy; cualquier otro
-        // error lo dejamos logueado pero sin romper el flujo del mensaje.
-        console.log(`[WA] consulta no creada (${p.dedupeKey}): ${(_a = e === null || e === void 0 ? void 0 : e.message) !== null && _a !== void 0 ? _a : 'ya existe'}`);
-        return false;
-    }
-}
-// Aviso in-app al secretario para que abra la extensión y resuelva el captcha.
-// Mismo shape que notificaciones que ya escribe el motor de automatizaciones.
-async function crearAvisoConsulta(p) {
-    const etiqueta = p.tipo === 'dominio' ? 'patente' : 'DNI';
-    await db().collection('notificaciones').add({
-        gestoriaId: p.gestoriaId,
-        destinatarioId: p.destinatarioId,
-        titulo: 'Consulta de multas lista',
-        mensaje: `Consulta de ${etiqueta} ${p.valor} (${p.contactoNombre}) lista para procesar. Abrí la extensión para resolver el captcha.`,
-        tipo: 'general',
-        entidadTipo: 'consultaInfraccion',
-        entidadId: p.dedupeKey,
-        leida: false,
-        creadoEn: now(),
-    }).catch(err => console.warn('[WA] no se pudo crear aviso:', err === null || err === void 0 ? void 0 : err.message));
 }
 // ─── CREAR LEAD DESDE WHATSAPP ───────────────────────────────────────────────
 async function crearLeadDesdeWA(p) {
@@ -409,19 +296,25 @@ async function marcarLeadComoMulta(leadId) {
 // ─── ACTUALIZAR ESTADO DE MENSAJE SALIENTE ────────────────────────────────────
 async function actualizarEstadoMensaje(gestoriaId, waMessageId, status) {
     var _a;
+    // Query por UN solo campo (waMessageId) → usa el índice de collection-group
+    // que ya existe (el mismo del dedupe). Evita el índice compuesto de 3 campos
+    // (direccion+gestoriaId+waMessageId) que hacía fallar el webhook. El resto se
+    // filtra en memoria (waMessageId es único, así que son 1-2 docs a lo sumo).
     const snap = await db()
         .collectionGroup('mensajes')
-        .where('gestoriaId', '==', gestoriaId)
         .where('waMessageId', '==', waMessageId)
-        .where('direccion', '==', 'saliente')
-        .limit(1)
+        .limit(5)
         .get();
-    if (!snap.empty) {
-        const estadoMap = {
-            sent: 'enviado', delivered: 'entregado', read: 'leido', failed: 'error',
-        };
-        await snap.docs[0].ref.update({ estado: (_a = estadoMap[status]) !== null && _a !== void 0 ? _a : status });
-    }
+    const doc = snap.docs.find(d => {
+        const m = d.data();
+        return m.direccion === 'saliente' && m.gestoriaId === gestoriaId;
+    });
+    if (!doc)
+        return;
+    const estadoMap = {
+        sent: 'enviado', delivered: 'entregado', read: 'leido', failed: 'error',
+    };
+    await doc.ref.update({ estado: (_a = estadoMap[status]) !== null && _a !== void 0 ? _a : status });
 }
 // ─── REGISTRAR ERROR DE MENSAJE ──────────────────────────────────────────────
 async function registrarErrorMensaje(gestoriaId, error) {
