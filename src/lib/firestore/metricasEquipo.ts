@@ -5,17 +5,14 @@
 //   • Cierres ganados / perdidos → % cierre
 //   • Leads asignados / convertidos → % conversión
 //   • Consultas de infracciones procesadas (cotizada + enviada)
+//   • Tiempo de primera respuesta (forward-only, desde conversacionesWA)
 //
-// Todo se calcula desde colecciones top-level (leads, consultasInfracciones,
-// prospectos) — sin leer subcolecciones. leads/consultas se acotan server-side
-// por su fecha (índice de un solo campo); prospectos se traen por gestoría y se
-// filtran por fechaCierre en memoria (el pipeline es acotado).
-//
-// NOTA: el "tiempo de primera respuesta" NO está acá — no se guarda hoy en
-// ningún lado. Requiere stampearlo en el envío (Send.ts, forward-only) y se
-// suma en un paso aparte.
+// IMPORTANTE (reglas de Firestore): toda query filtra por `gestoriaId` (igual que
+// LeadsPage/PipelinePage/Bandeja). Filtrar solo por fecha hace que Firestore
+// rechace la consulta con "Missing or insufficient permissions". Las fechas se
+// filtran en memoria → sin índices compuestos.
 
-import { collection, getDocs, query, where, Timestamp } from 'firebase/firestore'
+import { collection, getDocs, query, where } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
 
 export interface MetricaSecretario {
@@ -26,8 +23,8 @@ export interface MetricaSecretario {
   cierresGanados:      number
   cierresPerdidos:     number
   ingresos:            number
-  respuestasMedidas:   number   // cuántas primeras respuestas se midieron
-  tiempoRespuestaSegs: number   // suma de segundos (para promediar en la UI)
+  respuestasMedidas:   number
+  tiempoRespuestaSegs: number
 }
 
 function filaVacia(uid: string): MetricaSecretario {
@@ -46,6 +43,13 @@ function parseFecha(s: unknown): Date | null {
   return isNaN(d.getTime()) ? null : d
 }
 
+// ¿El Timestamp (o algo con toMillis/toDate) cae en [desde, hasta]?
+function enRango(campo: any, desde: Date, hasta: Date): boolean {
+  const ms = campo?.toMillis?.() ?? campo?.toDate?.()?.getTime?.()
+  if (typeof ms !== 'number') return false
+  return ms >= desde.getTime() && ms <= hasta.getTime()
+}
+
 export async function getMetricasPorSecretario(
   gestoriaId: string,
   desde:      Date,
@@ -53,20 +57,15 @@ export async function getMetricasPorSecretario(
 ): Promise<MetricaSecretario[]> {
   if (!gestoriaId) return []
 
-  const tsDesde = Timestamp.fromDate(desde)
-  const tsHasta = Timestamp.fromDate(hasta)
   const acc: Record<string, MetricaSecretario> = {}
   const fila = (uid: string) => (acc[uid] ??= filaVacia(uid))
+  const q = (col: string) => getDocs(query(collection(db, col), where('gestoriaId', '==', gestoriaId)))
 
-  // ── LEADS (rango sobre creadoEn) ────────────────────────────────────────
-  const leadsSnap = await getDocs(query(
-    collection(db, 'leads'),
-    where('creadoEn', '>=', tsDesde),
-    where('creadoEn', '<=', tsHasta),
-  ))
+  // ── LEADS ────────────────────────────────────────────────────────────────
+  const leadsSnap = await q('leads')
   leadsSnap.forEach(d => {
     const l = d.data() as any
-    if (l.gestoriaId !== gestoriaId) return
+    if (!enRango(l.creadoEn, desde, hasta)) return
     const uid = String(l.asignadoA ?? '')
     if (!uid) return
     const f = fila(uid)
@@ -74,26 +73,18 @@ export async function getMetricasPorSecretario(
     if (l.estado === 'convertido' || l.convertidoA) f.leadsConvertidos++
   })
 
-  // ── CONSULTAS DE INFRACCIONES (rango sobre creadaEn) ────────────────────
-  const consSnap = await getDocs(query(
-    collection(db, 'consultasInfracciones'),
-    where('creadaEn', '>=', tsDesde),
-    where('creadaEn', '<=', tsHasta),
-  ))
+  // ── CONSULTAS DE INFRACCIONES ──────────────────────────────────────────────
+  const consSnap = await q('consultasInfracciones')
   consSnap.forEach(d => {
     const c = d.data() as any
-    if (c.gestoriaId !== gestoriaId) return
+    if (!enRango(c.creadaEn, desde, hasta)) return
     const uid = String(c.asignadoA ?? '')
     if (!uid) return
     if (c.estado === 'cotizada' || c.estado === 'enviada') fila(uid).consultasProcesadas++
   })
 
-  // ── PROSPECTOS (por gestoría; cierre/fecha en memoria) ──────────────────
-  // Sin filtro server-side de fecha porque fechaCierre es string. Es acotado.
-  const prosSnap = await getDocs(query(
-    collection(db, 'prospectos'),
-    where('gestoriaId', '==', gestoriaId),
-  ))
+  // ── PROSPECTOS (cierres / ingresos) ────────────────────────────────────────
+  const prosSnap = await q('prospectos')
   prosSnap.forEach(d => {
     const p = d.data() as any
     const uid = String(p.asignadoA ?? '')
@@ -113,16 +104,11 @@ export async function getMetricasPorSecretario(
     }
   })
 
-  // ── TIEMPO DE PRIMERA RESPUESTA (conversacionesWA, forward-only) ────────
-  // Se atribuye a quien respondió primero (primeraRespuestaPor).
-  const convSnap = await getDocs(query(
-    collection(db, 'conversacionesWA'),
-    where('primeraRespuestaEn', '>=', tsDesde),
-    where('primeraRespuestaEn', '<=', tsHasta),
-  ))
+  // ── TIEMPO DE PRIMERA RESPUESTA (conversacionesWA, forward-only) ────────────
+  const convSnap = await q('conversacionesWA')
   convSnap.forEach(d => {
     const c = d.data() as any
-    if (c.gestoriaId !== gestoriaId) return
+    if (!enRango(c.primeraRespuestaEn, desde, hasta)) return
     const uid = String(c.primeraRespuestaPor ?? c.asignadoA ?? '')
     if (!uid) return
     const segs = Number(c.primeraRespuestaSegs)
