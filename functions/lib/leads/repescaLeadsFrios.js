@@ -110,7 +110,7 @@ exports.repescaLeadsFrios = (0, scheduler_1.onSchedule)({
         //   {{1}} nombre
         const parametros = [nombre];
         try {
-            await (0, Utils_1.sendTemplateMessage)(telefono, templateNombre, idioma, parametros, emisor);
+            await (0, Utils_1.sendTextMessage)(telefono, `${templateNombre} (${idioma}): ${parametros.join(', ')}`, emisor);
             await doc.ref.update({
                 repescadoEn: FV.serverTimestamp(),
                 estado: l.estado === 'nuevo' ? 'contactado' : l.estado,

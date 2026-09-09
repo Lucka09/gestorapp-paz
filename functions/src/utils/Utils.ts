@@ -39,6 +39,16 @@ function resolverEmisor(phoneNumberId?: string): string {
   return id
 }
 
+// Extrae un mensaje de error legible de una respuesta de Meta / axios.
+function describirErrorMeta(error: unknown): string {
+  if (axios.isAxiosError(error)) {
+    const mensaje = error.response?.data?.error?.message
+    if (typeof mensaje === 'string' && mensaje) return mensaje
+    return error.message
+  }
+  return error instanceof Error ? error.message : String(error)
+}
+
 // ─── NORMALIZAR TELÉFONO ─────────────────────────────────────────────────────
 // Meta envía el número sin "+" ej: "5491155667788"
 // Usamos ese mismo formato como ID de documento en Firestore
@@ -69,14 +79,70 @@ export async function sendTextMessage(
     text:  { preview_url: false, body: text },
   }
 
-  const { data } = await axios.post(url, body, {
-    headers: {
-      Authorization:  `Bearer ${token}`,
-      'Content-Type': 'application/json',
-    },
-  })
+  let data: { messages?: Array<{ id?: string }> }
+  try {
+    const response = await axios.post(url, body, {
+      headers: {
+        Authorization:  `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+    })
+    data = response.data
+  } catch (error) {
+    const detalle = describirErrorMeta(error)
+    console.error('[WA] Error enviando mensaje:', detalle)
+    throw new Error(`[WA] Error enviando mensaje: ${detalle}`)
+  }
 
   // data.messages[0].id es el WA message ID
+  const waMessageId: string = data?.messages?.[0]?.id ?? `local_${Date.now()}`
+  return waMessageId
+}
+
+// ─── ENVIAR TEMPLATE APROBADO ───────────────────────────────────────────────
+// Los templates deben estar pre-aprobados en Meta Business Manager. Se usan
+// para mensajes fuera de la ventana de 24 horas.
+
+export async function sendTemplateMessage(
+  to:             string,
+  templateName:   string,
+  language = 'es_AR',
+  parameters:    string[] = [],
+  phoneNumberId?: string,
+): Promise<string> {
+  const emisor = resolverEmisor(phoneNumberId)
+  const token  = getMetaToken()
+
+  const url = `${META_API_BASE}/${emisor}/messages`
+  const body = {
+    messaging_product: 'whatsapp',
+    to,
+    type: 'template',
+    template: {
+      name: templateName,
+      language: { code: language },
+      components: parameters.length > 0 ? [{
+        type: 'body',
+        parameters: parameters.map(text => ({ type: 'text', text })),
+      }] : [],
+    },
+  }
+
+  let data: { messages?: Array<{ id?: string }> }
+  try {
+    const response = await axios.post(url, body, {
+      headers: {
+        Authorization:  `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+    })
+    data = response.data
+  } catch (error) {
+    const detalle = describirErrorMeta(error)
+    console.error('[WA] Error enviando template:', detalle)
+    throw new Error(`[WA] Error enviando template: ${detalle}`)
+  }
+
   const waMessageId: string = data?.messages?.[0]?.id ?? `local_${Date.now()}`
   return waMessageId
 }
@@ -100,6 +166,7 @@ export async function markMessageRead(
     headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
   }).catch(() => {/* ignorar errores de mark-read */})
 }
+
 // ─── ENVIAR MEDIA (imagen / audio / documento) ───────────────────────────────
 // Envía por LINK: Meta descarga el archivo desde la URL pública (la de Firebase
 // Storage con token sirve). Para audio no se permite caption.
