@@ -120,3 +120,73 @@ export async function getMetricasPorSecretario(
 
   return Object.values(acc)
 }
+
+// ─── RESUMEN PARA EL PANEL DE MANDO (ingresos semana + mes por secretario) ───
+export interface ResumenSecretario {
+  uid:            string
+  ingresosSemana: number
+  ingresosMes:    number
+  cierresMes:     number
+  leadsMes:       number
+  consultasMes:   number
+}
+
+function inicioSemanaLunes(): Date {
+  const d = new Date()
+  const day  = d.getDay()                    // 0=domingo … 6=sábado
+  const diff = day === 0 ? 6 : day - 1       // días transcurridos desde el lunes
+  d.setDate(d.getDate() - diff)
+  d.setHours(0, 0, 0, 0)
+  return d
+}
+function inicioMesActual(): Date {
+  const n = new Date()
+  return new Date(n.getFullYear(), n.getMonth(), 1)
+}
+
+export async function getResumenSecretarios(gestoriaId: string): Promise<ResumenSecretario[]> {
+  if (!gestoriaId) return []
+
+  const desdeMes    = inicioMesActual()
+  const desdeSemana = inicioSemanaLunes()
+  const ahora       = new Date()
+
+  const acc: Record<string, ResumenSecretario> = {}
+  const fila = (uid: string) =>
+    (acc[uid] ??= { uid, ingresosSemana: 0, ingresosMes: 0, cierresMes: 0, leadsMes: 0, consultasMes: 0 })
+  const q = (col: string) => getDocs(query(collection(db, col), where('gestoriaId', '==', gestoriaId)))
+
+  // Prospectos cerrados → ingresos y cierres (semana y mes por fechaCierre)
+  const pros = await q('prospectos')
+  pros.forEach(d => {
+    const p = d.data() as any
+    if (p.etapa !== 'cerrado') return
+    const uid = String(p.asignadoA ?? '')
+    if (!uid) return
+    const fc = parseFecha(p.fechaCierre) ?? (p.creadoEn?.toDate?.() ?? null)
+    if (!fc) return
+    const monto = Number(p.montoCierre ?? 0)
+    if (fc >= desdeMes && fc <= ahora)    { const f = fila(uid); f.ingresosMes += monto; f.cierresMes++ }
+    if (fc >= desdeSemana && fc <= ahora) { fila(uid).ingresosSemana += monto }
+  })
+
+  // Leads del mes
+  const leads = await q('leads')
+  leads.forEach(d => {
+    const l = d.data() as any
+    if (!enRango(l.creadoEn, desdeMes, ahora)) return
+    const uid = String(l.asignadoA ?? '')
+    if (uid) fila(uid).leadsMes++
+  })
+
+  // Consultas procesadas del mes
+  const cons = await q('consultasInfracciones')
+  cons.forEach(d => {
+    const c = d.data() as any
+    if (!enRango(c.creadaEn, desdeMes, ahora)) return
+    const uid = String(c.asignadoA ?? '')
+    if (uid && (c.estado === 'cotizada' || c.estado === 'enviada')) fila(uid).consultasMes++
+  })
+
+  return Object.values(acc)
+}

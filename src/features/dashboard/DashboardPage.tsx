@@ -20,7 +20,7 @@ import type { IngresoMes, TipoCount, TopCliente } from '@/lib/firestore/dashboar
 import { useAuth }    from '@/hooks/useAuth'
 import { useClientes } from '@/hooks/useClientes'
 import { useProspectos } from '@/hooks/usePipeline'
-
+import ResumenSecretariosDashboard from '@/features/dashboard/ResumenSecretariosDashboard'
 import { ejecutarMotorAlertas }  from '@/lib/firestore/alertas'
 import { BannerPushNotifications } from '@/components/shared/PushNotifications'
 import { WidgetTareasHoy }          from '@/features/tareas/WidgetTareasHoy'
@@ -287,7 +287,8 @@ export default function DashboardPage() {
         </div>
       </div>
       )}
-
+      {/* Rendimiento por secretario (semana + mes) */}
+      {verFinanzas && <ResumenSecretariosDashboard />}
       {/* Gráficos financieros — solo propietario */}
       {verFinanzas && <>
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
