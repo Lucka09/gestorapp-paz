@@ -46,14 +46,6 @@ const firebase_functions_1 = require("firebase-functions");
 const HORA_MS = 3600000;
 const DIA_MS = 86400000;
 const FV = admin.firestore.FieldValue;
-async function propietarioDe(gestoriaId) {
-    const db = admin.firestore();
-    const q = await db.collection('users')
-        .where('gestoriaId', '==', gestoriaId)
-        .where('rol', '==', 'propietario')
-        .limit(1).get();
-    return q.empty ? null : q.docs[0].id;
-}
 async function estaActivo(uid) {
     var _a;
     if (!uid)
@@ -68,7 +60,7 @@ exports.alertasSinRespuesta = (0, scheduler_1.onSchedule)({
     memory: '256MiB',
     timeoutSeconds: 120,
 }, async () => {
-    var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k, _l, _m, _o, _p;
+    var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k;
     const db = admin.firestore();
     const cfgSnap = await db.doc('configuracion/gestor').get();
     const cfg = (_a = cfgSnap.data()) === null || _a === void 0 ? void 0 : _a.alertasSinRespuesta;
@@ -76,7 +68,7 @@ exports.alertasSinRespuesta = (0, scheduler_1.onSchedule)({
         firebase_functions_1.logger.info('[SLA] desactivado');
         return;
     }
-    const horasLimite = Number((_b = cfg === null || cfg === void 0 ? void 0 : cfg.horasLimite) !== null && _b !== void 0 ? _b : 3);
+    const horasLimite = Number((_b = cfg === null || cfg === void 0 ? void 0 : cfg.horasLimite) !== null && _b !== void 0 ? _b : 4);
     const ahora = Date.now();
     const limiteSup = admin.firestore.Timestamp.fromMillis(ahora - horasLimite * HORA_MS); // más viejo que esto
     const limiteInf = admin.firestore.Timestamp.fromMillis(ahora - 7 * DIA_MS); // pero no más de 7 días
@@ -89,7 +81,7 @@ exports.alertasSinRespuesta = (0, scheduler_1.onSchedule)({
         firebase_functions_1.logger.info('[SLA] sin conversaciones en ventana');
         return;
     }
-    let alertadas = 0, saltadas = 0;
+    let liberadas = 0, saltadas = 0;
     for (const doc of snap.docs) {
         const c = doc.data();
         if (((_c = c.noLeidos) !== null && _c !== void 0 ? _c : 0) <= 0) {
@@ -99,63 +91,43 @@ exports.alertasSinRespuesta = (0, scheduler_1.onSchedule)({
         if (c.alertaSinRespuestaEn) {
             saltadas++;
             continue;
-        } // ya se alertó
+        } // ya se procesó
         const gestoriaId = String((_d = c.gestoriaId) !== null && _d !== void 0 ? _d : '');
         if (!gestoriaId) {
             saltadas++;
             continue;
         }
-        // Destinatario: el asignado (si sigue activo), si no el propietario.
-        let destinatario = String((_e = c.asignadoA) !== null && _e !== void 0 ? _e : '');
-        if (destinatario && !(await estaActivo(destinatario)))
-            destinatario = '';
-        if (!destinatario)
-            destinatario = (_f = (await propietarioDe(gestoriaId))) !== null && _f !== void 0 ? _f : '';
-        if (!destinatario) {
-            saltadas++;
-            continue;
-        }
-        const nombre = String((_h = (_g = c.nombre) !== null && _g !== void 0 ? _g : c.telefono) !== null && _h !== void 0 ? _h : 'un cliente');
-        const horas = Math.floor((ahora - ((_l = (_k = (_j = c.ultimaActividad) === null || _j === void 0 ? void 0 : _j.toMillis) === null || _k === void 0 ? void 0 : _k.call(_j)) !== null && _l !== void 0 ? _l : ahora)) / HORA_MS);
+        const duenoPrevio = String((_e = c.asignadoA) !== null && _e !== void 0 ? _e : '');
+        const nombre = String((_g = (_f = c.nombre) !== null && _f !== void 0 ? _f : c.telefono) !== null && _g !== void 0 ? _g : 'un cliente');
+        const horas = Math.floor((ahora - ((_k = (_j = (_h = c.ultimaActividad) === null || _h === void 0 ? void 0 : _h.toMillis) === null || _j === void 0 ? void 0 : _j.call(_h)) !== null && _k !== void 0 ? _k : ahora)) / HORA_MS);
         const batch = db.batch();
-        // Tarea trackeable
-        const tareaRef = db.collection('tareas').doc();
-        batch.set(tareaRef, {
-            gestoriaId,
-            titulo: `Responder a ${nombre} (WhatsApp)`,
-            descripcion: `El cliente escribió y no tuvo respuesta hace ${horas} h.`,
-            prioridad: 'alta',
-            estado: 'pendiente',
-            leadId: (_m = c.leadId) !== null && _m !== void 0 ? _m : null,
-            clienteId: (_o = c.clienteId) !== null && _o !== void 0 ? _o : null,
-            asignadoA: destinatario,
-            asignadoNombre: (_p = c.asignadoNombre) !== null && _p !== void 0 ? _p : '',
-            creadoPor: 'automatizacion',
-            creadoPorNombre: 'Alerta sin respuesta',
-            vencimiento: admin.firestore.Timestamp.fromMillis(ahora + 2 * HORA_MS),
-            creadoEn: FV.serverTimestamp(),
-            actualizadoEn: FV.serverTimestamp(),
+        // 1) PASAR AL POOL: se libera para que cualquiera lo tome. Si ya estaba en
+        //    el pool (sin dueño), no hace falta re-liberar pero igual marcamos.
+        batch.update(doc.ref, {
+            asignadoA: '',
+            asignadoNombre: '',
+            alertaSinRespuestaEn: FV.serverTimestamp(),
         });
-        // Notificación (dispara push por el trigger de notificaciones)
-        const notiRef = db.collection('notificaciones').doc();
-        batch.set(notiRef, {
-            gestoriaId,
-            destinatarioId: destinatario,
-            titulo: 'Lead sin responder',
-            mensaje: `${nombre} escribió hace ${horas} h por WhatsApp y sigue sin respuesta. Abrí la Bandeja.`,
-            tipo: 'general',
-            entidadTipo: 'conversacionWA',
-            entidadId: doc.id,
-            leida: false,
-            creadoEn: FV.serverTimestamp(),
-        });
-        // Marca de idempotencia en la conversación
-        batch.update(doc.ref, { alertaSinRespuestaEn: FV.serverTimestamp() });
-        await batch.commit().then(() => { alertadas++; }).catch(err => {
-            firebase_functions_1.logger.warn('[SLA] no se pudo alertar', { conv: doc.id, error: err === null || err === void 0 ? void 0 : err.message });
+        // 2) Avisar al dueño anterior (si tenía y sigue activo) que se liberó.
+        if (duenoPrevio && await estaActivo(duenoPrevio)) {
+            const notiRef = db.collection('notificaciones').doc();
+            batch.set(notiRef, {
+                gestoriaId,
+                destinatarioId: duenoPrevio,
+                titulo: 'Chat liberado al pool',
+                mensaje: `${nombre} quedó ${horas} h sin respuesta, así que pasó al pool "Sin asignar" para que otro secretario lo tome. Si querés seguirlo vos, reabrilo desde la Bandeja.`,
+                tipo: 'general',
+                entidadTipo: 'conversacionWA',
+                entidadId: doc.id,
+                leida: false,
+                creadoEn: FV.serverTimestamp(),
+            });
+        }
+        await batch.commit().then(() => { liberadas++; }).catch(err => {
+            firebase_functions_1.logger.warn('[SLA] no se pudo liberar', { conv: doc.id, error: err === null || err === void 0 ? void 0 : err.message });
             saltadas++;
         });
     }
-    firebase_functions_1.logger.info('[SLA] fin', { total: snap.size, alertadas, saltadas, horasLimite });
+    firebase_functions_1.logger.info('[SLA] fin', { total: snap.size, liberadas, saltadas, horasLimite });
 });
 //# sourceMappingURL=alertasSinRespuesta.js.map

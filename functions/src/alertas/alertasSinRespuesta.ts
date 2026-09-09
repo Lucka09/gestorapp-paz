@@ -25,15 +25,6 @@ const FV = admin.firestore.FieldValue
 
 interface CfgSLA { activo?: boolean; horasLimite?: number }
 
-async function propietarioDe(gestoriaId: string): Promise<string | null> {
-  const db = admin.firestore()
-  const q = await db.collection('users')
-    .where('gestoriaId', '==', gestoriaId)
-    .where('rol', '==', 'propietario')
-    .limit(1).get()
-  return q.empty ? null : q.docs[0].id
-}
-
 async function estaActivo(uid: string): Promise<boolean> {
   if (!uid) return false
   const s = await admin.firestore().doc(`users/${uid}`).get()
@@ -55,7 +46,7 @@ export const alertasSinRespuesta = onSchedule(
     const cfg = (cfgSnap.data() as any)?.alertasSinRespuesta as CfgSLA | undefined
     if (cfg?.activo === false) { logger.info('[SLA] desactivado'); return }
 
-    const horasLimite = Number(cfg?.horasLimite ?? 3)
+    const horasLimite = Number(cfg?.horasLimite ?? 4)
     const ahora = Date.now()
     const limiteSup = admin.firestore.Timestamp.fromMillis(ahora - horasLimite * HORA_MS) // más viejo que esto
     const limiteInf = admin.firestore.Timestamp.fromMillis(ahora - 7 * DIA_MS)            // pero no más de 7 días
@@ -68,69 +59,52 @@ export const alertasSinRespuesta = onSchedule(
 
     if (snap.empty) { logger.info('[SLA] sin conversaciones en ventana'); return }
 
-    let alertadas = 0, saltadas = 0
+    let liberadas = 0, saltadas = 0
 
     for (const doc of snap.docs) {
       const c = doc.data() as any
       if ((c.noLeidos ?? 0) <= 0)      { saltadas++; continue } // ya lo abrieron
-      if (c.alertaSinRespuestaEn)      { saltadas++; continue } // ya se alertó
+      if (c.alertaSinRespuestaEn)      { saltadas++; continue } // ya se procesó
 
       const gestoriaId = String(c.gestoriaId ?? '')
       if (!gestoriaId) { saltadas++; continue }
 
-      // Destinatario: el asignado (si sigue activo), si no el propietario.
-      let destinatario = String(c.asignadoA ?? '')
-      if (destinatario && !(await estaActivo(destinatario))) destinatario = ''
-      if (!destinatario) destinatario = (await propietarioDe(gestoriaId)) ?? ''
-      if (!destinatario) { saltadas++; continue }
-
+      const duenoPrevio = String(c.asignadoA ?? '')
       const nombre = String(c.nombre ?? c.telefono ?? 'un cliente')
       const horas  = Math.floor((ahora - (c.ultimaActividad?.toMillis?.() ?? ahora)) / HORA_MS)
 
       const batch = db.batch()
 
-      // Tarea trackeable
-      const tareaRef = db.collection('tareas').doc()
-      batch.set(tareaRef, {
-        gestoriaId,
-        titulo: `Responder a ${nombre} (WhatsApp)`,
-        descripcion: `El cliente escribió y no tuvo respuesta hace ${horas} h.`,
-        prioridad: 'alta',
-        estado: 'pendiente',
-        leadId: c.leadId ?? null,
-        clienteId: c.clienteId ?? null,
-        asignadoA: destinatario,
-        asignadoNombre: c.asignadoNombre ?? '',
-        creadoPor: 'automatizacion',
-        creadoPorNombre: 'Alerta sin respuesta',
-        vencimiento: admin.firestore.Timestamp.fromMillis(ahora + 2 * HORA_MS),
-        creadoEn: FV.serverTimestamp(),
-        actualizadoEn: FV.serverTimestamp(),
+      // 1) PASAR AL POOL: se libera para que cualquiera lo tome. Si ya estaba en
+      //    el pool (sin dueño), no hace falta re-liberar pero igual marcamos.
+      batch.update(doc.ref, {
+        asignadoA: '',
+        asignadoNombre: '',
+        alertaSinRespuestaEn: FV.serverTimestamp(),
       })
 
-      // Notificación (dispara push por el trigger de notificaciones)
-      const notiRef = db.collection('notificaciones').doc()
-      batch.set(notiRef, {
-        gestoriaId,
-        destinatarioId: destinatario,
-        titulo: 'Lead sin responder',
-        mensaje: `${nombre} escribió hace ${horas} h por WhatsApp y sigue sin respuesta. Abrí la Bandeja.`,
-        tipo: 'general',
-        entidadTipo: 'conversacionWA',
-        entidadId: doc.id,
-        leida: false,
-        creadoEn: FV.serverTimestamp(),
-      })
+      // 2) Avisar al dueño anterior (si tenía y sigue activo) que se liberó.
+      if (duenoPrevio && await estaActivo(duenoPrevio)) {
+        const notiRef = db.collection('notificaciones').doc()
+        batch.set(notiRef, {
+          gestoriaId,
+          destinatarioId: duenoPrevio,
+          titulo: 'Chat liberado al pool',
+          mensaje: `${nombre} quedó ${horas} h sin respuesta, así que pasó al pool "Sin asignar" para que otro secretario lo tome. Si querés seguirlo vos, reabrilo desde la Bandeja.`,
+          tipo: 'general',
+          entidadTipo: 'conversacionWA',
+          entidadId: doc.id,
+          leida: false,
+          creadoEn: FV.serverTimestamp(),
+        })
+      }
 
-      // Marca de idempotencia en la conversación
-      batch.update(doc.ref, { alertaSinRespuestaEn: FV.serverTimestamp() })
-
-      await batch.commit().then(() => { alertadas++ }).catch(err => {
-        logger.warn('[SLA] no se pudo alertar', { conv: doc.id, error: err?.message })
+      await batch.commit().then(() => { liberadas++ }).catch(err => {
+        logger.warn('[SLA] no se pudo liberar', { conv: doc.id, error: err?.message })
         saltadas++
       })
     }
 
-    logger.info('[SLA] fin', { total: snap.size, alertadas, saltadas, horasLimite })
+    logger.info('[SLA] fin', { total: snap.size, liberadas, saltadas, horasLimite })
   },
 )

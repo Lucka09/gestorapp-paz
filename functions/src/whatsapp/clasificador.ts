@@ -53,6 +53,53 @@ const PATRONES_PATENTE: RegExp[] = [
 export interface DatoInfraccion { tipo: 'dominio' | 'dni'; valor: string }
 
 /**
+ * Devuelve TODAS las patentes/DNI válidos de un texto (deduplicados, en orden).
+ * Para agencias/revendedores que mandan varias patentes en un mismo mensaje.
+ * - Junta todas las patentes que matcheen los formatos válidos.
+ * - Suma DNIs con rótulo (DNI/DOC 12345678).
+ * - DNIs sueltos: solo si no se encontró ninguna patente ni DNI con rótulo
+ *   (para no confundir números sueltos cuando ya hay patentes).
+ */
+export function detectarTodosDatos(texto: string): DatoInfraccion[] {
+  const T = (texto || '').toUpperCase()
+  const out: DatoInfraccion[] = []
+  const vistos = new Set<string>()
+
+  // 1) Patentes (todas)
+  for (const re of PATRONES_PATENTE) {
+    re.lastIndex = 0
+    let m: RegExpExecArray | null
+    while ((m = re.exec(T)) !== null) {
+      const cand = m.slice(1).join('').replace(/[^A-Z0-9]/g, '')
+      const key  = 'D:' + cand
+      if (RE_DOMINIO_LIMPIO.test(cand) && !vistos.has(key)) {
+        vistos.add(key); out.push({ tipo: 'dominio', valor: cand })
+      }
+    }
+  }
+
+  // 2) DNIs con rótulo explícito
+  const reRot = /\b(?:DNI|DOCUMENTO|DOC)\D{0,6}(\d{7,8})\b/g
+  let mr: RegExpExecArray | null
+  while ((mr = reRot.exec(T)) !== null) {
+    const key = 'N:' + mr[1]
+    if (!vistos.has(key)) { vistos.add(key); out.push({ tipo: 'dni', valor: mr[1] }) }
+  }
+
+  // 3) DNIs sueltos — solo si no hubo nada antes
+  if (out.length === 0) {
+    const reSuelto = /(?<!\d)(\d{7,8})(?!\d)/g
+    let ms: RegExpExecArray | null
+    while ((ms = reSuelto.exec(T)) !== null) {
+      const key = 'N:' + ms[1]
+      if (!vistos.has(key)) { vistos.add(key); out.push({ tipo: 'dni', valor: ms[1] }) }
+    }
+  }
+
+  return out
+}
+
+/**
  * Busca una patente (prioridad) o un DNI dentro de un mensaje. Devuelve el
  * primer match válido, o null. El resultado es una SUGERENCIA: la confirma
  * un humano en la Bandeja antes de disparar la consulta a la cola.

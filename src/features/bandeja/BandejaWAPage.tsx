@@ -114,6 +114,17 @@ function MsgStatus({ estado }: { estado?: string }) {
 
 function BurbujaMensaje({ msg }: { msg: MensajeWA }) {
   const saliente = msg.direccion === 'saliente'
+
+  // Media: la URL la completa el webhook al bajar el archivo de Meta. Mientras
+  // no esté, se muestra el placeholder de texto ("📷 Imagen") hasta que llega.
+  const esImagen = !!msg.mediaUrl && (msg.tipo === 'imagen' || msg.tipo === 'sticker' || (msg.mediaType?.startsWith('image/') ?? false))
+  const esAudio  = !!msg.mediaUrl && (msg.tipo === 'audio' || (msg.mediaType?.startsWith('audio/') ?? false))
+  const esDoc    = !!msg.mediaUrl && !esImagen && !esAudio
+
+  const PLACEHOLDERS = ['📷 Imagen', '🎵 Audio', '🎭 Sticker']
+  const textoEsPlaceholder = PLACEHOLDERS.includes(msg.texto) || msg.texto.startsWith('📄 ')
+  const mostrarTexto = !!msg.texto && !esDoc && (!msg.mediaUrl || !textoEsPlaceholder)
+
   return (
     <div style={{
       display: 'flex',
@@ -127,12 +138,47 @@ function BurbujaMensaje({ msg }: { msg: MensajeWA }) {
         padding: '6px 10px 4px',
         position: 'relative',
       }}>
-        <p style={{
-          margin: 0, color: WA_TEXT, fontSize: 14,
-          lineHeight: 1.45, wordBreak: 'break-word', whiteSpace: 'pre-wrap',
-        }}>
-          {msg.texto}
-        </p>
+        {esImagen && (
+          <a href={msg.mediaUrl} target="_blank" rel="noopener noreferrer">
+            <img
+              src={msg.mediaUrl}
+              alt="imagen"
+              style={{
+                maxWidth: '100%', maxHeight: 320, objectFit: 'cover',
+                borderRadius: 6, display: 'block', cursor: 'pointer',
+                marginBottom: mostrarTexto ? 6 : 2,
+              }}
+            />
+          </a>
+        )}
+        {esAudio && (
+          <audio
+            controls
+            src={msg.mediaUrl}
+            style={{ display: 'block', maxWidth: 240, marginBottom: 2 }}
+          />
+        )}
+        {esDoc && (
+          <a
+            href={msg.mediaUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{ display: 'flex', alignItems: 'center', gap: 6, color: WA_TEXT, textDecoration: 'none', marginBottom: 2 }}
+          >
+            <span style={{ fontSize: 20 }}>📄</span>
+            <span style={{ fontSize: 13, textDecoration: 'underline', wordBreak: 'break-word' }}>
+              {msg.texto?.replace(/^📄\s*/, '') || 'Documento'}
+            </span>
+          </a>
+        )}
+        {mostrarTexto && (
+          <p style={{
+            margin: 0, color: WA_TEXT, fontSize: 14,
+            lineHeight: 1.45, wordBreak: 'break-word', whiteSpace: 'pre-wrap',
+          }}>
+            {msg.texto}
+          </p>
+        )}
         <div style={{
           display: 'flex', alignItems: 'center', justifyContent: 'flex-end',
           gap: 3, marginTop: 2,
