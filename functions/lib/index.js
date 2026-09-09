@@ -23,7 +23,7 @@ var __importStar = (this && this.__importStar) || function (mod) {
     return result;
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.repescaLeadsFrios = exports.alertasSinRespuesta = exports.gestionarEquipo = exports.kommoRecibirLead = exports.iniciarDescargaCupones = exports.subirCuponInfraccion = exports.seedAutomatizaciones = exports.motorAutomatizaciones = exports.motorAlertasDiario = exports.colaProximaConsulta = exports.guardarConsultaInfraccion = exports.crearConsultaPublica = exports.recordatoriosVencimientoWA = exports.enviarPushNotificacion = exports.whatsappTemplate = exports.whatsappSend = exports.whatsappWebhook = exports.claudeProxy = void 0;
+exports.repescaLeadsFrios = exports.alertasSinRespuesta = exports.gestionarEquipo = exports.kommoRecibirLead = exports.iniciarDescargaCupones = exports.subirCuponInfraccion = exports.seedAutomatizaciones = exports.motorAutomatizaciones = exports.motorAlertasDiario = exports.colaProximaConsulta = exports.guardarConsultaInfraccion = exports.crearConsultaPublica = exports.recordatoriosVencimientoWA = exports.enviarPushNotificacion = exports.whatsappSendMedia = exports.whatsappTemplate = exports.whatsappSend = exports.whatsappWebhook = exports.claudeProxy = void 0;
 // functions/src/index.ts
 // ─── PROXY SEGURO PARA LA API DE CLAUDE ──────────────────────────────────────
 // La API key de Anthropic NUNCA llega al cliente.
@@ -47,6 +47,7 @@ const https = __importStar(require("https"));
 const kommoRecibirLead_1 = require("./kommo/kommoRecibirLead");
 Object.defineProperty(exports, "kommoRecibirLead", { enumerable: true, get: function () { return kommoRecibirLead_1.kommoRecibirLead; } });
 const cors_1 = require("./cors");
+const SendMedia_1 = require("./whatsapp/SendMedia");
 // ─── INICIALIZAR ADMIN SDK ────────────────────────────────────────────────────
 if (!admin.apps.length)
     admin.initializeApp();
@@ -212,6 +213,13 @@ exports.whatsappTemplate = (0, https_2.onCall)({
         ? { auth: { uid: request.auth.uid, token: request.auth.token } }
         : {});
 });
+exports.whatsappSendMedia = (0, https_2.onCall)({
+    region: 'us-central1',
+    secrets: ['WHATSAPP_TOKEN', 'WHATSAPP_PHONE_NUMBER_ID', 'GESTORIA_ID'],
+    enforceAppCheck: false,
+}, async (request) => (0, SendMedia_1.handleSendMedia)(request.data, request.auth
+    ? { auth: { uid: request.auth.uid, token: request.auth.token } }
+    : {}));
 // ─── INFRACCIONES / MULTAS ───────────────────────────────────────────────────
 var pushNotificacion_1 = require("./notificaciones/pushNotificacion");
 Object.defineProperty(exports, "enviarPushNotificacion", { enumerable: true, get: function () { return pushNotificacion_1.enviarPushNotificacion; } });

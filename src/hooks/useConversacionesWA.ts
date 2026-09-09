@@ -1,5 +1,7 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { getFunctions, httpsCallable }              from 'firebase/functions'
+import { ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage'
+import { storage }        from '@/lib/firebase'
 import { create }        from 'zustand'
 import { useGestoria }   from '@/context/GestoriaContext'
 import { useAuth }       from '@/hooks/useAuth'
@@ -179,7 +181,39 @@ export function useMensajesWA(conversacionId: string | null) {
     }
   }, [conversacionId, gestoriaId, user?.uid])
 
-  return { mensajes, loading, enviando, error, enviar, bottomRef }
+  const enviarMedia = useCallback(async (file: File, caption?: string): Promise<void> => {
+    if (!file || !conversacionId || !gestoriaId || !user?.uid) return
+    setEnviando(true)
+    setError(null)
+    try {
+      const mime = file.type || 'application/octet-stream'
+      const tipo: 'image' | 'audio' | 'document' =
+        mime.startsWith('image/') ? 'image'
+        : mime.startsWith('audio/') ? 'audio'
+        : 'document'
+
+      // 1) subir a Storage
+      const safeName = file.name.replace(/[^\w.\-]/g, '_')
+      const path = `gestoria-paz/whatsapp/saliente/${conversacionId}/${Date.now()}_${safeName}`
+      const sref = storageRef(storage, path)
+      await uploadBytes(sref, file, { contentType: mime })
+      const mediaUrl = await getDownloadURL(sref)
+
+      // 2) enviar por Meta (la función guarda el mensaje saliente)
+      const fns    = getFunctions()
+      const sendFn = httpsCallable<
+        { conversacionId: string; gestoriaId: string; tipo: string; mediaUrl: string; caption?: string; filename?: string; mimeType?: string },
+        { waMessageId: string }
+      >(fns, 'whatsappSendMedia')
+      await sendFn({ conversacionId, gestoriaId, tipo, mediaUrl, caption: caption || '', filename: file.name, mimeType: mime })
+    } catch (e: any) {
+      setError(e?.message ?? 'Error al enviar el archivo')
+    } finally {
+      setEnviando(false)
+    }
+  }, [conversacionId, gestoriaId, user?.uid])
+
+  return { mensajes, loading, enviando, error, enviar, enviarMedia, bottomRef }
 }
 
 // ─── HOOK CONTADOR GLOBAL (badge en el nav) ───────────────────────────────────

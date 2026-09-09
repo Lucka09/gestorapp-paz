@@ -23,6 +23,7 @@ import { defineSecret }       from 'firebase-functions/params'
 import * as https             from 'https'
 import { kommoRecibirLead } from './kommo/kommoRecibirLead'
 import { CORS_ORIGINS } from './cors'
+import { handleSendMedia } from './whatsapp/SendMedia'
 // ─── INICIALIZAR ADMIN SDK ────────────────────────────────────────────────────
 if (!admin.apps.length) admin.initializeApp()
 
@@ -262,6 +263,21 @@ export const whatsappTemplate = onCall(
         : {},
     )
   },
+)
+
+export const whatsappSendMedia = onCall(
+  {
+    region:  'us-central1',
+    secrets: ['WHATSAPP_TOKEN', 'WHATSAPP_PHONE_NUMBER_ID', 'GESTORIA_ID'],
+    enforceAppCheck: false,
+  },
+  async (request) =>
+    handleSendMedia(
+      request.data as any,
+      request.auth
+        ? { auth: { uid: request.auth.uid, token: request.auth.token as any } }
+        : {},
+    ),
 )
 
 // ─── INFRACCIONES / MULTAS ───────────────────────────────────────────────────

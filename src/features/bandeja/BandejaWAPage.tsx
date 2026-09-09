@@ -3,7 +3,7 @@ import {
   MessageCircle, Search, Filter, Check, CheckCheck,
   User, Link2, Tag, ChevronRight, Send, Phone,
   MoreVertical, Clock, Wifi, WifiOff, Circle,
-  RefreshCw, UserCheck, X, ArrowLeft,
+  RefreshCw, UserCheck, X, ArrowLeft, Paperclip,
 } from 'lucide-react'
 import { formatDistanceToNow, format, isToday, isYesterday } from 'date-fns'
 import { es } from 'date-fns/locale'
@@ -220,7 +220,7 @@ function PanelChat({
   conv:    ConversacionWA
   onClose: () => void
 }) {
-  const { mensajes, loading, enviando, error, enviar, bottomRef } = useMensajesWA(conv.id)
+  const { mensajes, loading, enviando, error, enviar, enviarMedia, bottomRef } = useMensajesWA(conv.id)
   const { cambiarEstado, asignarseYo, asignar, marcarLeida, puedeReasignar } = useConversacionesWA()
   const { user } = useAuth()
   const { gestoriaId } = useGestoria()
@@ -230,6 +230,7 @@ function PanelChat({
   const [valorConsulta, setValorConsulta] = useState(conv.consultaSugerida?.valor ?? '')
   const [creandoConsulta, setCreandoConsulta] = useState(false)
   const inputRef = useRef<HTMLTextAreaElement>(null)
+  const fileRef  = useRef<HTMLInputElement>(null)
 
   // Si el webhook actualiza el valor detectado (patente que llegó después), sincronizar
   useEffect(() => {
@@ -289,6 +290,19 @@ function PanelChat({
       e.preventDefault()
       handleEnviar()
     }
+  }
+
+  const handleArchivo = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    e.target.value = ''            // permite re-elegir el mismo archivo
+    if (!file || enviando) return
+    if (file.size > 16 * 1024 * 1024) {   // WhatsApp: ~16MB imagen/audio
+      alert('El archivo es muy grande (máx. 16 MB).')
+      return
+    }
+    await enviarMedia(file, texto.trim() || undefined)
+    setTexto('')
+    inputRef.current?.focus()
   }
 
   // Agrupar mensajes por fecha
@@ -580,6 +594,26 @@ function PanelChat({
         padding: '10px 16px', background: WA_PANEL,
         borderTop: `1px solid ${WA_DIVIDER}`,
       }}>
+        <input
+          ref={fileRef}
+          type="file"
+          accept="image/*,audio/*,application/pdf"
+          onChange={handleArchivo}
+          style={{ display: 'none' }}
+        />
+        <button
+          onClick={() => fileRef.current?.click()}
+          disabled={enviando}
+          title="Adjuntar imagen, audio o PDF"
+          style={{
+            width: 42, height: 42, borderRadius: '50%', border: 'none',
+            background: 'transparent', color: WA_SUBTEXT,
+            cursor: enviando ? 'default' : 'pointer', flexShrink: 0,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+          }}
+        >
+          <Paperclip size={20} />
+        </button>
         <textarea
           ref={inputRef}
           value={texto}
