@@ -56,11 +56,11 @@ export async function getMetricasPorSecretario(
   hasta:      Date,
 ): Promise<MetricaSecretario[]> {
   if (!gestoriaId) return []
-
+ 
   const acc: Record<string, MetricaSecretario> = {}
   const fila = (uid: string) => (acc[uid] ??= filaVacia(uid))
   const q = (col: string) => getDocs(query(collection(db, col), where('gestoriaId', '==', gestoriaId)))
-
+ 
   // ── LEADS ────────────────────────────────────────────────────────────────
   const leadsSnap = await q('leads')
   leadsSnap.forEach(d => {
@@ -72,7 +72,7 @@ export async function getMetricasPorSecretario(
     f.leadsAsignados++
     if (l.estado === 'convertido' || l.convertidoA) f.leadsConvertidos++
   })
-
+ 
   // ── CONSULTAS DE INFRACCIONES ──────────────────────────────────────────────
   const consSnap = await q('consultasInfracciones')
   consSnap.forEach(d => {
@@ -82,14 +82,14 @@ export async function getMetricasPorSecretario(
     if (!uid) return
     if (c.estado === 'cotizada' || c.estado === 'enviada') fila(uid).consultasProcesadas++
   })
-
+ 
   // ── PROSPECTOS (cierres ganados / perdidos) ────────────────────────────────
   const prosSnap = await q('prospectos')
   prosSnap.forEach(d => {
     const p = d.data() as any
     const uid = String(p.asignadoA ?? '')
     if (!uid) return
-
+ 
     if ((p.etapa === 'ganado' || p.etapa === 'cerrado')) {
       const fc = parseFecha(p.fechaCierre) ?? (p.creadoEn?.toDate?.() ?? null)
       if (fc && fc >= desde && fc <= hasta) fila(uid).cierresGanados++
@@ -99,19 +99,31 @@ export async function getMetricasPorSecretario(
       if (fc && fc >= desde && fc <= hasta) fila(uid).cierresPerdidos++
     }
   })
-
-  // ── INGRESOS = RECIBOS (cada recibo cargado, por señas / cuotas) ────────────
-  // Se atribuye al secretario dueño del ingreso (atribuidoA) o, si no,
-  // a quien lo emitió (emitidoPor). Fecha = creadoEn del recibo.
-  const recSnap = await q('recibos')
-  recSnap.forEach(d => {
-    const r = d.data() as any
-    if (!enRango(r.creadoEn, desde, hasta)) return
-    const uid = String(r.atribuidoA || r.emitidoPor || '')
+ 
+  // ── INGRESOS = TOTALCOBRADOCLIENTE DE TRÁMITES (NO RECIBOS) ──────────────────
+  // ⚠️ CAMBIO CRÍTICO: Usar totalCobradoCliente de trámites, no sum de recibos individuales
+  // Razón: Un trámite puede tener múltiples recibos (ej: $1000 seña + $4000 saldo).
+  // Si sumamos cada recibo, contamos la misma transacción 2+ veces.
+  // totalCobradoCliente = lo que REALMENTE ingresó (SUAT + Informe + honorarios)
+  // 
+  // Attribution: se atribuye al secretario que COMPLETÓ el trámite (paso 7 en multas),
+  // o al asignado/creador en trámites normales.
+  const tramitesSnap = await q('tramites')
+  tramitesSnap.forEach(d => {
+    const t = d.data() as any
+    if (!t.pagado) return
+    if (!enRango(t.fechaPago, desde, hasta)) return
+    
+    // Quién se lleva el crédito: completadoPor (multas paso 7) > asignadoA > creadoPor
+    const uid = String(t.completadoPor || t.asignadoA || t.creadoPor || '')
     if (!uid) return
-    fila(uid).ingresos += Number(r.monto ?? 0)
+    
+    // Usar totalCobradoCliente (total ingresado con SUAT + Informe)
+    // Si no existe (trámites viejos), caer a honorarios
+    const monto = Number(t.totalCobradoCliente ?? t.honorarios ?? 0)
+    fila(uid).ingresos += monto
   })
-
+ 
   // ── TIEMPO DE PRIMERA RESPUESTA (conversacionesWA, forward-only) ────────────
   const convSnap = await q('conversacionesWA')
   convSnap.forEach(d => {
@@ -125,7 +137,7 @@ export async function getMetricasPorSecretario(
     f.respuestasMedidas++
     f.tiempoRespuestaSegs += segs
   })
-
+ 
   return Object.values(acc)
 }
 
@@ -154,16 +166,16 @@ function inicioMesActual(): Date {
 
 export async function getResumenSecretarios(gestoriaId: string): Promise<ResumenSecretario[]> {
   if (!gestoriaId) return []
-
+ 
   const desdeMes    = inicioMesActual()
   const desdeSemana = inicioSemanaLunes()
   const ahora       = new Date()
-
+ 
   const acc: Record<string, ResumenSecretario> = {}
   const fila = (uid: string) =>
     (acc[uid] ??= { uid, ingresosSemana: 0, ingresosMes: 0, cierresMes: 0, leadsMes: 0, consultasMes: 0 })
   const q = (col: string) => getDocs(query(collection(db, col), where('gestoriaId', '==', gestoriaId)))
-
+ 
   // Prospectos → cierres del mes (etapa ganado). La PLATA no sale de acá.
   const pros = await q('prospectos')
   pros.forEach(d => {
@@ -174,21 +186,32 @@ export async function getResumenSecretarios(gestoriaId: string): Promise<Resumen
     const fc = parseFecha(p.fechaCierre) ?? (p.creadoEn?.toDate?.() ?? null)
     if (fc && fc >= desdeMes && fc <= ahora) fila(uid).cierresMes++
   })
-
-  // Recibos → ingresos semana + mes (cada recibo, por señas/cuotas).
-  // Atribuido al dueño del ingreso (atribuidoA) o a quien lo emitió (emitidoPor).
-  const recibos = await q('recibos')
-  recibos.forEach(d => {
-    const r = d.data() as any
-    const fecha = r.creadoEn?.toDate?.() as Date | undefined
+ 
+  // ⚠️ CAMBIO CRÍTICO: Sumar totalCobradoCliente de TRÁMITES, no recibos individuales
+  // Razón: un trámite puede tener múltiples recibos (parciales en paso 2 + saldo en paso 7)
+  // Si sumamos cada recibo por separado, contamos la misma plata 2+ veces.
+  // totalCobradoCliente = el TOTAL real que ingresó (SUAT + Informe + honorarios).
+  const tramites = await q('tramites')
+  tramites.forEach(d => {
+    const t = d.data() as any
+    if (!t.pagado) return
+    const fecha = t.fechaPago?.toDate?.() as Date | undefined
     if (!fecha) return
-    const uid = String(r.atribuidoA || r.emitidoPor || '')
+    
+    // En multas paso 7, el secretario que lo completó se lleva el crédito.
+    // En trámites normales, se atribuye al asignado / creado por.
+    const uid = String(t.completadoPor || t.asignadoA || t.creadoPor || '')
     if (!uid) return
-    const monto = Number(r.monto ?? 0)
+    
+    // Usar totalCobradoCliente si existe (multas paso 7), sino caer a honorarios (trámites normales)
+    // totalCobradoCliente = lo que realmente ingresó (incluye SUAT + Informe)
+    // honorarios = solo la parte neta de la gestoría
+    const monto = Number(t.totalCobradoCliente ?? t.honorarios ?? 0)
+    
     if (fecha >= desdeMes && fecha <= ahora)    fila(uid).ingresosMes += monto
     if (fecha >= desdeSemana && fecha <= ahora) fila(uid).ingresosSemana += monto
   })
-
+ 
   // Leads del mes
   const leads = await q('leads')
   leads.forEach(d => {
@@ -197,7 +220,7 @@ export async function getResumenSecretarios(gestoriaId: string): Promise<Resumen
     const uid = String(l.asignadoA ?? '')
     if (uid) fila(uid).leadsMes++
   })
-
+ 
   // Consultas procesadas del mes
   const cons = await q('consultasInfracciones')
   cons.forEach(d => {
@@ -206,6 +229,7 @@ export async function getResumenSecretarios(gestoriaId: string): Promise<Resumen
     const uid = String(c.asignadoA ?? '')
     if (uid && (c.estado === 'cotizada' || c.estado === 'enviada')) fila(uid).consultasMes++
   })
-
+ 
   return Object.values(acc)
 }
+ 

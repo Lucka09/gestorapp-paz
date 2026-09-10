@@ -164,7 +164,9 @@ export default function ReportesPage() {
   const suatsMes = useMemo(() =>
     tramitesMes.reduce((a, t) => a + (((t as any).costosSUATS as number) ?? 0), 0),
   [tramitesMes])
-
+const informesPersonaMes = useMemo(() =>
+  tramitesMes.reduce((a, t) => a + (((t as any).costosInformePersona as number) ?? 0), 0),
+[tramitesMes])
   const handleGenerar = async () => {
     setGenerando(true)
     setPdfBlob(null)
@@ -506,7 +508,9 @@ export default function ReportesPage() {
               <Card className="p-4">
                 <p className="text-xs font-bold text-gray-400 mb-2">SUATS ABONADO</p>
                 <p className="text-2xl font-extrabold text-orange-600">{formatPesos(suatsMes || 0)}</p>
-                <p className="text-[10px] text-gray-400 mt-1">${16000} × {Math.floor((suatsMes || 0)/16000)}</p>
+                <p className="text-[10px] text-gray-400 mt-1">{suatsMes && suatsMes > 0 
+  ? `${Math.ceil((suatsMes || 0) / (config.costosMulta?.suats ?? 25000))} × $${(config.costosMulta?.suats ?? 25000).toLocaleString('es-AR')}`
+  : 'Sin SUATS abonados'}</p>
               </Card>
               <Card className="p-4">
                 <p className="text-xs font-bold text-gray-400 mb-2">ENTREGADOS</p>
@@ -550,11 +554,11 @@ export default function ReportesPage() {
                   </div>
                   <div className="flex justify-between items-center py-2 border-b border-gray-100">
                     <span className="text-sm text-gray-600">Informe persona</span>
-                    <span className="font-bold text-red-600">−$20.000</span>
+                    <span className="font-bold text-red-600">−{formatPesos(informesPersonaMes || 0)}</span>
                   </div>
                   <div className="flex justify-between items-center py-3 bg-emerald-50 px-3 rounded-lg">
                     <span className="font-bold text-gray-800">Honorarios gestoría</span>
-                    <span className="font-extrabold text-emerald-700 text-lg">{formatPesos((kpis.ingresos - (suatsMes || 0) - 20000) || 0)}</span>
+                    <span className="font-extrabold text-emerald-700 text-lg">{formatPesos((kpis.ingresos - (suatsMes || 0) - (informesPersonaMes || 0)) || 0)}</span>
                   </div>
                 </div>
                 <div className="space-y-3">

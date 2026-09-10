@@ -94,7 +94,7 @@ export async function getMetricas(gestoriaId: string): Promise<MetricasDashboard
   const turnosHoy          = snapTurnosHoy?.docs.filter(d => d.data().estado !== 'cancelado').length ?? 0
   const turnosProximos     = snapTurnosProx?.size ?? 0
 
-  const ingresosMes    = snapPagados?.docs.reduce((a, d) => a + (d.data().honorarios ?? 0), 0) ?? 0
+  const ingresosMes = snapPagados?.docs.reduce((a, d) => a + (d.data().totalCobradoCliente ?? d.data().honorarios ?? 0), 0)
   const ingresosHoy    = snapPagados?.docs
     .filter(d => { const fp = d.data().fechaPago?.toDate?.(); return fp && fp >= hoyInicio && fp <= hoyFin })
     .reduce((a, d) => a + (d.data().honorarios ?? 0), 0) ?? 0
