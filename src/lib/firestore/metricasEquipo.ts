@@ -90,7 +90,7 @@ export async function getMetricasPorSecretario(
     const uid = String(p.asignadoA ?? '')
     if (!uid) return
 
-    if (p.etapa === 'cerrado') {
+    if ((p.etapa === 'ganado' || p.etapa === 'cerrado')) {
       const fc = parseFecha(p.fechaCierre) ?? (p.creadoEn?.toDate?.() ?? null)
       if (fc && fc >= desde && fc <= hasta) {
         const f = fila(uid)
@@ -160,7 +160,7 @@ export async function getResumenSecretarios(gestoriaId: string): Promise<Resumen
   const pros = await q('prospectos')
   pros.forEach(d => {
     const p = d.data() as any
-    if (p.etapa !== 'cerrado') return
+    if (p.etapa !== 'ganado' && p.etapa !== 'cerrado') return
     const uid = String(p.asignadoA ?? '')
     if (!uid) return
     const fc = parseFecha(p.fechaCierre) ?? (p.creadoEn?.toDate?.() ?? null)

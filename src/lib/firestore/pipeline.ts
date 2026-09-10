@@ -14,10 +14,20 @@ import { crearEvento } from '@/types'
 export type EtapaPipeline =
   | 'nuevo'
   | 'contactado'
-  | 'interesado'
   | 'presupuestado'
-  | 'cerrado'
+  | 'en_tramite'
+  | 'ganado'
   | 'perdido'
+
+// Etapas viejas → nuevas (para datos ya cargados, sin migración destructiva).
+const MAPA_ETAPA_LEGACY: Record<string, EtapaPipeline> = {
+  cerrado:    'ganado',
+  interesado: 'contactado',
+}
+export function normalizarEtapa(e: unknown): EtapaPipeline {
+  const v = String(e ?? 'nuevo')
+  return (MAPA_ETAPA_LEGACY[v] ?? v) as EtapaPipeline
+}
 
 export type ColorProspecto =
   | 'naranja'   // caliente — alta probabilidad
@@ -51,10 +61,15 @@ export interface Prospecto {
   tipoTramite:  TipoTramite
   patente:      string
   descripcion:  string
-  // Cierre (solo cuando etapa === 'cerrado')
+  // Cierre (solo cuando etapa === 'ganado')
   montoCierre:  number
   formaPago:    FormasPago | ''
   fechaCierre:  string
+  // Enlaces (Fase B — habilitan las transiciones automáticas)
+  clienteId?:      string   // cliente asociado (al convertir desde lead / al ganar)
+  leadId?:         string   // lead de origen
+  conversacionId?: string   // conversación WhatsApp (= teléfono normalizado)
+  tramiteId?:      string   // trámite en curso (se completa al pasar a 'en_tramite')
   // Tareas
   tareas:       Tarea[]
   // Difusión
@@ -84,9 +99,9 @@ export interface ActorInfo {
 export const ETAPAS: { key: EtapaPipeline; label: string; color: string; bg: string; border: string }[] = [
   { key: 'nuevo',        label: 'Nuevo',        color: 'text-gray-600',   bg: 'bg-gray-50',    border: 'border-gray-200'   },
   { key: 'contactado',   label: 'Contactado',   color: 'text-blue-700',   bg: 'bg-blue-50',    border: 'border-blue-200'   },
-  { key: 'interesado',   label: 'Interesado',   color: 'text-orange-700', bg: 'bg-orange-50',  border: 'border-orange-200' },
   { key: 'presupuestado',label: 'Presupuestado',color: 'text-purple-700', bg: 'bg-purple-50',  border: 'border-purple-200' },
-  { key: 'cerrado',      label: 'Cerrado ✅',   color: 'text-green-700',  bg: 'bg-green-50',   border: 'border-green-200'  },
+  { key: 'en_tramite',   label: 'En trámite',   color: 'text-amber-700',  bg: 'bg-amber-50',   border: 'border-amber-200'  },
+  { key: 'ganado',       label: 'Ganado ✅',    color: 'text-green-700',  bg: 'bg-green-50',   border: 'border-green-200'  },
   { key: 'perdido',      label: 'Perdido',      color: 'text-red-600',    bg: 'bg-red-50',     border: 'border-red-200'    },
 ]
 
@@ -180,7 +195,7 @@ export function subscribeProspectos(
     orderBy('creadoEn', 'desc')
   )
   return onSnapshot(q, snap =>
-    callback(snap.docs.map(d => ({ ...d.data(), id: d.id }) as Prospecto))
+    callback(snap.docs.map(d => ({ ...d.data(), id: d.id, etapa: normalizarEtapa((d.data() as any).etapa) }) as Prospecto))
   )
 }
 
@@ -190,7 +205,7 @@ export function subscribeProspectosPorEtapa(
 ): Unsubscribe {
   const q = query(prospectosCOL, where('etapa', '==', etapa), orderBy('orden'))
   return onSnapshot(q, snap =>
-    callback(snap.docs.map(d => ({ ...d.data(), id: d.id }) as Prospecto))
+    callback(snap.docs.map(d => ({ ...d.data(), id: d.id, etapa: normalizarEtapa((d.data() as any).etapa) }) as Prospecto))
   )
 }
 
@@ -270,7 +285,7 @@ export async function moverEtapa(
     if (evEtapa) emitirSilencioso(evEtapa.gestoriaId, evEtapa)
 
     // Cierre ganado
-    if (etapa === 'cerrado' && etapaAnterior !== 'cerrado') {
+    if (etapa === 'ganado' && etapaAnterior !== 'ganado') {
       const evGanado = await buildEventoBase(id, 'prospecto.cerrado_ganado', actor, {
         monto: actual.montoCierre,
         formaPago: actual.formaPago,
@@ -309,7 +324,7 @@ export async function actualizarProspecto(
   void (async () => {
     if (!prev || !data.etapa) return
 
-    if (data.etapa === 'cerrado' && prev.etapa !== 'cerrado') {
+    if (data.etapa === 'ganado' && prev.etapa !== 'ganado') {
       const ev = await buildEventoBase(id, 'prospecto.cerrado_ganado', actor, {
         monto: data.montoCierre ?? prev.montoCierre,
         formaPago: data.formaPago ?? prev.formaPago,
@@ -378,8 +393,8 @@ export async function eliminarTarea(
 
 export function calcularMetricasPipeline(prospectos: Prospecto[]) {
   const total      = prospectos.length
-  const cerrados   = prospectos.filter(p => p.etapa === 'cerrado')
-  const activos    = prospectos.filter(p => !['cerrado','perdido'].includes(p.etapa))
+  const cerrados   = prospectos.filter(p => p.etapa === 'ganado')
+  const activos    = prospectos.filter(p => !['ganado','perdido'].includes(p.etapa))
   const perdidos   = prospectos.filter(p => p.etapa === 'perdido')
   const ingresos   = cerrados.reduce((a, p) => a + (p.montoCierre || 0), 0)
   const conversion = total > 0 ? Math.round((cerrados.length / total) * 100) : 0

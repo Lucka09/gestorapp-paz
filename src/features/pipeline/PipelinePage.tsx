@@ -132,7 +132,7 @@ function ProspectoCard({
         </div>
 
         <div className="flex items-center gap-2">
-          {prospecto.etapa === 'cerrado' && prospecto.montoCierre > 0 && (
+          {prospecto.etapa === 'ganado' && prospecto.montoCierre > 0 && (
             <span className="text-xs font-bold text-green-600">
               {formatPesos(prospecto.montoCierre)}
             </span>
@@ -199,7 +199,7 @@ function KanbanColumna({
   onNuevo:     (etapa: EtapaPipeline) => void
 }) {
   const totalMonto = prospectos
-    .filter(p => p.etapa === 'cerrado')
+    .filter(p => p.etapa === 'ganado')
     .reduce((a, p) => a + (p.montoCierre || 0), 0)
 
   return (
@@ -378,7 +378,7 @@ function ProspectoForm({
       </div>
 
       {/* Datos de cierre */}
-      {form.etapa === 'cerrado' && (
+      {form.etapa === 'ganado' && (
         <div className="bg-green-50 border border-green-200 rounded-xl p-4 space-y-3">
           <p className="text-xs font-bold text-green-700 uppercase tracking-wide">Datos del cierre</p>
           <div className="grid grid-cols-2 gap-3">
@@ -544,7 +544,7 @@ function ModalDetalle({
         {prospecto.email     && <div className="flex gap-2"><span className="text-gray-400 w-20 shrink-0">Email</span><span className="text-gray-700">{prospecto.email}</span></div>}
         {prospecto.localidad && <div className="flex gap-2"><span className="text-gray-400 w-20 shrink-0">Localidad</span><span className="text-gray-700">{prospecto.localidad}</span></div>}
         {prospecto.descripcion && <div className="flex gap-2"><span className="text-gray-400 w-20 shrink-0">Nota</span><span className="text-gray-700">{prospecto.descripcion}</span></div>}
-        {prospecto.etapa === 'cerrado' && prospecto.montoCierre > 0 && (
+        {prospecto.etapa === 'ganado' && prospecto.montoCierre > 0 && (
           <>
             <div className="flex gap-2"><span className="text-gray-400 w-20 shrink-0">Monto</span><span className="font-bold text-green-600">{formatPesos(prospecto.montoCierre)}</span></div>
             {prospecto.formaPago  && <div className="flex gap-2"><span className="text-gray-400 w-20 shrink-0">Forma pago</span><span className="text-gray-700 capitalize">{prospecto.formaPago}</span></div>}

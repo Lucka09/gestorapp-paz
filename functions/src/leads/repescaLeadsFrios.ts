@@ -23,7 +23,7 @@
 import * as admin from 'firebase-admin'
 import { onSchedule } from 'firebase-functions/v2/scheduler'
 import { logger } from 'firebase-functions'
-import { sendTextMessage, normalizarTelefono } from '../utils/Utils'
+import { sendTemplateMessage, normalizarTelefono } from '../utils/Utils'
 
 const DIA_MS = 86_400_000
 const FV = admin.firestore.FieldValue
@@ -94,11 +94,7 @@ export const repescaLeadsFrios = onSchedule(
       const parametros = [nombre]
 
       try {
-        await sendTextMessage(
-          telefono,
-          `${templateNombre} (${idioma}): ${parametros.join(', ')}`,
-          emisor,
-        )
+        await sendTemplateMessage(telefono, templateNombre, idioma, parametros, emisor)
         await doc.ref.update({
           repescadoEn: FV.serverTimestamp(),
           estado: l.estado === 'nuevo' ? 'contactado' : l.estado,

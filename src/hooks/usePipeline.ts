@@ -21,8 +21,8 @@ export function useProspectos() {
 
   const porEtapa = useMemo(() => {
     const map: Record<EtapaPipeline, Prospecto[]> = {
-      nuevo: [], contactado: [], interesado: [],
-      presupuestado: [], cerrado: [], perdido: [],
+      nuevo: [], contactado: [], presupuestado: [],
+      en_tramite: [], ganado: [], perdido: [],
     }
     prospectos.forEach(p => {
       if (map[p.etapa]) map[p.etapa].push(p)
