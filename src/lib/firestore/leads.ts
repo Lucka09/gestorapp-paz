@@ -258,6 +258,9 @@ export async function convertirLeadAProspecto(
     formaPago:   '',
     fechaCierre: '',
     asignadoA:   lead.asignadoA ?? '',
+    clienteId:   lead.clienteId ?? '',
+    leadId:      id,
+    conversacionId: (lead.telefono ?? '').replace(/\D/g, ''),
   }
   const prospectoId = await crearProspecto(
     prospectoData as any,
@@ -440,6 +443,8 @@ export async function convertirLeadAConsulta(
     formaPago:   '' as const,
     fechaCierre: '',
     asignadoA:   lead.asignadoA ?? '',
+    clienteId:   lead.clienteId ?? '',
+    conversacionId: (lead.telefono ?? '').replace(/\D/g, ''),
     leadId,
   }
   const prospectoId = await crearProspecto(
