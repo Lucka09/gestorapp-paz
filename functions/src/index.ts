@@ -294,3 +294,4 @@ export { kommoRecibirLead }
 export { gestionarEquipo } from './equipo/gestionarEquipo'
 export { alertasSinRespuesta } from './alertas/alertasSinRespuesta'
 export { repescaLeadsFrios }   from './leads/repescaLeadsFrios'
+export { prospectoAutoEtapa } from './pipeline/prospectoAutoEtapa'

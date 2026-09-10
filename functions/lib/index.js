@@ -23,7 +23,7 @@ var __importStar = (this && this.__importStar) || function (mod) {
     return result;
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.repescaLeadsFrios = exports.alertasSinRespuesta = exports.gestionarEquipo = exports.kommoRecibirLead = exports.iniciarDescargaCupones = exports.subirCuponInfraccion = exports.seedAutomatizaciones = exports.motorAutomatizaciones = exports.motorAlertasDiario = exports.colaProximaConsulta = exports.guardarConsultaInfraccion = exports.crearConsultaPublica = exports.recordatoriosVencimientoWA = exports.enviarPushNotificacion = exports.whatsappSendMedia = exports.whatsappTemplate = exports.whatsappSend = exports.whatsappWebhook = exports.claudeProxy = void 0;
+exports.prospectoAutoEtapa = exports.repescaLeadsFrios = exports.alertasSinRespuesta = exports.gestionarEquipo = exports.kommoRecibirLead = exports.iniciarDescargaCupones = exports.subirCuponInfraccion = exports.seedAutomatizaciones = exports.motorAutomatizaciones = exports.motorAlertasDiario = exports.colaProximaConsulta = exports.guardarConsultaInfraccion = exports.crearConsultaPublica = exports.recordatoriosVencimientoWA = exports.enviarPushNotificacion = exports.whatsappSendMedia = exports.whatsappTemplate = exports.whatsappSend = exports.whatsappWebhook = exports.claudeProxy = void 0;
 // functions/src/index.ts
 // ─── PROXY SEGURO PARA LA API DE CLAUDE ──────────────────────────────────────
 // La API key de Anthropic NUNCA llega al cliente.
@@ -246,4 +246,6 @@ var alertasSinRespuesta_1 = require("./alertas/alertasSinRespuesta");
 Object.defineProperty(exports, "alertasSinRespuesta", { enumerable: true, get: function () { return alertasSinRespuesta_1.alertasSinRespuesta; } });
 var repescaLeadsFrios_1 = require("./leads/repescaLeadsFrios");
 Object.defineProperty(exports, "repescaLeadsFrios", { enumerable: true, get: function () { return repescaLeadsFrios_1.repescaLeadsFrios; } });
+var prospectoAutoEtapa_1 = require("./pipeline/prospectoAutoEtapa");
+Object.defineProperty(exports, "prospectoAutoEtapa", { enumerable: true, get: function () { return prospectoAutoEtapa_1.prospectoAutoEtapa; } });
 //# sourceMappingURL=index.js.map

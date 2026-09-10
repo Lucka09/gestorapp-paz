@@ -15,7 +15,7 @@ import type {
   MultaPaso4Data, MultaPaso5Data, MultaPaso6Data, MultaPaso7Data,
   EstadoMultaWorkflow, RegistroPago, EstadoMulta, DocumentoAdicional,
 } from '@/types/multa_types'
-import { crearRecibo, generarNumeroRecibo } from '@/lib/firestore/recibos'
+import { crearRecibo, generarNumeroRecibo, getRecibosPorTramite } from '@/lib/firestore/recibos'
 import { notificarRecibo } from '@/lib/firestore/alertas'
  
 // ─── REFS ─────────────────────────────────────────────────────────────────────
@@ -386,29 +386,40 @@ export async function confirmarPaso7Multa(
   try {
     const tramiteSnap = await getDoc(doc(tramitesCol, tramiteId))
     if (tramiteSnap.exists()) {
-      const tramite = tramiteSnap.data() as any
-      const numeroRecibo = await generarNumeroRecibo(gestoriaId)
-      const reciboId = await crearRecibo({
-        numeroRecibo,
-        tramiteId,
-        clienteId:    tramite.clienteId,
-        gestoriaId,
-        tipo:         'total',
-        monto:        data.pagoTotalRecibo,
-        montoCobradoAcumulado: data.pagoTotalRecibo,
-        honorariosTotales:     data.pagoTotalRecibo,
-        formaPago,
-        notas:        data.observacionFinal ?? '',
-        patente:      tramite.patente,
-        numeroTramite: tramite.numero,
-        tipoTramite:  tramite.tipo,
-        emitidoPor:       data.completadoPor,
-        emitidoPorNombre: data.completadoPorNombre,
-      })
-      await notificarRecibo({
-        gestoriaId, tramiteId, reciboId, numeroRecibo,
-        monto: data.pagoTotalRecibo, tipo: 'total', patente: tramite.patente,
-      })
+            const tramite = tramiteSnap.data() as any
+
+      // Anti-doble-conteo: restamos lo YA recibido en parciales (señas), así
+      // el recibo de cierre solo registra el saldo. La suma de recibos = total.
+      const recibosPrevios = await getRecibosPorTramite(tramiteId)
+      const yaRecibido = recibosPrevios.reduce((a, r) => a + (r.monto ?? 0), 0)
+      const montoCierre = Math.max(0, data.pagoTotalRecibo - yaRecibido)
+
+      if (montoCierre > 0) {
+        const numeroRecibo = await generarNumeroRecibo(gestoriaId)
+        const reciboId = await crearRecibo({
+          numeroRecibo,
+          tramiteId,
+          clienteId:    tramite.clienteId,
+          gestoriaId,
+          tipo:         'total',
+          monto:        montoCierre,                    // ← solo el saldo, no el total
+          montoCobradoAcumulado: data.pagoTotalRecibo,
+          honorariosTotales:     data.pagoTotalRecibo,
+          formaPago,
+          notas:        data.observacionFinal ?? '',
+          patente:      tramite.patente,
+          numeroTramite: tramite.numero,
+          tipoTramite:  tramite.tipo,
+          emitidoPor:       data.completadoPor,
+          emitidoPorNombre: data.completadoPorNombre,
+        })
+        await notificarRecibo({
+          gestoriaId, tramiteId, reciboId, numeroRecibo,
+          monto: montoCierre, tipo: 'total', patente: tramite.patente,
+        })
+      }
+      // Si montoCierre === 0, ya estaba todo cobrado en parciales → no se crea
+      // recibo de cierre (evita el doble conteo).
     }
   } catch (e) {
     console.error('[confirmarPaso7Multa] No se pudo generar el recibo/alerta de cierre:', e)

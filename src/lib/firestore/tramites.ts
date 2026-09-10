@@ -385,7 +385,10 @@ export interface ResultadoPago {
 export async function registrarPago(
   id:   string,
   pago: RegistroPago,
-  ctx:  { uid: string; nombre: string; rol: string; gestoriaId: string },
+    ctx:  {
+    uid: string; nombre: string; rol: string; gestoriaId: string
+    atribuidoA?: string; atribuidoANombre?: string; motivoTercero?: string
+  },
 ): Promise<ResultadoPago> {
   const snap = await getDoc(tramiteDoc(id))
   if (!snap.exists()) throw new Error('Trámite no encontrado')
@@ -425,6 +428,10 @@ export async function registrarPago(
     tipoTramite:  tramite.tipo,
     emitidoPor:        ctx.uid,
     emitidoPorNombre:  ctx.nombre,
+    atribuidoA:        ctx.atribuidoA       || ctx.uid,
+    atribuidoANombre:  ctx.atribuidoANombre || ctx.nombre,
+    cargadoPorTercero: !!(ctx.atribuidoA && ctx.atribuidoA !== ctx.uid),
+    motivoTercero:     ctx.motivoTercero ?? '',
   })
  
   const nuevoPago: PagoTramite = {

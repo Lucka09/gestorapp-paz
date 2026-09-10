@@ -1,10 +1,10 @@
 /**
- * RECIBOS - VERSIÓN CORREGIDA
+ * RECIBOS
  * ─────────────────────────────────────────────────────────────
- * CAMBIO CRÍTICO: Al crear un recibo, también marca el trámite como pagado
- * y actualiza los campos financieros (fechaPago, totalCobradoCliente, etc)
- * 
- * Reemplazar: src/utils/recibos.ts
+ * Al crear un recibo, también marca el trámite como pagado y actualiza los
+ * campos financieros. Los ingresos se cuentan POR RECIBO (señas / cuotas).
+ *
+ * Reemplazar: src/lib/firestore/recibos.ts
  */
 
 import {
@@ -35,6 +35,11 @@ export interface ReciboInput {
   tipoTramite:           string
   emitidoPor:            string
   emitidoPorNombre:      string
+  // Atribución del ingreso (para métricas por secretario)
+  atribuidoA?:           string   // secretario dueño del ingreso (default = emitidoPor)
+  atribuidoANombre?:     string
+  cargadoPorTercero?:    boolean  // lo cargó un rol de control por otra persona
+  motivoTercero?:        string   // obligatorio cuando cargadoPorTercero = true
 }
 
 export interface Recibo extends ReciboInput {
@@ -42,60 +47,54 @@ export interface Recibo extends ReciboInput {
   creadoEn: Timestamp
 }
 
-/**
- * FUNCIÓN CORREGIDA: Crea recibo Y marca tramite como pagado
- * ─────────────────────────────────────────────────────────────
- */
 export async function crearRecibo(data: ReciboInput): Promise<string> {
-  const reciboRef = await addDoc(recibosCol, {
+  // Si no vino atribución explícita, el ingreso se imputa a quien lo emitió.
+  const dataFinal: ReciboInput = {
     ...data,
+    atribuidoA:       data.atribuidoA       || data.emitidoPor,
+    atribuidoANombre: data.atribuidoANombre || data.emitidoPorNombre,
+  }
+
+  const reciboRef = await addDoc(recibosCol, {
+    ...dataFinal,
     creadoEn: serverTimestamp(),
   })
 
-  // Evento fire-and-forget — todos los datos están en `data`
   emitirEventoSilencioso(crearEvento({
-    gestoriaId:   data.gestoriaId,
+    gestoriaId:   dataFinal.gestoriaId,
     tipo:         'recibo.emitido',
     entidad:      'recibo',
     entidadId:    reciboRef.id,
-    entidadLabel: data.numeroRecibo,
-    actorId:      data.emitidoPor,
-    actorNombre:  data.emitidoPorNombre,
+    entidadLabel: dataFinal.numeroRecibo,
+    actorId:      dataFinal.emitidoPor,
+    actorNombre:  dataFinal.emitidoPorNombre,
     actorTipo:    'usuario',
-    payload:      { monto: data.monto, tramiteId: data.tramiteId, tipo: data.tipo, patente: data.patente },
-    resumen:      `Recibo ${data.numeroRecibo} emitido por $${data.monto}`,
+    payload:      { monto: dataFinal.monto, tramiteId: dataFinal.tramiteId, tipo: dataFinal.tipo, patente: dataFinal.patente, atribuidoA: dataFinal.atribuidoA },
+    resumen:      `Recibo ${dataFinal.numeroRecibo} emitido por $${dataFinal.monto}`,
   }))
-  // 🔥 CRÍTICO: Marcar trámite como pagado y actualizar campos financieros
+
+  // Marcar trámite como pagado y actualizar campos financieros
   try {
     const tramiteSnap = await getDoc(doc(tramitesCol, data.tramiteId))
     if (tramiteSnap.exists()) {
       const tramite = tramiteSnap.data()
-
-      // Determinar monto de SUATS (si es multa que lo requiere)
-      let montoSUATS = tramite.costosSUATS ?? 0
-      
-      // Si el recibo es de tipo 'total', marcar definitivamente como pagado
+      const montoSUATS = tramite.costosSUATS ?? 0
       const actualizacion: Record<string, any> = {
         pagado: true,
         fechaPago: serverTimestamp(),
         totalCobradoCliente: data.monto,
-        // Mantener campos existentes de SUATS e informe
         costosSUATS: montoSUATS,
         costosInformePersona: tramite.costosInformePersona ?? 0,
-        // Guardar detalles del pago
         formaPago: data.formaPago,
         notasPago: data.notas,
         honorarios: data.honorariosTotales,
         actualizadoEn: serverTimestamp(),
       }
-
       await updateDoc(doc(tramitesCol, data.tramiteId), actualizacion)
-      
       console.log(`✅ Recibo creado y trámite ${tramite.numero} marcado como pagado`)
     }
   } catch (e) {
     console.error('⚠️  Error al sincronizar pago en tramite:', e)
-    // No fallar la creación del recibo si falla la sincronización
   }
 
   return reciboRef.id
@@ -109,31 +108,28 @@ export async function getRecibo(id: string): Promise<Recibo | null> {
 
 export async function getRecibosPorTramite(tramiteId: string): Promise<Recibo[]> {
   const snap = await getDocs(query(
-    recibosCol, 
-    where('tramiteId', '==', tramiteId), 
+    recibosCol,
+    where('tramiteId', '==', tramiteId),
     orderBy('creadoEn', 'desc'),
   ))
   return snap.docs.map(d => ({ ...d.data(), id: d.id }) as Recibo)
 }
 
 /**
- * NUMERACIÓN DE RECIBOS — compartida entre tramites.ts y MultaWorwflow.ts
- * Antes vivía duplicada/privada en tramites.ts; se centraliza acá para que
- * el workflow de multas use la misma numeración correlativa REC-{año}-{seq}.
+ * NUMERACIÓN DE RECIBOS — REC-{año}-{seq}, correlativa por gestoría.
  */
 export async function generarNumeroRecibo(gestoriaId: string): Promise<string> {
   const anio = new Date().getFullYear()
   const ref  = doc(db, 'contadoresRecibos', `${gestoriaId}_${anio}`)
-
   const n = await runTransaction(db, async tx => {
     const snap = await tx.get(ref)
     const siguiente = (snap.exists() ? (snap.data()?.contador ?? 0) : 0) + 1
     tx.set(ref, { gestoriaId, anio, contador: siguiente }, { merge: true })
     return siguiente
   })
-
   return `REC-${anio}-${String(n).padStart(4, '0')}`
 }
+
 // ─── BANDEJA: stream de todos los recibos de la gestoría ──────────────────────
 export function subscribeRecibos(
   gestoriaId: string,

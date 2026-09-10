@@ -83,7 +83,7 @@ export async function getMetricasPorSecretario(
     if (c.estado === 'cotizada' || c.estado === 'enviada') fila(uid).consultasProcesadas++
   })
 
-  // ── PROSPECTOS (cierres / ingresos) ────────────────────────────────────────
+  // ── PROSPECTOS (cierres ganados / perdidos) ────────────────────────────────
   const prosSnap = await q('prospectos')
   prosSnap.forEach(d => {
     const p = d.data() as any
@@ -92,16 +92,24 @@ export async function getMetricasPorSecretario(
 
     if ((p.etapa === 'ganado' || p.etapa === 'cerrado')) {
       const fc = parseFecha(p.fechaCierre) ?? (p.creadoEn?.toDate?.() ?? null)
-      if (fc && fc >= desde && fc <= hasta) {
-        const f = fila(uid)
-        f.cierresGanados++
-        f.ingresos += Number(p.montoCierre ?? 0)
-      }
+      if (fc && fc >= desde && fc <= hasta) fila(uid).cierresGanados++
     } else if (p.etapa === 'perdido') {
       const fc = parseFecha(p.fechaCierre)
         ?? (p.actualizadoEn?.toDate?.() ?? p.creadoEn?.toDate?.() ?? null)
       if (fc && fc >= desde && fc <= hasta) fila(uid).cierresPerdidos++
     }
+  })
+
+  // ── INGRESOS = RECIBOS (cada recibo cargado, por señas / cuotas) ────────────
+  // Se atribuye al secretario dueño del ingreso (atribuidoA) o, si no,
+  // a quien lo emitió (emitidoPor). Fecha = creadoEn del recibo.
+  const recSnap = await q('recibos')
+  recSnap.forEach(d => {
+    const r = d.data() as any
+    if (!enRango(r.creadoEn, desde, hasta)) return
+    const uid = String(r.atribuidoA || r.emitidoPor || '')
+    if (!uid) return
+    fila(uid).ingresos += Number(r.monto ?? 0)
   })
 
   // ── TIEMPO DE PRIMERA RESPUESTA (conversacionesWA, forward-only) ────────────
@@ -156,7 +164,7 @@ export async function getResumenSecretarios(gestoriaId: string): Promise<Resumen
     (acc[uid] ??= { uid, ingresosSemana: 0, ingresosMes: 0, cierresMes: 0, leadsMes: 0, consultasMes: 0 })
   const q = (col: string) => getDocs(query(collection(db, col), where('gestoriaId', '==', gestoriaId)))
 
-  // Prospectos cerrados → ingresos y cierres (semana y mes por fechaCierre)
+  // Prospectos → cierres del mes (etapa ganado). La PLATA no sale de acá.
   const pros = await q('prospectos')
   pros.forEach(d => {
     const p = d.data() as any
@@ -164,10 +172,21 @@ export async function getResumenSecretarios(gestoriaId: string): Promise<Resumen
     const uid = String(p.asignadoA ?? '')
     if (!uid) return
     const fc = parseFecha(p.fechaCierre) ?? (p.creadoEn?.toDate?.() ?? null)
-    if (!fc) return
-    const monto = Number(p.montoCierre ?? 0)
-    if (fc >= desdeMes && fc <= ahora)    { const f = fila(uid); f.ingresosMes += monto; f.cierresMes++ }
-    if (fc >= desdeSemana && fc <= ahora) { fila(uid).ingresosSemana += monto }
+    if (fc && fc >= desdeMes && fc <= ahora) fila(uid).cierresMes++
+  })
+
+  // Recibos → ingresos semana + mes (cada recibo, por señas/cuotas).
+  // Atribuido al dueño del ingreso (atribuidoA) o a quien lo emitió (emitidoPor).
+  const recibos = await q('recibos')
+  recibos.forEach(d => {
+    const r = d.data() as any
+    const fecha = r.creadoEn?.toDate?.() as Date | undefined
+    if (!fecha) return
+    const uid = String(r.atribuidoA || r.emitidoPor || '')
+    if (!uid) return
+    const monto = Number(r.monto ?? 0)
+    if (fecha >= desdeMes && fecha <= ahora)    fila(uid).ingresosMes += monto
+    if (fecha >= desdeSemana && fecha <= ahora) fila(uid).ingresosSemana += monto
   })
 
   // Leads del mes

@@ -26,6 +26,7 @@ import { formatFecha, formatPesos } from '@/utils'
 import toast from 'react-hot-toast'
 import BandejaRecibos from './BandejaRecibos'
 import { usePageTitle } from '@/hooks/usePageTitle'
+import { useEquipo }   from '@/hooks/useEquipo'
 import { generarComprobantePago, descargarRecibo } from '@/utils/comprobantePago'
 
 // ─── TIPOS ────────────────────────────────────────────────────────────────────
@@ -103,6 +104,11 @@ function ModalPago({
   const { user }     = useAuth()
   const gestoriaId    = useGestoriaId()
   const { config }    = useConfiguracion()
+  const { activos }   = useEquipo()
+  const esControl = ['propietario', 'admin_gral', 'admin', 'superadmin'].includes(user?.rol ?? '')
+  const asesores  = activos.filter(m => m.rol === 'asesor_comercial')
+  const [atribuidoA,    setAtribuidoA]    = useState(user?.uid ?? '')
+  const [motivoTercero, setMotivoTercero] = useState('')
 
   const cobradoPrevio   = ((tramite as any).historialPagos ?? []).reduce(
     (a: number, p: any) => a + p.monto, 0,
@@ -122,18 +128,29 @@ function ModalPago({
     }
     if (!monto || parseFloat(monto) <= 0) { toast.error('Ingresá el monto cobrado'); return }
     if (!fecha)  { toast.error('Seleccioná la fecha del cobro'); return }
-    if (!user)   { toast.error('Sesión no encontrada — recargá la página'); return }
+        if (!user)   { toast.error('Sesión no encontrada — recargá la página'); return }
+    const esTercero = esControl && atribuidoA && atribuidoA !== user.uid
+    if (esTercero && !motivoTercero.trim()) {
+      toast.error('Indicá el motivo por el que cargás el recibo en nombre de otro'); return
+    }
     setSaving(true)
     try {
       const montoNum = parseFloat(monto)
       const resultado = await registrarPago(
         tramite.id,
         { monto: montoNum, formaPago: formaPago as FormaPago, fecha, notas },
-        {
+                {
           uid:        user.uid,
           nombre:     `${user.nombre ?? ''} ${user.apellido ?? ''}`.trim() || user.email || 'Usuario',
           rol:        user.rol,
           gestoriaId,
+          ...(esTercero ? {
+            atribuidoA,
+            atribuidoANombre: (asesores.find(a => a.uid === atribuidoA)
+              ? `${asesores.find(a => a.uid === atribuidoA)!.nombre} ${asesores.find(a => a.uid === atribuidoA)!.apellido ?? ''}`.trim()
+              : ''),
+            motivoTercero: motivoTercero.trim(),
+          } : {}),
         },
       )
 
