@@ -1,54 +1,119 @@
 // src/lib/firestore/metricasEquipo.ts
 // ─── MÉTRICAS POR SECRETARIO (scorecard del CEO) ─────────────────────────────
-// Agrega, por asesor comercial y en un rango de fechas:
-//   • Ingresos generados (Σ montoCierre de prospectos cerrados)
-//   • Cierres ganados / perdidos → % cierre
-//   • Leads asignados / convertidos → % conversión
-//   • Consultas de infracciones procesadas (cotizada + enviada)
-//   • Tiempo de primera respuesta (forward-only, desde conversacionesWA)
+// CAMBIO: los ingresos se atribuyen POR RECIBO (campo `atribuidoA`), no por
+// trámite. Cada recibo trae su propio desglose de deducciones y su neto, así
+// que el total por secretario se obtiene sumando recibos del período.
 //
-// IMPORTANTE (reglas de Firestore): toda query filtra por `gestoriaId` (igual que
-// LeadsPage/PipelinePage/Bandeja). Filtrar solo por fecha hace que Firestore
-// rechace la consulta con "Missing or insufficient permissions". Las fechas se
-// filtran en memoria → sin índices compuestos.
+// Por qué sumar recibos ya NO duplica: el recibo de cierre del paso 7 registra
+// solo el saldo (MultaWorwflow.ts:391-395 descuenta los parciales previos).
+// Σ recibos de un trámite == totalCobradoCliente.
+//
+// IMPORTANTE (reglas de Firestore): toda query filtra por `gestoriaId`.
+// Filtrar solo por fecha hace que Firestore rechace la consulta con
+// "Missing or insufficient permissions". Las fechas se filtran en memoria.
 
 import { collection, getDocs, query, where } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
 
+// ─── TIPOS ────────────────────────────────────────────────────────────────────
+
 export interface MetricaSecretario {
   uid:                 string
+  // — actividad comercial —
   leadsAsignados:      number
   leadsConvertidos:    number
   consultasProcesadas: number
   cierresGanados:      number
   cierresPerdidos:     number
-  ingresos:            number
   respuestasMedidas:   number
   tiempoRespuestaSegs: number
+  // — plata —
+  recibosEmitidos:     number
+  cobradoBruto:        number   // Σ monto — lo que pagó el cliente
+  deducSUATS:          number
+  deducInforme:        number
+  deducComision:       number
+  deducFinanciero:     number
+  netoGestoria:        number   // base comisionable para premios
+  /** @deprecated alias de netoGestoria — mantener hasta migrar los consumidores */
+  ingresos:            number
 }
+
+export interface ResumenSecretario {
+  uid:            string
+  // brutos
+  brutoSemana:    number
+  brutoMes:       number
+  // netos (los que importan)
+  netoSemana:     number
+  netoMes:        number
+  deduccionesMes: number
+  recibosMes:     number
+  cierresMes:     number
+  leadsMes:       number
+  consultasMes:   number
+  /** @deprecated alias de netoMes */
+  ingresosMes:    number
+  /** @deprecated alias de netoSemana */
+  ingresosSemana: number
+}
+
+// ─── HELPERS ──────────────────────────────────────────────────────────────────
 
 function filaVacia(uid: string): MetricaSecretario {
   return {
     uid,
     leadsAsignados: 0, leadsConvertidos: 0, consultasProcesadas: 0,
-    cierresGanados: 0, cierresPerdidos: 0, ingresos: 0,
+    cierresGanados: 0, cierresPerdidos: 0,
     respuestasMedidas: 0, tiempoRespuestaSegs: 0,
+    recibosEmitidos: 0, cobradoBruto: 0,
+    deducSUATS: 0, deducInforme: 0, deducComision: 0, deducFinanciero: 0,
+    netoGestoria: 0, ingresos: 0,
   }
 }
 
-// Parse defensivo de fechaCierre (string 'YYYY-MM-DD' o similar).
 function parseFecha(s: unknown): Date | null {
   if (!s) return null
   const d = new Date(String(s))
   return isNaN(d.getTime()) ? null : d
 }
 
-// ¿El Timestamp (o algo con toMillis/toDate) cae en [desde, hasta]?
 function enRango(campo: any, desde: Date, hasta: Date): boolean {
   const ms = campo?.toMillis?.() ?? campo?.toDate?.()?.getTime?.()
   if (typeof ms !== 'number') return false
   return ms >= desde.getTime() && ms <= hasta.getTime()
 }
+
+const num = (v: unknown): number => {
+  const n = Number(v)
+  return Number.isFinite(n) ? n : 0
+}
+
+/**
+ * Neto de un recibo. Si el recibo ya trae `netoGestoria` persistido, se usa.
+ * Si no (recibos anteriores a la migración), se recalcula desde las partes.
+ * Fallback final: el monto bruto — un recibo viejo sin desglose se considera
+ * todo ingreso, que es como se contaba hasta ahora.
+ */
+function netoDeRecibo(r: any): number {
+  if (typeof r.netoGestoria === 'number' && Number.isFinite(r.netoGestoria)) {
+    return r.netoGestoria
+  }
+  const monto = num(r.monto)
+  const deducciones =
+    num(r.montoSUATS) +
+    num(r.montoInformePersona) +
+    num(r.comisionReferido) +
+    num(r.costoFinanciero)
+  return Math.max(0, monto - deducciones)
+}
+
+/** Quién se lleva el crédito del ingreso. */
+function uidAtribuido(r: any): string {
+  return String(r.atribuidoA || r.emitidoPor || '')
+}
+
+// ─── SCORECARD COMPLETO (rango libre) ────────────────────────────────────────
 
 export async function getMetricasPorSecretario(
   gestoriaId: string,
@@ -56,12 +121,31 @@ export async function getMetricasPorSecretario(
   hasta:      Date,
 ): Promise<MetricaSecretario[]> {
   if (!gestoriaId) return []
- 
+
   const acc: Record<string, MetricaSecretario> = {}
   const fila = (uid: string) => (acc[uid] ??= filaVacia(uid))
-  const q = (col: string) => getDocs(query(collection(db, col), where('gestoriaId', '==', gestoriaId)))
- 
-  // ── LEADS ────────────────────────────────────────────────────────────────
+  const q = (col: string) =>
+    getDocs(query(collection(db, col), where('gestoriaId', '==', gestoriaId)))
+
+  // ── INGRESOS POR RECIBO ───────────────────────────────────────────────────
+  const recibosSnap = await q('recibos')
+  recibosSnap.forEach(d => {
+    const r = d.data() as any
+    if (!enRango(r.creadoEn, desde, hasta)) return
+    const uid = uidAtribuido(r)
+    if (!uid) return
+
+    const f = fila(uid)
+    f.recibosEmitidos++
+    f.cobradoBruto    += num(r.monto)
+    f.deducSUATS      += num(r.montoSUATS)
+    f.deducInforme    += num(r.montoInformePersona)
+    f.deducComision   += num(r.comisionReferido)
+    f.deducFinanciero += num(r.costoFinanciero)
+    f.netoGestoria    += netoDeRecibo(r)
+  })
+
+  // ── LEADS ─────────────────────────────────────────────────────────────────
   const leadsSnap = await q('leads')
   leadsSnap.forEach(d => {
     const l = d.data() as any
@@ -72,25 +156,27 @@ export async function getMetricasPorSecretario(
     f.leadsAsignados++
     if (l.estado === 'convertido' || l.convertidoA) f.leadsConvertidos++
   })
- 
-  // ── CONSULTAS DE INFRACCIONES ──────────────────────────────────────────────
+
+  // ── CONSULTAS DE INFRACCIONES ─────────────────────────────────────────────
   const consSnap = await q('consultasInfracciones')
   consSnap.forEach(d => {
     const c = d.data() as any
     if (!enRango(c.creadaEn, desde, hasta)) return
     const uid = String(c.asignadoA ?? '')
     if (!uid) return
-    if (c.estado === 'cotizada' || c.estado === 'enviada') fila(uid).consultasProcesadas++
+    if (c.estado === 'cotizada' || c.estado === 'enviada') {
+      fila(uid).consultasProcesadas++
+    }
   })
- 
-  // ── PROSPECTOS (cierres ganados / perdidos) ────────────────────────────────
+
+  // ── PROSPECTOS (cierres ganados / perdidos) ───────────────────────────────
   const prosSnap = await q('prospectos')
   prosSnap.forEach(d => {
     const p = d.data() as any
     const uid = String(p.asignadoA ?? '')
     if (!uid) return
- 
-    if ((p.etapa === 'ganado' || p.etapa === 'cerrado')) {
+
+    if (p.etapa === 'ganado' || p.etapa === 'cerrado') {
       const fc = parseFecha(p.fechaCierre) ?? (p.creadoEn?.toDate?.() ?? null)
       if (fc && fc >= desde && fc <= hasta) fila(uid).cierresGanados++
     } else if (p.etapa === 'perdido') {
@@ -99,32 +185,8 @@ export async function getMetricasPorSecretario(
       if (fc && fc >= desde && fc <= hasta) fila(uid).cierresPerdidos++
     }
   })
- 
-  // ── INGRESOS = TOTALCOBRADOCLIENTE DE TRÁMITES (NO RECIBOS) ──────────────────
-  // ⚠️ CAMBIO CRÍTICO: Usar totalCobradoCliente de trámites, no sum de recibos individuales
-  // Razón: Un trámite puede tener múltiples recibos (ej: $1000 seña + $4000 saldo).
-  // Si sumamos cada recibo, contamos la misma transacción 2+ veces.
-  // totalCobradoCliente = lo que REALMENTE ingresó (SUAT + Informe + honorarios)
-  // 
-  // Attribution: se atribuye al secretario que COMPLETÓ el trámite (paso 7 en multas),
-  // o al asignado/creador en trámites normales.
-  const tramitesSnap = await q('tramites')
-  tramitesSnap.forEach(d => {
-    const t = d.data() as any
-    if (!t.pagado) return
-    if (!enRango(t.fechaPago, desde, hasta)) return
-    
-    // Quién se lleva el crédito: completadoPor (multas paso 7) > asignadoA > creadoPor
-    const uid = String(t.completadoPor || t.asignadoA || t.creadoPor || '')
-    if (!uid) return
-    
-    // Usar totalCobradoCliente (total ingresado con SUAT + Informe)
-    // Si no existe (trámites viejos), caer a honorarios
-    const monto = Number(t.totalCobradoCliente ?? t.honorarios ?? 0)
-    fila(uid).ingresos += monto
-  })
- 
-  // ── TIEMPO DE PRIMERA RESPUESTA (conversacionesWA, forward-only) ────────────
+
+  // ── TIEMPO DE PRIMERA RESPUESTA (forward-only) ────────────────────────────
   const convSnap = await q('conversacionesWA')
   convSnap.forEach(d => {
     const c = d.data() as any
@@ -137,46 +199,76 @@ export async function getMetricasPorSecretario(
     f.respuestasMedidas++
     f.tiempoRespuestaSegs += segs
   })
- 
-  return Object.values(acc)
+
+  // Alias de compatibilidad
+  return Object.values(acc).map(f => ({ ...f, ingresos: f.netoGestoria }))
 }
 
-// ─── RESUMEN PARA EL PANEL DE MANDO (ingresos semana + mes por secretario) ───
-export interface ResumenSecretario {
-  uid:            string
-  ingresosSemana: number
-  ingresosMes:    number
-  cierresMes:     number
-  leadsMes:       number
-  consultasMes:   number
-}
+// ─── RESUMEN PARA EL PANEL DE MANDO ──────────────────────────────────────────
 
 function inicioSemanaLunes(): Date {
   const d = new Date()
-  const day  = d.getDay()                    // 0=domingo … 6=sábado
-  const diff = day === 0 ? 6 : day - 1       // días transcurridos desde el lunes
+  const day  = d.getDay()                  // 0=domingo … 6=sábado
+  const diff = day === 0 ? 6 : day - 1
   d.setDate(d.getDate() - diff)
   d.setHours(0, 0, 0, 0)
   return d
 }
+
 function inicioMesActual(): Date {
   const n = new Date()
   return new Date(n.getFullYear(), n.getMonth(), 1)
 }
 
-export async function getResumenSecretarios(gestoriaId: string): Promise<ResumenSecretario[]> {
+export async function getResumenSecretarios(
+  gestoriaId: string,
+): Promise<ResumenSecretario[]> {
   if (!gestoriaId) return []
- 
+
   const desdeMes    = inicioMesActual()
   const desdeSemana = inicioSemanaLunes()
   const ahora       = new Date()
- 
+
   const acc: Record<string, ResumenSecretario> = {}
-  const fila = (uid: string) =>
-    (acc[uid] ??= { uid, ingresosSemana: 0, ingresosMes: 0, cierresMes: 0, leadsMes: 0, consultasMes: 0 })
-  const q = (col: string) => getDocs(query(collection(db, col), where('gestoriaId', '==', gestoriaId)))
- 
-  // Prospectos → cierres del mes (etapa ganado). La PLATA no sale de acá.
+  const fila = (uid: string) => (acc[uid] ??= {
+    uid,
+    brutoSemana: 0, brutoMes: 0,
+    netoSemana: 0,  netoMes: 0,
+    deduccionesMes: 0, recibosMes: 0,
+    cierresMes: 0, leadsMes: 0, consultasMes: 0,
+    ingresosMes: 0, ingresosSemana: 0,
+  })
+  const q = (col: string) =>
+    getDocs(query(collection(db, col), where('gestoriaId', '==', gestoriaId)))
+
+  // ── PLATA: recibos del mes, atribuidos por `atribuidoA` ───────────────────
+  const recibos = await q('recibos')
+  recibos.forEach(d => {
+    const r = d.data() as any
+    const fecha = r.creadoEn?.toDate?.() as Date | undefined
+    if (!fecha) return
+    const uid = uidAtribuido(r)
+    if (!uid) return
+
+    const bruto = num(r.monto)
+    const neto  = netoDeRecibo(r)
+    const dedu  = Math.max(0, bruto - neto)
+
+    if (fecha >= desdeMes && fecha <= ahora) {
+      const f = fila(uid)
+      f.recibosMes++
+      f.brutoMes       += bruto
+      f.netoMes        += neto
+      f.deduccionesMes += dedu
+    }
+    if (fecha >= desdeSemana && fecha <= ahora) {
+      const f = fila(uid)
+      f.brutoSemana += bruto
+      f.netoSemana  += neto
+    }
+  })
+
+  // ── Cierres del mes ───────────────────────────────────────────────────────
   const pros = await q('prospectos')
   pros.forEach(d => {
     const p = d.data() as any
@@ -186,33 +278,8 @@ export async function getResumenSecretarios(gestoriaId: string): Promise<Resumen
     const fc = parseFecha(p.fechaCierre) ?? (p.creadoEn?.toDate?.() ?? null)
     if (fc && fc >= desdeMes && fc <= ahora) fila(uid).cierresMes++
   })
- 
-  // ⚠️ CAMBIO CRÍTICO: Sumar totalCobradoCliente de TRÁMITES, no recibos individuales
-  // Razón: un trámite puede tener múltiples recibos (parciales en paso 2 + saldo en paso 7)
-  // Si sumamos cada recibo por separado, contamos la misma plata 2+ veces.
-  // totalCobradoCliente = el TOTAL real que ingresó (SUAT + Informe + honorarios).
-  const tramites = await q('tramites')
-  tramites.forEach(d => {
-    const t = d.data() as any
-    if (!t.pagado) return
-    const fecha = t.fechaPago?.toDate?.() as Date | undefined
-    if (!fecha) return
-    
-    // En multas paso 7, el secretario que lo completó se lleva el crédito.
-    // En trámites normales, se atribuye al asignado / creado por.
-    const uid = String(t.completadoPor || t.asignadoA || t.creadoPor || '')
-    if (!uid) return
-    
-    // Usar totalCobradoCliente si existe (multas paso 7), sino caer a honorarios (trámites normales)
-    // totalCobradoCliente = lo que realmente ingresó (incluye SUAT + Informe)
-    // honorarios = solo la parte neta de la gestoría
-    const monto = Number(t.totalCobradoCliente ?? t.honorarios ?? 0)
-    
-    if (fecha >= desdeMes && fecha <= ahora)    fila(uid).ingresosMes += monto
-    if (fecha >= desdeSemana && fecha <= ahora) fila(uid).ingresosSemana += monto
-  })
- 
-  // Leads del mes
+
+  // ── Leads del mes ─────────────────────────────────────────────────────────
   const leads = await q('leads')
   leads.forEach(d => {
     const l = d.data() as any
@@ -220,16 +287,80 @@ export async function getResumenSecretarios(gestoriaId: string): Promise<Resumen
     const uid = String(l.asignadoA ?? '')
     if (uid) fila(uid).leadsMes++
   })
- 
-  // Consultas procesadas del mes
+
+  // ── Consultas procesadas del mes ──────────────────────────────────────────
   const cons = await q('consultasInfracciones')
   cons.forEach(d => {
     const c = d.data() as any
     if (!enRango(c.creadaEn, desdeMes, ahora)) return
     const uid = String(c.asignadoA ?? '')
-    if (uid && (c.estado === 'cotizada' || c.estado === 'enviada')) fila(uid).consultasMes++
+    if (uid && (c.estado === 'cotizada' || c.estado === 'enviada')) {
+      fila(uid).consultasMes++
+    }
   })
- 
-  return Object.values(acc)
+
+  // Alias de compatibilidad
+  return Object.values(acc).map(f => ({
+    ...f,
+    ingresosMes:    f.netoMes,
+    ingresosSemana: f.netoSemana,
+  }))
 }
- 
+
+// ─── TOTALES DE LA GESTORÍA (bloque 1 del Panel de Mando) ────────────────────
+
+export interface TotalesGestoria {
+  cobradoBruto:    number
+  deducSUATS:      number
+  deducInforme:    number
+  deducComision:   number
+  deducFinanciero: number
+  netoGestoria:    number
+  recibos:         number
+  // Proyección run-rate simple
+  diasTranscurridos: number
+  diasDelMes:        number
+  proyeccionNeta:    number
+}
+
+export async function getTotalesGestoria(
+  gestoriaId: string,
+  desde: Date = inicioMesActual(),
+  hasta: Date = new Date(),
+): Promise<TotalesGestoria> {
+  const vacio: TotalesGestoria = {
+    cobradoBruto: 0, deducSUATS: 0, deducInforme: 0,
+    deducComision: 0, deducFinanciero: 0, netoGestoria: 0, recibos: 0,
+    diasTranscurridos: 0, diasDelMes: 0, proyeccionNeta: 0,
+  }
+  if (!gestoriaId) return vacio
+
+  const snap = await getDocs(query(
+    collection(db, 'recibos'),
+    where('gestoriaId', '==', gestoriaId),
+  ))
+
+  const t = { ...vacio }
+  snap.forEach(d => {
+    const r = d.data() as any
+    if (!enRango(r.creadoEn, desde, hasta)) return
+    t.recibos++
+    t.cobradoBruto    += num(r.monto)
+    t.deducSUATS      += num(r.montoSUATS)
+    t.deducInforme    += num(r.montoInformePersona)
+    t.deducComision   += num(r.comisionReferido)
+    t.deducFinanciero += num(r.costoFinanciero)
+    t.netoGestoria    += netoDeRecibo(r)
+  })
+
+  // Run-rate simple: neto a la fecha / días transcurridos × días del mes.
+  const ahora   = new Date()
+  const finMes  = new Date(ahora.getFullYear(), ahora.getMonth() + 1, 0)
+  t.diasDelMes        = finMes.getDate()
+  t.diasTranscurridos = Math.max(1, ahora.getDate())
+  t.proyeccionNeta    = Math.round(
+    (t.netoGestoria / t.diasTranscurridos) * t.diasDelMes,
+  )
+
+  return t
+}

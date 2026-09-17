@@ -23,6 +23,8 @@ import ControlPaginacion from '@/components/shared/ControlPaginacion'
 import { useCierreMensual } from '@/hooks/useCierreMensual'
 import { Archive, AlertTriangle as AlertWarn, ChevronDown, ChevronUp } from 'lucide-react'
 import MetricasSecretariosPanel from '@/features/reportes/MetricasSecretariosPanel'
+import DesgloseIngresos from '@/components/shared/DesgloseIngresos'
+import { useFinanzas } from '@/hooks/useFinanzas'
 
 const MESES = [
   'Enero','Febrero','Marzo','Abril','Mayo','Junio',
@@ -85,6 +87,8 @@ export default function ReportesPage() {
   // Trámites del mes seleccionado
   const inicioMes = useMemo(() => new Date(anio, mes, 1), [mes, anio])
   const finMes    = useMemo(() => new Date(anio, mes + 1, 0, 23, 59, 59), [mes, anio])
+  const { gestoria, proyeccion, loading: loadingFinanzas, error: errorFinanzas } =
+    useFinanzas(inicioMes, finMes)
 
   const tramitesMes = useMemo(() =>
     tramites.filter(t => {
@@ -201,7 +205,7 @@ const informesPersonaMes = useMemo(() =>
     }
   }
 
-  if (loadT) return <Spinner label="Cargando datos..." />
+  if (loadT || loadingFinanzas || !gestoria) return <Spinner label="Cargando datos..." />
 
   const mesLabel = `${MESES[mes]} ${anio}`
 
@@ -212,6 +216,12 @@ const informesPersonaMes = useMemo(() =>
         title="Reportes"
         subtitle="Resúmenes mensuales para análisis y contaduría"
       />
+
+      {errorFinanzas && (
+        <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+          No se pudo cargar el desglose financiero: {errorFinanzas}
+        </div>
+      )}
 
       {/* ── CIERRE MENSUAL (propietario / admin_gral) ─────────────────────── */}
       {puedeGestionar && (
@@ -382,12 +392,12 @@ const informesPersonaMes = useMemo(() =>
           <KpiMes label="Activos"        value={String(kpis.activos)}        color="#3B82F6" />
           <KpiMes label="Clientes"       value={String(kpis.clientes_u)}     color="#7C3AED" />
           <KpiMes label="Facturado"      value={formatPesos(kpis.facturado)} color="#F97316" />
-          <KpiMes label="Cobrado"        value={formatPesos(kpis.ingresos)}  color="#059669"
-            sub={kpis.facturado > 0
-              ? `${Math.round((kpis.ingresos/kpis.facturado)*100)}% del facturado`
-              : undefined} />
+          <KpiMes label="Cobrado neto"    value={formatPesos(gestoria.cobradoNeto)} color="#059669"
+            sub="Recibos del período; puede diferir del facturado" />
         </div>
       </div>
+
+      <DesgloseIngresos d={gestoria} proyeccion={proyeccion} />
 
       {/* Preview de datos del reporte */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
@@ -497,19 +507,19 @@ const informesPersonaMes = useMemo(() =>
             <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-5">
               <Card className="p-4">
                 <p className="text-xs font-bold text-gray-400 mb-2">TOTAL COBRADO</p>
-                <p className="text-2xl font-extrabold text-emerald-700">{formatPesos(kpis.ingresos)}</p>
-                <p className="text-[10px] text-gray-400 mt-1">{cobradosMes.length} pagos</p>
+                <p className="text-2xl font-extrabold text-emerald-700">{formatPesos(gestoria.cobradoBruto)}</p>
+                <p className="text-[10px] text-gray-400 mt-1">{gestoria.recibos} recibos</p>
               </Card>
               <Card className="p-4">
                 <p className="text-xs font-bold text-gray-400 mb-2">HONORARIOS GESTORÍA</p>
-                <p className="text-2xl font-extrabold" style={{color: '#D4621A'}}>{formatPesos(kpis.ingresos - (suatsMes || 0))}</p>
-                <p className="text-[10px] text-gray-400 mt-1">(Sin SUATS)</p>
+                <p className="text-2xl font-extrabold" style={{color: '#D4621A'}}>{formatPesos(gestoria.netoGestoria)}</p>
+                <p className="text-[10px] text-gray-400 mt-1">Neto de deducciones</p>
               </Card>
               <Card className="p-4">
                 <p className="text-xs font-bold text-gray-400 mb-2">SUATS ABONADO</p>
-                <p className="text-2xl font-extrabold text-orange-600">{formatPesos(suatsMes || 0)}</p>
-                <p className="text-[10px] text-gray-400 mt-1">{suatsMes && suatsMes > 0 
-  ? `${Math.ceil((suatsMes || 0) / (config.costosMulta?.suats ?? 25000))} × $${(config.costosMulta?.suats ?? 25000).toLocaleString('es-AR')}`
+                <p className="text-2xl font-extrabold text-orange-600">{formatPesos(gestoria.deducSUATS)}</p>
+                <p className="text-[10px] text-gray-400 mt-1">{gestoria.deducSUATS > 0 
+  ? `${Math.ceil(gestoria.deducSUATS / (config.costosMulta?.suats ?? 25000))} × $${(config.costosMulta?.suats ?? 25000).toLocaleString('es-AR')}`
   : 'Sin SUATS abonados'}</p>
               </Card>
               <Card className="p-4">
@@ -546,7 +556,7 @@ const informesPersonaMes = useMemo(() =>
                 <div className="space-y-3">
                   <div className="flex justify-between items-center py-2 border-b border-gray-100">
                     <span className="text-sm text-gray-600">Total ingresado</span>
-                    <span className="font-bold text-emerald-600">{formatPesos(kpis.ingresos)}</span>
+                    <span className="font-bold text-emerald-600">{formatPesos(gestoria.cobradoBruto)}</span>
                   </div>
                   <div className="flex justify-between items-center py-2 border-b border-gray-100">
                     <span className="text-sm text-gray-600">SUATS abonado</span>
@@ -558,7 +568,7 @@ const informesPersonaMes = useMemo(() =>
                   </div>
                   <div className="flex justify-between items-center py-3 bg-emerald-50 px-3 rounded-lg">
                     <span className="font-bold text-gray-800">Honorarios gestoría</span>
-                    <span className="font-extrabold text-emerald-700 text-lg">{formatPesos((kpis.ingresos - (suatsMes || 0) - (informesPersonaMes || 0)) || 0)}</span>
+                    <span className="font-extrabold text-emerald-700 text-lg">{formatPesos(gestoria.netoGestoria)}</span>
                   </div>
                 </div>
                 <div className="space-y-3">
@@ -567,7 +577,7 @@ const informesPersonaMes = useMemo(() =>
                     <p className="text-xs text-gray-400">Sin cobros registrados en {mesLabel}</p>
                   ) : (
                     porFormaPago.map(f => {
-                      const pct = kpis.ingresos > 0 ? (f.monto / kpis.ingresos) * 100 : 0
+                      const pct = gestoria.cobradoBruto > 0 ? (f.monto / gestoria.cobradoBruto) * 100 : 0
                       return (
                         <div key={f.forma} className="space-y-1">
                           <div className="flex justify-between text-xs mb-1">
@@ -661,7 +671,7 @@ const informesPersonaMes = useMemo(() =>
                 </div>
                 <div className="text-right">
                   <p className="text-xs text-gray-400">Cobrado</p>
-                  <p className="text-sm font-bold text-emerald-600">{formatPesos(kpis.ingresos)}</p>
+                  <p className="text-sm font-bold text-emerald-600">{formatPesos(gestoria.cobradoNeto)}</p>
                 </div>
               </div>
             </div>

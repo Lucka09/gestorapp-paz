@@ -391,8 +391,8 @@ export function useMultaWorkflow(tramiteId: string) {
         completadoPorNombre: `${user.nombre} ${user.apellido}`.trim(),
       })
       toast.success('Trámite cerrado y archivado ✓')
-    } catch {
-      toast.error('Error al cerrar el trámite')
+    } catch (e) {
+      toast.error((e as Error).message)
     } finally {
       setGuardando(false)
     }

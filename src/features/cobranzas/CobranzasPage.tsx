@@ -249,6 +249,33 @@ function ModalPago({
         <Input label="Fecha del cobro *" type="date" value={fecha} max={hoy}
                onChange={e => setFecha(e.target.value)} />
 
+        {esControl && (
+          <div>
+            <label className="text-xs font-bold text-gray-400 uppercase tracking-wider block mb-2">
+              Cargar a nombre de
+            </label>
+            <select
+              value={atribuidoA}
+              onChange={e => setAtribuidoA(e.target.value)}
+              className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm outline-none focus:border-gp-orange bg-white"
+            >
+              <option value={user?.uid ?? ''}>Yo ({user?.nombre ?? 'mí'})</option>
+              {asesores.filter(a => a.uid !== user?.uid).map(a => (
+                <option key={a.uid} value={a.uid}>{a.nombre} {a.apellido ?? ''}</option>
+              ))}
+            </select>
+            {atribuidoA && atribuidoA !== user?.uid && (
+              <div className="mt-3">
+                <Input
+                  label="Motivo (por qué lo cargás vos) *"
+                  value={motivoTercero}
+                  onChange={e => setMotivoTercero(e.target.value)}
+                  placeholder="Ej: el secretario no pudo cargarlo hoy"
+                />
+              </div>
+            )}
+          </div>
+        )}
         <Input label="Notas (opcional)" value={notas} onChange={e => setNotas(e.target.value)}
                placeholder="Número de transferencia, cheque, etc." />
 

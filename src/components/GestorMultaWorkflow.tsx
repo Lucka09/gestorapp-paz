@@ -3,13 +3,14 @@
 // v2 — limpieza semántica, tema claro coherente, sin estilos duplicados
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { useState, useRef, useCallback, useEffect } from 'react'
+import { useState, useRef, useCallback, useEffect, useMemo } from 'react'
 import toast from 'react-hot-toast'
 import { useMultaWorkflow }               from '@/hooks/useMultaWorkflow'
 import { useAuthStore }                   from '@/store/authStore'
 import { usePermisos }                    from '@/hooks/usePermisos'
 import { useGestoresEquipo, useGestoresMulta } from '@/hooks/useEquipo'
-import { editarFechaTramiteMulta }        from '@/lib/firestore/MultaWorwflow'
+import { useTramite }                  from '@/hooks/useTramites'
+import { editarFechaTramiteMulta, chequearPaso7  }        from '@/lib/firestore/MultaWorwflow'
 import { useConfiguracion }              from '@/hooks/useConfiguracion'
 import {
   PASOS_MULTA_CONFIG, ESTADO_MULTA_LABELS, ESTADO_MULTA_COLORS,
@@ -19,6 +20,7 @@ import {
   ESTADO_MULTA_OP_ORDER, ESTADOS_MULTA_MANUALES,
   MONTO_SUATS_DEFAULT, MONTO_INFORME_PERSONA_DEFAULT,
 } from '@/types/multa_types'
+import { origenTieneComision } from '@/types'
 import type { MetodoPago, RegistroPago, EstadoMulta } from '@/types/multa_types'
 import {
   AlertTriangle, CheckCircle2, Clock, RotateCcw,
@@ -240,6 +242,7 @@ interface Props { tramiteId: string; numeroLITExterno?: string }
 export default function GestorMultaWorkflow({ tramiteId, numeroLITExterno }: Props) {
   const { user }   = useAuthStore()
   const { puede }  = usePermisos()
+  const { tramite } = useTramite(tramiteId)
 
   const esAdmin           = puede('editarConfiguracion') || ['admin','propietario','admin_gral'].includes(user?.rol ?? '')
   const esAsesorComercial = user?.rol === 'asesor_comercial'
@@ -286,7 +289,7 @@ export default function GestorMultaWorkflow({ tramiteId, numeroLITExterno }: Pro
 
   const [p1, setP1] = useState({
     patente: '', nombreCompleto: '', dni: '',
-    fechaTramite: '', fechaInfraccion: '', requiereSUATS: false, observacion: '',
+    fechaTramite: '', fechaInfraccion: '', requiereSUATS: true, observacion: '',
   })
 
   const [archivos, setArchivos]   = useState<Record<string, File | undefined>>({})
@@ -328,6 +331,7 @@ export default function GestorMultaWorkflow({ tramiteId, numeroLITExterno }: Pro
     suatsAbonado: false,       montoSUATS: 0,
     informePersonaRealizado: false, montoInformePersona: 0,
     pagoTotalRecibo: 0,
+    comisionReferido: 0,
   })
 
   // Pre-carga automática del Paso 7 — el CEO/admin sigue siendo el último filtro humano.
@@ -349,7 +353,10 @@ export default function GestorMultaWorkflow({ tramiteId, numeroLITExterno }: Pro
 
   const [pasosColapsados, setPasosColapsados] = useState<Record<number, boolean>>({})
   const toggle = (n: number) => setPasosColapsados(p => ({ ...p, [n]: !p[n] }))
-
+  const chequeo = useMemo(
+    () => workflow ? chequearPaso7(workflow, p7) : null,
+    [workflow, p7],
+  )
   // Edición de fecha del trámite
   const [editandoFecha,      setEditandoFecha]      = useState(false)
   const [nuevaFecha,         setNuevaFecha]          = useState('')
@@ -1383,9 +1390,39 @@ const iniciarJob = httpsCallable(functions, 'iniciarDescargaCupones')
                 </div>
               </div>
 
+              {origenTieneComision(tramite?.origenCanal ?? undefined) && (
+                <div>
+                  <label className="text-xs font-semibold text-gray-500 mb-1 block">
+                    Comisión entregada a {tramite?.origenNombre ?? 'el referido'}
+                  </label>
+                  <input
+                    type="number"
+                    min={0}
+                    step={100}
+                    value={p7.comisionReferido || ''}
+                    onChange={e => setP7(prev => ({ ...prev, comisionReferido: Number(e.target.value) }))}
+                    placeholder="0"
+                    className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm font-bold text-gray-800 bg-white outline-none focus:border-[#D4621A]"
+                  />
+                  <p className="text-[11px] text-gray-400 mt-1">
+                    No se cuenta como ingreso de la gestoría ni para premios.
+                  </p>
+                </div>
+              )}
+
               <textarea value={p7.observacionFinal} onChange={e => setP7(prev => ({ ...prev, observacionFinal: e.target.value }))}
                 placeholder="Observaciones finales del cierre..." rows={2}
                 className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm outline-none resize-none" />
+
+              {chequeo && !chequeo.ok && (
+                <div className="rounded-lg bg-red-50 border border-red-100 p-3 space-y-1">
+                  {chequeo.errores.map((mensaje, i) => (
+                    <p key={i} className="text-xs text-red-700 flex gap-1.5">
+                      <span>•</span>{mensaje}
+                    </p>
+                  ))}
+                </div>
+              )}
 
               {/* Validaciones inline */}
               {!p7.pagoTotalRecibo && <p className="text-xs text-red-500">⚠ Ingresá el pago total del recibo para poder finalizar.</p>}
@@ -1423,10 +1460,7 @@ const iniciarJob = httpsCallable(functions, 'iniciarDescargaCupones')
 
               <button
                 disabled={
-                  !puedeCerrarPaso7 || !p7.clienteAvisado || !p7.pagoTotalRecibo ||
-                  (!!workflow.paso1?.requiereSUATS && !p7.suatsAbonado) ||
-                  (p7.suatsAbonado && !p7.montoSUATS) ||
-                  (p7.informePersonaRealizado && !p7.montoInformePersona) || guardando
+                  !puedeCerrarPaso7 || !p7.clienteAvisado || !chequeo?.ok || guardando
                 }
                 onClick={() => confirmarPaso7(p7)}
                 className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-sm disabled:opacity-50 transition-colors"

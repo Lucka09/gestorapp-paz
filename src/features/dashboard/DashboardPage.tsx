@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
@@ -36,6 +36,9 @@ import { format } from 'date-fns/format'
 import { es } from 'date-fns/locale/es'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import { usePermisos } from '@/hooks/usePermisos'
+import { useFinanzas } from '@/hooks/useFinanzas'
+import { inicioSemanaLunes } from '@/lib/firestore/finanzas'
+import DesgloseIngresos from '@/components/shared/DesgloseIngresos'
 
 interface Alerta {
   id: string
@@ -186,6 +189,16 @@ export default function DashboardPage() {
   const { data: distribucion }       = useDistribucionEstados()
   const { metricas: metPipeline }    = useProspectos()
   const { alertas, nivelMax } = useAlertas()
+  const { hoyInicio, ahora } = useMemo(() => {
+    const ahora = new Date()
+    const hoyInicio = new Date(ahora)
+    hoyInicio.setHours(0, 0, 0, 0)
+    return { hoyInicio, ahora }
+  }, [])
+  const { gestoria: finanzasMes, proyeccion, loading: loadingFinanzas } = useFinanzas()
+  const inicioSemana = useMemo(() => inicioSemanaLunes(ahora), [ahora])
+  const { gestoria: finanzasSemana } = useFinanzas(inicioSemana, ahora)
+  const { gestoria: finanzasHoy } = useFinanzas(hoyInicio, ahora)
 
     // Los recibos/cobranzas no van al feed del Panel de Mando: tienen su propia
   // bandeja de supervisión. Filtramos para no inundar el dashboard.
@@ -278,10 +291,10 @@ export default function DashboardPage() {
       <div>
         <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3">Financiero</p>
         <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-          <KpiCard label="Ingresos hoy"     value={formatPesos(metricas?.ingresosHoy ?? 0)}    icon={TrendingUp} color="#D4621A" />
-          <KpiCard label="Ingresos semana" value={formatPesos(metricas?.ingresosSemana ?? 0)} icon={Activity} color="#0EA5E9" sub="lunes a hoy"
+            <KpiCard label="Ingresos hoy"     value={formatPesos(finanzasHoy?.netoGestoria ?? 0)}    icon={TrendingUp} color="#D4621A" />
+            <KpiCard label="Ingresos semana" value={formatPesos(finanzasSemana?.netoGestoria ?? 0)} icon={Activity} color="#0EA5E9" sub="lunes a hoy"
   onClick={() => navigate('/admin/cobranzas?periodo=semana')} />
-          <KpiCard label="Ingresos del mes" value={formatPesos(metricas?.ingresosMes ?? 0)}    icon={Activity}   color="#059669" />
+            <KpiCard label="Ingresos del mes" value={formatPesos(finanzasMes?.netoGestoria ?? 0)}    icon={Activity}   color="#059669" />
           <KpiCard label="Clientes"         value={metricas?.totalClientes ?? 0}                icon={Users}      color="#7C3AED" onClick={() => navigate('/admin/clientes')} />
           <KpiCard label="Prospectos"         value={`${metPipeline.conversion}%`}               icon={Target}     color="#F97316" sub={`${metPipeline.cerrados} cerrados`} onClick={() => navigate('/admin/pipeline')} />
         </div>
@@ -289,6 +302,9 @@ export default function DashboardPage() {
       )}
       {/* Rendimiento por secretario (semana + mes) */}
       {verFinanzas && <ResumenSecretariosDashboard />}
+      {verFinanzas && finanzasMes && !loadingFinanzas && (
+        <DesgloseIngresos d={finanzasMes} proyeccion={proyeccion} compacto />
+      )}
       {/* Gráficos financieros — solo propietario */}
       {verFinanzas && <>
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">

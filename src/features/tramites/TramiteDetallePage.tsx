@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import {
   ArrowLeft, Pencil, DollarSign, User, Trash2,
   Car, Clock, FileText, CheckCircle, XCircle,
-  Scale, MapPin, ExternalLink, Navigation, Copy, Check
+  Scale, MapPin, ExternalLink, Navigation, Copy, Check, RotateCcw,
 } from 'lucide-react'
 import { useTramite } from '@/hooks/useTramites'
 import { useCliente } from '@/hooks/useClientes'
@@ -25,6 +25,8 @@ import BotonComprobante      from './BotonComprobante'
 import BotonComprobantePago  from './BotonComprobantePago'
 import { PanelNotas }  from '@/components/shared/PanelNotas'
 import { PanelDocumentacion } from '@/components/shared/PanelDocumentacion'
+import ModalDevolucion from '@/components/shared/ModalDevolucion'
+import { chequearDevolucion } from '@/lib/firestore/devoluciones'
 import GestorMultaWorkflow     from '@/components/GestorMultaWorkflow'
 import NumeroBadge             from '@/components/shared/NumeroBadge'
 import { TIPO_TRAMITE_LABELS, type EstadoTramite } from '@/types'
@@ -99,6 +101,8 @@ export default function TramiteDetallePage() {
   const [editOpen,   setEditOpen]   = useState(false)
   const [deleteOpen, setDeleteOpen] = useState(false)
   const [deleteNota, setDeleteNota] = useState('')
+  const [devolviendo, setDevolviendo] = useState(false)
+  const [montoDisponibleDevolucion, setMontoDisponibleDevolucion] = useState(0)
   const { puede }                  = usePermisos()
   const [editForm, setEditForm] = useState({ descripcion: '', observacionesInternas: '', honorarios: 0 })
 
@@ -112,6 +116,21 @@ export default function TramiteDetallePage() {
   const [wfMulta, setWfMulta] = useState<MultaWorkflow | null>(null)
   const estadoMulta     = esMulta && wfMulta ? estadoMultaEfectivo(wfMulta) : null
   const multaReportada  = esMulta && !!wfMulta?.reporteControl
+
+  const actualizarDisponibleDevolucion = async () => {
+    if (!id || !puede('registrarDevoluciones')) return
+    try {
+      const chequeo = await chequearDevolucion(id, 0, '')
+      setMontoDisponibleDevolucion(chequeo.disponible)
+    } catch (error) {
+      console.warn('[TramiteDetallePage] no se pudo consultar devolución:', error)
+      setMontoDisponibleDevolucion(0)
+    }
+  }
+
+  useEffect(() => {
+    if (tramite && puede('registrarDevoluciones')) void actualizarDisponibleDevolucion()
+  }, [tramite?.id, puede])
 
   // Suscribir al workflow de inscripción
   useEffect(() => {
@@ -283,6 +302,11 @@ export default function TramiteDetallePage() {
             />
             <BotonComprobante tramite={tramite} cliente={cliente} vehiculo={vehiculo} />
             <BotonComprobantePago tramite={tramite} cliente={cliente} vehiculo={vehiculo} montoOverride={esMulta && montoMulta > 0 ? montoMulta : undefined} />
+            {puede('registrarDevoluciones') && montoDisponibleDevolucion > 0 && (
+              <Button variant="secondary" onClick={() => setDevolviendo(true)}>
+                <RotateCcw className="w-4 h-4" /> Devolución
+              </Button>
+            )}
             <div>
               <p className="text-xs text-gray-400 mb-2 uppercase tracking-wide font-semibold">Estado</p>
               {esMulta ? (
@@ -774,6 +798,14 @@ export default function TramiteDetallePage() {
           </div>
         </div>
       </Modal>
+
+      <ModalDevolucion
+        open={devolviendo}
+        tramiteId={tramite.id}
+        tramiteLabel={`${tramite.numero} · ${tramite.patente}`}
+        onClose={() => setDevolviendo(false)}
+        onHecho={() => void actualizarDisponibleDevolucion()}
+      />
 
     </div>
   )

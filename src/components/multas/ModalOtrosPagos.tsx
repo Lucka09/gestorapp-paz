@@ -19,6 +19,9 @@ import {
   ESTADO_MULTA_OP_LABELS, ESTADO_MULTA_OP_COLORS,
 } from '@/types/multa_types'
 import type { MetodoPago, RegistroPago, MultaWorkflow } from '@/types/multa_types'
+import CamposDeduccion, {
+  deduccionesValidas, type ValoresDeduccion,
+} from '@/components/shared/CamposDeduccion'
 
 const NARANJA = '#D4621A'
 const fmt = (n: number) =>
@@ -41,6 +44,7 @@ export default function ModalOtrosPagos({ open, onClose }: Props) {
   const [metodo,    setMetodo]    = useState<MetodoPago>('efectivo')
   const [pagadoPor, setPagadoPor] = useState('')
   const [nota,      setNota]      = useState('')
+  const [deduc,     setDeduc]     = useState<ValoresDeduccion>({})
   const [guardando, setGuardando] = useState(false)
 
   // Búsqueda por patente, DNI o nombre (mismo criterio que la tabla de Revisión).
@@ -64,13 +68,16 @@ export default function ModalOtrosPagos({ open, onClose }: Props) {
   }, [sel, monto])
 
   const reset = () => {
-    setSel(null); setMonto(0); setMetodo('efectivo'); setPagadoPor(''); setNota(''); setQ('')
+    setSel(null); setMonto(0); setMetodo('efectivo'); setPagadoPor(''); setNota(''); setQ(''); setDeduc({})
   }
   const cerrar = () => { reset(); onClose() }
 
   const elegir = (w: MultaWorkflow) => {
     setSel(w)
     setPagadoPor(w.paso1?.nombreCompleto ?? '')
+    const yaCobrado = (w.paso2?.historialPagos ?? [])
+      .reduce((total, pago) => total + (pago.montoSUATS ?? 0), 0)
+    setDeduc(w.paso1?.requiereSUATS && yaCobrado === 0 ? { montoSUATS: 25000 } : {})
   }
 
   const confirmar = async () => {
@@ -81,6 +88,7 @@ export default function ModalOtrosPagos({ open, onClose }: Props) {
       const pago: RegistroPago = {
         monto,
         metodoPago:          metodo,
+        ...deduc,
         nota:                nota.trim() || undefined,
         pagadoPor:           pagadoPor.trim() || undefined,
         origen:              'otros_pagos',
@@ -197,6 +205,15 @@ export default function ModalOtrosPagos({ open, onClose }: Props) {
             </div>
           </div>
 
+          <CamposDeduccion
+            monto={monto}
+            metodo={metodo}
+            valores={deduc}
+            onChange={setDeduc}
+            requiereSUATS={sel.paso1?.requiereSUATS === true}
+            compacto
+          />
+
           {/* Quién realizó el pago */}
           <div>
             <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Quién realizó el pago</label>
@@ -231,7 +248,7 @@ export default function ModalOtrosPagos({ open, onClose }: Props) {
           </p>
 
           <button
-            disabled={guardando || !monto}
+            disabled={guardando || !deduccionesValidas(monto, deduc)}
             onClick={confirmar}
             className="w-full py-3 text-white text-sm font-bold rounded-xl flex items-center justify-center gap-2 disabled:opacity-50"
             style={{ background: NARANJA }}

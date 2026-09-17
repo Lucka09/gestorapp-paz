@@ -20,11 +20,16 @@ export type EstadoMultaWorkflow =
 
 // ─── PAGO / HONORARIOS ────────────────────────────────────────────────────────
 
-export type MetodoPago = 'efectivo' | 'transferencia' | 'mercadopago' | 'cheque' | 'otro'
+export type MetodoPago = 'efectivo' | 'transferencia' | 'mercadopago' | 'tarjeta' | 'cheque' | 'otro'
 
 export interface RegistroPago {
   monto:               number
   metodoPago:          MetodoPago
+  montoSUATS?:         number
+  montoInformePersona?: number
+  comisionReferido?:   number
+  montoAcreditado?:    number
+  cuotasTarjeta?:      number
   nota?:               string
   pagadoPor?:          string                      // quién realizó el pago (cliente/tercero)
   origen?:             'workflow' | 'otros_pagos'  // de dónde se cargó el cobro
@@ -177,6 +182,9 @@ export interface MultaPaso7Data {
   // ─── Pago total del recibo (OBLIGATORIO para finalizar) ──────────────────
   // Suma de: honorarios gestoría + SUATS (si abonado) + informe persona (si realizado)
   pagoTotalRecibo:  number
+
+  // Comisión entregada una sola vez al cerrar el trámite
+  comisionReferido?: number
 
   completadoPor:       string
   completadoPorNombre: string
@@ -369,6 +377,7 @@ export const METODOS_PAGO_LABELS: Record<MetodoPago, string> = {
   efectivo:      'Efectivo',
   transferencia: 'Transferencia bancaria',
   mercadopago:   'Mercado Pago',
+  tarjeta:       'Tarjeta',
   cheque:        'Cheque',
   otro:          'Otro',
 }

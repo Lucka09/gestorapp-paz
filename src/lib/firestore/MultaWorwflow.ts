@@ -335,13 +335,102 @@ export async function confirmarPaso6Multa(
   })
 }
  
-// ─── PASO 7: Cierre (REEMPLAZA la función completa) ───────────────────────────
+export interface ChequeoPaso7 {
+  ok:          boolean
+  errores:     string[]
+  montoMinimo: number
+}
+ 
+
+export function chequearPaso7(
+  wf:   MultaWorkflow,
+  data: Partial<MultaPaso7Data>,
+): ChequeoPaso7 {
+  const errores: string[] = []
+  const requiereSUATS = wf.paso1?.requiereSUATS === true
+  const montoMinimo   = wf.paso2?.montoTotal ?? 0
+ 
+  if (requiereSUATS && !wf.paso6?.suatsGenerado) {
+    errores.push('La multa requiere SUATS pero el Paso 6 no lo generó. Volvé al Paso 6 y completalo.')
+  }
+  if (requiereSUATS && !data.suatsAbonado) {
+    errores.push('La multa requiere SUATS: marcá que se abonó e indicá el monto.')
+  }
+  if (requiereSUATS && data.suatsAbonado && !(data.montoSUATS && data.montoSUATS > 0)) {
+    errores.push('Indicá el monto del SUATS abonado.')
+  }
+  if (data.informePersonaRealizado &&
+      !(data.montoInformePersona && data.montoInformePersona > 0)) {
+    errores.push('Indicá el monto del informe de persona.')
+  }
+ 
+  const total = data.pagoTotalRecibo ?? 0
+  const comision = data.comisionReferido ?? 0
+  if (!Number.isFinite(comision) || comision < 0) {
+    errores.push('La comisión del referido no puede ser negativa.')
+  } else if (total > 0 && comision > total) {
+    errores.push('La comisión del referido no puede superar el total cobrado.')
+  }
+
+  if (!(total > 0)) {
+    errores.push('El total cobrado al cliente es obligatorio.')
+  } else if (total < montoMinimo) {
+    errores.push(
+      `El total ($${total.toLocaleString('es-AR')}) no puede ser menor a lo ya ` +
+      `cobrado en el Paso 2 ($${montoMinimo.toLocaleString('es-AR')}).`,
+    )
+  } else {
+    const suats   = data.suatsAbonado ? (data.montoSUATS ?? 0) : 0
+    const informe = data.informePersonaRealizado ? (data.montoInformePersona ?? 0) : 0
+    if (suats + informe > total) {
+      errores.push(
+        `SUATS ($${suats.toLocaleString('es-AR')}) + informe ` +
+        `($${informe.toLocaleString('es-AR')}) superan el total cobrado. Revisá los montos.`,
+      )
+    }
+  }
+ 
+  if (!data.canalEntrega) {
+    errores.push('Indicá el canal de entrega.')
+  }
+ 
+  return { ok: errores.length === 0, errores, montoMinimo }
+}
+ 
+// ─── PASO 7: Cierre ──────────────────────────────────────────────────────────
  
 export async function confirmarPaso7Multa(
   tramiteId:  string,
   gestoriaId: string,
   data: Omit<MultaPaso7Data, 'completadoEn'>,
 ): Promise<void> {
+ 
+  // ─── VALIDACIÓN DURA ──────────────────────────────────────────────────────
+  // Se lee el workflow para cruzar paso1 / paso2 / paso6 contra lo que llega.
+  // Si algo no cierra, se corta ACÁ: no se escribe el workflow, no se toca el
+  // trámite, no se emite recibo. Todo o nada.
+  const wfSnap = await getDoc(workflowDoc(tramiteId))
+  if (!wfSnap.exists()) {
+    throw new Error('No se encontró el workflow de esta multa.')
+  }
+  const wf = wfSnap.data() as MultaWorkflow
+ 
+  if (wf.estadoWorkflow === 'completado') {
+    throw new Error('Esta multa ya fue cerrada.')
+  }
+  if ((wf.pasoActual ?? 0) < 7) {
+    throw new Error(
+      `No se puede cerrar: el workflow está en el paso ${wf.pasoActual}. ` +
+      'Completá los pasos anteriores.',
+    )
+  }
+ 
+  const chequeo = chequearPaso7(wf, data)
+  if (!chequeo.ok) {
+    throw new Error(chequeo.errores.join('\n'))
+  }
+  // ─── FIN VALIDACIÓN ───────────────────────────────────────────────────────
+ 
   // Limpiar campos undefined — Firestore rechaza undefined
   const paso7Clean: Record<string, unknown> = {}
   for (const [k, v] of Object.entries({ ...data, completadoEn: Timestamp.now() })) {
@@ -381,20 +470,25 @@ export async function confirmarPaso7Multa(
     actualizadoEn:        serverTimestamp(),
   })
  
-  // 3. NUEVO — Recibo TOTAL de cierre + alerta al propietario (best-effort:
-  //    si falla, no revierte nada de lo anterior, solo no hay comprobante).
+  // 3. Recibo TOTAL de cierre + alerta al propietario (best-effort).
   try {
     const tramiteSnap = await getDoc(doc(tramitesCol, tramiteId))
     if (tramiteSnap.exists()) {
-            const tramite = tramiteSnap.data() as any
-
+      const tramite = tramiteSnap.data() as any
+ 
       // Anti-doble-conteo: restamos lo YA recibido en parciales (señas), así
       // el recibo de cierre solo registra el saldo. La suma de recibos = total.
       const recibosPrevios = await getRecibosPorTramite(tramiteId)
       const yaRecibido = recibosPrevios.reduce((a, r) => a + (r.monto ?? 0), 0)
       const montoCierre = Math.max(0, data.pagoTotalRecibo - yaRecibido)
-
+ 
       if (montoCierre > 0) {
+        const suats   = data.suatsAbonado ? (data.montoSUATS ?? 0) : 0
+        const informe = data.informePersonaRealizado ? (data.montoInformePersona ?? 0) : 0
+        // Las deducciones se imputan al recibo de cierre, acotadas a su monto.
+        const suatsImputado   = Math.min(suats, montoCierre)
+        const informeImputado = Math.min(informe, montoCierre - suatsImputado)
+ 
         const numeroRecibo = await generarNumeroRecibo(gestoriaId)
         const reciboId = await crearRecibo({
           numeroRecibo,
@@ -402,7 +496,7 @@ export async function confirmarPaso7Multa(
           clienteId:    tramite.clienteId,
           gestoriaId,
           tipo:         'total',
-          monto:        montoCierre,                    // ← solo el saldo, no el total
+          monto:        montoCierre,
           montoCobradoAcumulado: data.pagoTotalRecibo,
           honorariosTotales:     data.pagoTotalRecibo,
           formaPago,
@@ -412,6 +506,18 @@ export async function confirmarPaso7Multa(
           tipoTramite:  tramite.tipo,
           emitidoPor:       data.completadoPor,
           emitidoPorNombre: data.completadoPorNombre,
+          // Atribución: quien cierra se lleva el crédito salvo que ya venga fijada
+          atribuidoA:       tramite.atribuidoA       ?? data.completadoPor,
+          atribuidoANombre: tramite.atribuidoANombre ?? data.completadoPorNombre,
+          // Desglose de deducciones
+          montoSUATS:          suatsImputado,
+          montoInformePersona: informeImputado,
+          comisionReferido:    data.comisionReferido ?? 0,
+          comisionDestino:     tramite.origenNombre ?? '',
+          netoGestoria: Math.max(
+            0,
+            montoCierre - suatsImputado - informeImputado - (data.comisionReferido ?? 0),
+          ),
         })
         await notificarRecibo({
           gestoriaId, tramiteId, reciboId, numeroRecibo,
@@ -453,6 +559,8 @@ export async function agregarPagoMulta(
   const formaPagoMap: Record<string, string> = {
     efectivo:      'efectivo',
     transferencia: 'transferencia',
+    mercadopago:   'mercadopago',
+    tarjeta:       'tarjeta',
     mixto:         'mixto',
   }
   const formaPago = formaPagoMap[pago.metodoPago] ?? 'mixto'
@@ -482,6 +590,11 @@ export async function agregarPagoMulta(
         gestoriaId,
         tipo:         'parcial',
         monto:        pago.monto,
+        montoSUATS:   pago.montoSUATS,
+        montoInformePersona: pago.montoInformePersona,
+        comisionReferido: pago.comisionReferido,
+        montoAcreditado: pago.montoAcreditado,
+        cuotasTarjeta: pago.cuotasTarjeta,
         montoCobradoAcumulado: nuevoTotal,
         honorariosTotales:     nuevoTotal,
         formaPago,
@@ -491,6 +604,8 @@ export async function agregarPagoMulta(
         tipoTramite:  tramite.tipo,
         emitidoPor:       pago.registradoPor,
         emitidoPorNombre: pago.registradoPorNombre,
+        atribuidoA:       pago.registradoPor,
+        atribuidoANombre: pago.registradoPorNombre,
       })
       await notificarRecibo({
         gestoriaId, tramiteId, reciboId, numeroRecibo,
