@@ -113,6 +113,7 @@ export interface Usuario {
 }
 
 export type OrigenCanal =
+  | 'lead_propio'          // ← NUEVO: lo trajo el secretario, sin tercero
   | 'referido_persona'     // persona física que refirió al cliente
   | 'concesionaria'        // concesionaria oficial
   | 'agencia'              // agencia de vehículos
@@ -127,6 +128,7 @@ export type OrigenCanal =
   | 'otro'
  
 export const ORIGEN_CANAL_LABELS: Record<OrigenCanal, string> = {
+  lead_propio:       'Lead propio',
   referido_persona:  'Referido (persona)',
   concesionaria:     'Concesionaria',
   agencia:           'Agencia',
@@ -140,12 +142,31 @@ export const ORIGEN_CANAL_LABELS: Record<OrigenCanal, string> = {
   web:               'Web',
   otro:              'Otro',
 }
+ export const ORIGEN_REQUIERE_NOMBRE: OrigenCanal[] = [
+  'referido_persona', 'concesionaria', 'agencia', 'reventa',
+  'encargado_multas', 'otro',
+]
  
+
+export const ORIGEN_CON_COMISION: OrigenCanal[] = [
+  'referido_persona', 'concesionaria', 'agencia', 'reventa', 'encargado_multas',
+]
 // Canales que son "referidos comerciales" — aparecen en métricas de referidos (M7)
 export const ORIGEN_COMERCIAL: OrigenCanal[] = [
   'concesionaria', 'agencia', 'reventa', 'encargado_multas',
 ]
-
+export const ORIGEN_CANALES = [
+  'lead_propio', 'referido_persona', 'concesionaria', 'agencia', 'reventa',
+  'encargado_multas', 'instagram', 'facebook', 'google', 'cartel_local',
+  'whatsapp', 'web', 'otro',
+] as const satisfies readonly OrigenCanal[]
+export function origenRequiereNombre(canal: OrigenCanal | undefined): boolean {
+  return !!canal && ORIGEN_REQUIERE_NOMBRE.includes(canal)
+}
+ 
+export function origenTieneComision(canal: OrigenCanal | undefined): boolean {
+  return !!canal && ORIGEN_CON_COMISION.includes(canal)
+}
 export interface Cliente {
   id:           string
   gestoriaId:   string
@@ -233,6 +254,8 @@ export interface Tramite {
   costosInformePersona?: number  // 0 o costo del informe de persona (no es ingreso)
   cuotasTarjeta?: number         // cantidad de cuotas si formaPago === 'tarjeta'
   notasPago?: string
+  origenCanal?:  OrigenCanal | null    // copiado del cliente al crear
+  origenNombre?: string | null
   turnoId: string | null
   asignadoA: string | null
   tokenPublico?: string

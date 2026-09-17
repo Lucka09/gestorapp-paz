@@ -1,14 +1,18 @@
 // src/features/clientes/ClienteForm.tsx
 import { useState } from 'react'
 import { z }        from 'zod'
-import { Input, Select, Textarea, Button } from '@/components/ui'
-import type { Cliente }      from '@/types'
-import type { OrigenCanal }  from '@/types'
-import { ORIGEN_CANAL_LABELS, ORIGEN_COMERCIAL } from '@/types'
+import { Input, Textarea, Button } from '@/components/ui'
+import type { Cliente, OrigenCanal } from '@/types'
+import {
+  ORIGEN_CANAL_LABELS, ORIGEN_COMERCIAL, ORIGEN_CANALES,
+  origenRequiereNombre,
+} from '@/types'
 
 // ─── SCHEMA ───────────────────────────────────────────────────────────────────
+// El objeto base se guarda aparte porque `.refine()` devuelve un ZodEffects,
+// que no expone `.shape` y rompería validateField().
 
-const clienteSchema = z.object({
+const clienteSchemaBase = z.object({
   nombre:       z.string().min(1, 'Requerido').max(80),
   apellido:     z.string().min(1, 'Requerido').max(80),
   dni:          z.string()
@@ -30,19 +34,25 @@ const clienteSchema = z.object({
   userId:       z.string().nullable(),
   observaciones: z.string().max(500),
   origen:        z.string().max(80),
-  origenCanal:   z.enum([
-    'referido_persona','concesionaria','agencia','reventa',
-    'encargado_multas','instagram','facebook','google',
-    'cartel_local','whatsapp','web','otro',
-  ] as const).optional(),
+
+  // Obligatorio: toda alta debe declarar de dónde vino el cliente.
+  origenCanal: z.enum(ORIGEN_CANALES, {
+    message: 'Indicá de dónde vino este cliente',
+  }),
   origenNombre:  z.string().max(120).optional(),
 })
 
-export type ClienteFormData = z.infer<typeof clienteSchema>
+// Si el canal implica un tercero, el nombre pasa a ser obligatorio.
+const clienteSchema = clienteSchemaBase.refine(
+  d => !origenRequiereNombre(d.origenCanal) || !!d.origenNombre?.trim(),
+  { path: ['origenNombre'], message: 'Indicá a quién pertenece este cliente' },
+)
+
+export type ClienteFormData = z.infer<typeof clienteSchemaBase>
 
 type Errors = Partial<Record<keyof ClienteFormData, string>>
 
-// ─── CANALES RÁPIDOS (botones pill) ──────────────────────────────────────────
+// ─── CANALES ─────────────────────────────────────────────────────────────────
 
 const CANALES_DIRECTOS: OrigenCanal[] = [
   'instagram', 'facebook', 'google', 'cartel_local', 'whatsapp',
@@ -52,8 +62,8 @@ const CANALES_REFERIDO: OrigenCanal[] = [
   'referido_persona', 'concesionaria', 'agencia', 'reventa', 'encargado_multas',
 ]
 
-// Etiquetas cortas para los botones pill
 const LABEL_CORTO: Partial<Record<OrigenCanal, string>> = {
+  lead_propio:      'Lead propio',
   referido_persona: 'Referido',
   concesionaria:    'Concesionaria',
   agencia:          'Agencia',
@@ -73,7 +83,10 @@ const EMPTY: ClienteFormData = {
   nombre: '', apellido: '', dni: '', cuit: '',
   telefono: '', email: '', direccion: '',
   localidad: '', userId: null, observaciones: '',
-  origen: '', origenCanal: undefined, origenNombre: undefined,
+  origen: '',
+  // Sin valor: obliga a decidir explícitamente antes de guardar.
+  origenCanal: undefined as unknown as OrigenCanal,
+  origenNombre: undefined,
 }
 
 // ─── PROPS ────────────────────────────────────────────────────────────────────
@@ -87,12 +100,6 @@ interface Props {
 
 // ─── HELPERS ──────────────────────────────────────────────────────────────────
 
-/** Determina si el canal seleccionado requiere ingresar un nombre */
-function requiereNombre(canal: OrigenCanal | undefined): boolean {
-  if (!canal) return false
-  return [...CANALES_REFERIDO, 'otro'].includes(canal)
-}
-
 /** Construye el campo legacy `origen` para compatibilidad con código existente */
 function buildOrigenLegacy(canal: OrigenCanal | undefined, nombre: string): string {
   if (!canal) return ''
@@ -101,7 +108,6 @@ function buildOrigenLegacy(canal: OrigenCanal | undefined, nombre: string): stri
   return label
 }
 
-/** Placeholder del campo nombre según el canal */
 function placeholderNombre(canal: OrigenCanal | undefined): string {
   switch (canal) {
     case 'referido_persona':  return 'Nombre y apellido de quien refirió'
@@ -118,20 +124,23 @@ function placeholderNombre(canal: OrigenCanal | undefined): string {
 export default function ClienteForm({
   initial, onSubmit, onCancel, submitLabel = 'Guardar',
 }: Props) {
-  // Inicializar origenCanal desde datos existentes
-  const initialCanal = (initial as any)?.origenCanal as OrigenCanal | undefined
+  const initialCanal  = (initial as any)?.origenCanal as OrigenCanal | undefined
   const initialNombre = (initial as any)?.origenNombre ?? ''
 
-  const [form, setForm]     = useState<ClienteFormData>({
+  const [form, setForm] = useState<ClienteFormData>({
     ...EMPTY,
     ...(initial ?? {}),
     userId:       initial?.userId ?? null,
-    origenCanal:  initialCanal,
+    origenCanal:  initialCanal as OrigenCanal,
     origenNombre: initialNombre,
     origen:       initial?.origen ?? buildOrigenLegacy(initialCanal, initialNombre),
   })
-  const [errors, setErrors] = useState<Errors>({})
+  const [errors, setErrors]   = useState<Errors>({})
   const [loading, setLoading] = useState(false)
+
+  // Arranca marcado solo si el cliente YA estaba guardado como propio.
+  // En un alta nueva arranca desmarcado: obliga a decidir.
+  const [esLeadPropio, setEsLeadPropio] = useState(initialCanal === 'lead_propio')
 
   const set = (field: keyof ClienteFormData) =>
     (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
@@ -140,7 +149,7 @@ export default function ClienteForm({
     }
 
   const validateField = (field: keyof ClienteFormData) => {
-    const result = clienteSchema.shape[field]?.safeParse(form[field])
+    const result = clienteSchemaBase.shape[field]?.safeParse(form[field])
     if (result && !result.success) {
       setErrors(prev => ({ ...prev, [field]: result.error.issues[0]?.message }))
     }
@@ -149,7 +158,7 @@ export default function ClienteForm({
   const validate = (): boolean => {
     const result = clienteSchema.safeParse(form)
     if (result.success) { setErrors({}); return true }
-    const flat   = result.error.flatten().fieldErrors
+    const flat = result.error.flatten().fieldErrors
     const errs: Errors = {}
     for (const [k, v] of Object.entries(flat)) {
       if (v?.[0]) errs[k as keyof ClienteFormData] = v[0]
@@ -158,25 +167,47 @@ export default function ClienteForm({
     return false
   }
 
-  // Seleccionar un canal
+  // ── Handlers de origen ────────────────────────────────────────────────────
+
+  const toggleLeadPropio = (checked: boolean) => {
+    setEsLeadPropio(checked)
+    if (checked) {
+      setForm(prev => ({
+        ...prev,
+        origenCanal:  'lead_propio',
+        origenNombre: '',
+        origen:       ORIGEN_CANAL_LABELS.lead_propio,
+      }))
+      setErrors(prev => ({ ...prev, origenCanal: undefined, origenNombre: undefined }))
+    } else {
+      setForm(prev => ({
+        ...prev,
+        origenCanal:  undefined as unknown as OrigenCanal,
+        origenNombre: '',
+        origen:       '',
+      }))
+    }
+  }
+
   const selectCanal = (canal: OrigenCanal) => {
-    const nuevo = form.origenCanal === canal ? undefined : canal
+    const nuevo  = form.origenCanal === canal ? undefined : canal
     const nombre = nuevo ? (form.origenNombre ?? '') : ''
     setForm(prev => ({
       ...prev,
-      origenCanal:  nuevo,
+      origenCanal:  nuevo as OrigenCanal,
       origenNombre: nombre,
       origen:       buildOrigenLegacy(nuevo, nombre),
     }))
+    setErrors(prev => ({ ...prev, origenCanal: undefined, origenNombre: undefined }))
   }
 
-  // Cambiar el nombre del referente
   const setNombreReferente = (nombre: string) => {
     setForm(prev => ({
       ...prev,
       origenNombre: nombre,
       origen:       buildOrigenLegacy(prev.origenCanal as OrigenCanal, nombre),
     }))
+    if (errors.origenNombre) setErrors(prev => ({ ...prev, origenNombre: undefined }))
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -188,7 +219,8 @@ export default function ClienteForm({
   }
 
   const canalActivo = form.origenCanal as OrigenCanal | undefined
-  const esReferido  = requiereNombre(canalActivo)
+  const esReferido  = origenRequiereNombre(canalActivo)
+  const hayErrorOrigen = !!errors.origenCanal || !!errors.origenNombre
 
   return (
     <form onSubmit={handleSubmit} noValidate className="space-y-5">
@@ -248,92 +280,126 @@ export default function ClienteForm({
         />
       </div>
 
-      {/* ─── ORIGEN / CANAL DE CAPTACIÓN ───────────────────────────────────── */}
-      <div>
-        <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">
-          Origen / Cómo llegó
+      {/* ─── ORIGEN DEL CLIENTE ─────────────────────────────────────────────── */}
+      <div className={`rounded-xl border p-4 transition-colors ${
+        hayErrorOrigen
+          ? 'border-red-200 bg-red-50/40'
+          : 'border-gray-200 bg-gray-50/50'
+      }`}>
+        <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">
+          Origen del cliente *
         </label>
 
-        {/* Canales digitales directos */}
-        <p className="text-[11px] font-medium text-gray-400 uppercase tracking-wider mb-1.5">
-          Canal digital
-        </p>
-        <div className="flex flex-wrap gap-2 mb-3">
-          {CANALES_DIRECTOS.map(canal => (
-            <button
-              key={canal}
-              type="button"
-              onClick={() => selectCanal(canal)}
-              className={`px-3 py-1 rounded-full text-xs font-medium border transition-all ${
-                canalActivo === canal
-                  ? 'bg-[#D4621A] border-[#D4621A] text-white'
-                  : 'border-gray-200 text-gray-500 hover:border-[#D4621A] hover:text-[#D4621A]'
-              }`}
-            >
-              {LABEL_CORTO[canal] ?? ORIGEN_CANAL_LABELS[canal]}
-            </button>
-          ))}
-          <button
-            type="button"
-            onClick={() => selectCanal('otro')}
-            className={`px-3 py-1 rounded-full text-xs font-medium border transition-all ${
-              canalActivo === 'otro'
-                ? 'bg-[#D4621A] border-[#D4621A] text-white'
-                : 'border-gray-200 text-gray-500 hover:border-[#D4621A] hover:text-[#D4621A]'
-            }`}
-          >
-            Otro
-          </button>
-        </div>
+        {/* Check: lead propio */}
+        <label className="flex items-start gap-3 cursor-pointer select-none">
+          <input
+            type="checkbox"
+            checked={esLeadPropio}
+            onChange={e => toggleLeadPropio(e.target.checked)}
+            className="mt-0.5 w-4 h-4 rounded border-gray-300 text-[#D4621A]
+                       focus:ring-[#D4621A] cursor-pointer"
+          />
+          <span>
+            <span className="text-sm font-medium text-gray-800">
+              Es un lead propio
+            </span>
+            <span className="block text-xs text-gray-400 mt-0.5">
+              El cliente llegó por la gestoría. No hay un tercero al que rendirle.
+            </span>
+          </span>
+        </label>
 
-        {/* Canales de referido comercial */}
-        <p className="text-[11px] font-medium text-gray-400 uppercase tracking-wider mb-1.5">
-          Referido por
-        </p>
-        <div className="flex flex-wrap gap-2 mb-3">
-          {CANALES_REFERIDO.map(canal => (
-            <button
-              key={canal}
-              type="button"
-              onClick={() => selectCanal(canal)}
-              className={`px-3 py-1 rounded-full text-xs font-medium border transition-all ${
-                canalActivo === canal
-                  ? 'bg-[#D4621A] border-[#D4621A] text-white'
-                  : 'border-gray-200 text-gray-500 hover:border-[#D4621A] hover:text-[#D4621A]'
-              }`}
-            >
-              {LABEL_CORTO[canal] ?? ORIGEN_CANAL_LABELS[canal]}
-            </button>
-          ))}
-        </div>
+        {/* Si NO es propio: canal + nombre obligatorio */}
+        {!esLeadPropio && (
+          <div className="mt-4 pt-4 border-t border-gray-200 animate-fadein">
 
-        {/* Campo de nombre — aparece solo cuando se requiere */}
-        {esReferido && (
-          <div className="mt-1 animate-fadein">
-            <Input
-              label={
-                ORIGEN_COMERCIAL.includes(canalActivo!)
-                  ? `Nombre de la ${LABEL_CORTO[canalActivo!] ?? 'entidad'} *`
-                  : 'Nombre del referente *'
-              }
-              value={form.origenNombre ?? ''}
-              placeholder={placeholderNombre(canalActivo)}
-              onChange={e => setNombreReferente(e.target.value)}
-            />
-            {ORIGEN_COMERCIAL.includes(canalActivo!) && (
-              <p className="text-xs text-[#D4621A] mt-1 flex items-center gap-1">
-                <span>📊</span>
-                Se registrará en las métricas de{' '}
-                {ORIGEN_CANAL_LABELS[canalActivo!].toLowerCase()} para seguimiento comercial.
-              </p>
+            <p className="text-[11px] font-medium text-gray-400 uppercase tracking-wider mb-1.5">
+              ¿A quién pertenece?
+            </p>
+            <div className="flex flex-wrap gap-2 mb-4">
+              {CANALES_REFERIDO.map(canal => (
+                <button
+                  key={canal}
+                  type="button"
+                  onClick={() => selectCanal(canal)}
+                  className={`px-3 py-1 rounded-full text-xs font-medium border transition-all ${
+                    canalActivo === canal
+                      ? 'bg-[#D4621A] border-[#D4621A] text-white'
+                      : 'border-gray-200 bg-white text-gray-500 hover:border-[#D4621A] hover:text-[#D4621A]'
+                  }`}
+                >
+                  {LABEL_CORTO[canal] ?? ORIGEN_CANAL_LABELS[canal]}
+                </button>
+              ))}
+            </div>
+
+            <p className="text-[11px] font-medium text-gray-400 uppercase tracking-wider mb-1.5">
+              O vino por un canal digital
+            </p>
+            <div className="flex flex-wrap gap-2">
+              {CANALES_DIRECTOS.map(canal => (
+                <button
+                  key={canal}
+                  type="button"
+                  onClick={() => selectCanal(canal)}
+                  className={`px-3 py-1 rounded-full text-xs font-medium border transition-all ${
+                    canalActivo === canal
+                      ? 'bg-[#D4621A] border-[#D4621A] text-white'
+                      : 'border-gray-200 bg-white text-gray-500 hover:border-[#D4621A] hover:text-[#D4621A]'
+                  }`}
+                >
+                  {LABEL_CORTO[canal] ?? ORIGEN_CANAL_LABELS[canal]}
+                </button>
+              ))}
+              <button
+                type="button"
+                onClick={() => selectCanal('otro')}
+                className={`px-3 py-1 rounded-full text-xs font-medium border transition-all ${
+                  canalActivo === 'otro'
+                    ? 'bg-[#D4621A] border-[#D4621A] text-white'
+                    : 'border-gray-200 bg-white text-gray-500 hover:border-[#D4621A] hover:text-[#D4621A]'
+                }`}
+              >
+                Otro
+              </button>
+            </div>
+
+            {errors.origenCanal && (
+              <p className="text-xs text-red-600 mt-2">{errors.origenCanal}</p>
+            )}
+
+            {/* Nombre del tercero — obligatorio */}
+            {esReferido && (
+              <div className="mt-4 animate-fadein">
+                <Input
+                  label={
+                    ORIGEN_COMERCIAL.includes(canalActivo!)
+                      ? `Nombre de la ${LABEL_CORTO[canalActivo!] ?? 'entidad'} *`
+                      : 'Nombre del referente *'
+                  }
+                  value={form.origenNombre ?? ''}
+                  placeholder={placeholderNombre(canalActivo)}
+                  onChange={e => setNombreReferente(e.target.value)}
+                  error={errors.origenNombre}
+                />
+                {ORIGEN_COMERCIAL.includes(canalActivo!) && (
+                  <p className="text-xs text-[#D4621A] mt-1.5 flex items-start gap-1.5">
+                    <span>💰</span>
+                    <span>
+                      Al cerrar trámites de este cliente vas a poder registrar la
+                      comisión entregada, que se descuenta del ingreso de la gestoría.
+                    </span>
+                  </p>
+                )}
+              </div>
             )}
           </div>
         )}
 
-        {/* Badge resumen del canal elegido */}
+        {/* Badge resumen */}
         {canalActivo && (
-          <div className="mt-2 flex items-center gap-2">
-            <span className="text-xs text-gray-400">Canal registrado:</span>
+          <div className="mt-3 flex items-center gap-2">
+            <span className="text-xs text-gray-400">Origen registrado:</span>
             <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full
                              text-xs font-semibold bg-orange-50 text-[#D4621A] border border-orange-100">
               {buildOrigenLegacy(canalActivo, form.origenNombre ?? '') || ORIGEN_CANAL_LABELS[canalActivo]}

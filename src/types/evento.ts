@@ -40,6 +40,7 @@ export type TipoEventoCliente =
   | 'cliente.actualizado'
   | 'cliente.archivado'
   | 'cliente.reactivado'
+  
 
 export type TipoEventoTramite =
   | 'tramite.creado'
@@ -85,7 +86,10 @@ export type TipoEvento =
   | TipoEventoComunicacion
   | TipoEventoSistema
   | TipoEventoOperativo
-
+  | 'cliente.editado'
+  | 'vehiculo.editado'
+  | 'vehiculo.titular_cambiado'
+  | 'recibo.devolucion'
 // ─── ENTIDADES REFERENCIABLES ───────────────────────────────────────────────
 
 export type EntidadEvento =
@@ -230,12 +234,16 @@ export const TIPO_EVENTO_LABELS: Partial<Record<TipoEvento, string>> = {
   'tramite.completado': 'Trámite completado',
   'pago.registrado': 'Pago registrado',
   'recibo.emitido': 'Recibo emitido',
+  'recibo.devolucion': 'Devolución de dinero',
   'wa.mensaje_recibido': 'Mensaje WA recibido',
   'wa.mensaje_enviado': 'Mensaje WA enviado',
   'automatizacion.disparada': 'Automatización ejecutada',
   'automatizacion.fallida': 'Automatización falló',
   'presupuesto.enviado': 'Presupuesto enviado',
   'turno.confirmado': 'Turno confirmado',
+  'cliente.editado': 'Cliente editado',
+   'vehiculo.editado': 'Vehículo editado',
+   'vehiculo.titular_cambiado': 'Cambio de titular',
 }
 
 export const TIPO_EVENTO_EMOJI: Partial<Record<TipoEvento, string>> = {
@@ -247,6 +255,7 @@ export const TIPO_EVENTO_EMOJI: Partial<Record<TipoEvento, string>> = {
   'tramite.completado': '✅',
   'pago.registrado': '💵',
   'recibo.emitido': '🧾',
+  'recibo.devolucion': '↩️',
   'wa.mensaje_recibido': '💬',
   'wa.mensaje_enviado': '📤',
   'automatizacion.disparada': '⚙️',
@@ -254,4 +263,7 @@ export const TIPO_EVENTO_EMOJI: Partial<Record<TipoEvento, string>> = {
   'usuario.login': '🔑',
   'presupuesto.enviado': '📨',
   'turno.confirmado': '📅',
+  'cliente.editado': '✏️',
+   'vehiculo.editado': '✏️',
+   'vehiculo.titular_cambiado': '🔁',
 }
