@@ -640,6 +640,7 @@ export async function agregarPagoMulta(
       console.error('[agregarPagoMulta] tampoco se pudo crear la alerta:', e2)
     }
   }
+  }
  
 export async function sincronizarPagoMultaAlTramite(
   tramiteId:  string,
