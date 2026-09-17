@@ -5,3 +5,16 @@ dist
 .DS_Store
 serviceAccount.json
 *.log
+# Salidas de scripts de migración — contienen datos de clientes
+*-preview.csv
+recibos-tarjeta-a-corregir.csv
+correcciones.csv
+
+# Build artifacts
+tsconfig.tsbuildinfo
+functions/lib/
+
+# Credenciales
+serviceAccount.json
+.env
+.env.local

@@ -23,6 +23,31 @@
       ],
       "density": "SPARSE_ALL"
     },
+     {"collectionGroup": "audit_log",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "gestoriaId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "usuarioId",
+          "order": "ASCENDING"
+        },
+         {
+          "fieldPath": "entidad",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "entidadId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "timestamp",
+          "order": "DESCENDING"
+        }
+      ]
+    },
     {
       "collectionGroup": "alertas_sistema",
       "queryScope": "COLLECTION",
@@ -538,9 +563,13 @@
           "order": "ASCENDING"
         },
         {
+          "fieldPath": "atribuidoA",
+          "order": "ASCENDING"
+        },
+        {
           "fieldPath": "creadoEn",
           "order": "DESCENDING"
-        },
+        },        
         {
           "fieldPath": "__name__",
           "order": "DESCENDING"
