@@ -21,6 +21,8 @@ export interface MetaWebhookPayload {
       value: {
         messaging_product: string
         metadata: MetaMetadata
+        smb_message_echoes?: MetaMessageEcho[]
+        history?:        unknown[]
         contacts?: Array<{
           profile: { name: string }
           wa_id:   string
@@ -61,6 +63,20 @@ export interface MetaIncomingMessage {
   document?: { id: string; mime_type: string; filename?: string }
   sticker?:  { id: string; mime_type: string }
   referral?: MetaReferral
+}
+
+export interface MetaMessageEcho {
+  from:      string          // número de LA GESTORÍA
+  to:        string          // número del CLIENTE
+  id:        string
+  timestamp: string
+  type:      string
+  text?:     { body: string }
+  image?:    { caption?: string; id?: string; mime_type?: string }
+  video?:    { caption?: string; id?: string; mime_type?: string }
+  document?: { caption?: string; filename?: string; id?: string; mime_type?: string }
+  audio?:    { id?: string; mime_type?: string }
+  sticker?:  { id?: string; mime_type?: string }
 }
 
 export interface MetaStatusUpdate {

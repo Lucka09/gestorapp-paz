@@ -27,6 +27,10 @@ export interface ConversacionWA {
   avatarUrl?:      string
   ultimoMensaje:   string          // texto preview
   ultimaActividad: Timestamp
+  ultimoMensajeDireccion?: DireccionMensaje // quién habló último
+  repescaDescartadaEn?:    Timestamp        // el secretario la sacó del listado
+  repescaDescartadaPor?:   string
+  tomadoDeRepescaEn?:      Timestamp
   estado:          EstadoConversacion
   asignadoA:       string          // uid del agente asignado ('' = sin asignar / pool)
   asignadoNombre?: string          // nombre del agente dueño (lo setea el webhook por ruteo)
@@ -63,6 +67,7 @@ export interface MensajeWA {
   timestamp:   Timestamp
   estado?:     EstadoMensaje       // solo para salientes
   enviadoPor?: string              // uid del agente (solo salientes)
+  origenEnvio?: 'gestorapp' | 'celular'
 }
 
 // ─── PAYLOAD META (webhook) ────────────────────────────────────────────────────

@@ -375,3 +375,4 @@ export const IconButton = forwardRef<HTMLButtonElement, IconButtonProps>(
   )
 )
 IconButton.displayName = 'IconButton'
+export { default as Modal } from '@/components/shared/Modal'

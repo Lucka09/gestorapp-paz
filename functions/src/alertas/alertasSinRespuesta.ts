@@ -63,7 +63,12 @@ export const alertasSinRespuesta = onSchedule(
 
     for (const doc of snap.docs) {
       const c = doc.data() as any
-      if ((c.noLeidos ?? 0) <= 0)      { saltadas++; continue } // ya lo abrieron
+     // Señal robusta: el último mensaje es del cliente. `noLeidos` queda como
+  // respaldo para conversaciones anteriores al cambio del webhook.
+  const sinResponder = c.ultimoMensajeDireccion
+    ? c.ultimoMensajeDireccion === 'entrante'
+    : (c.noLeidos ?? 0) > 0
+  if (!sinResponder) { saltadas++; continue }
       if (c.alertaSinRespuestaEn)      { saltadas++; continue } // ya se procesó
 
       const gestoriaId = String(c.gestoriaId ?? '')
@@ -78,10 +83,12 @@ export const alertasSinRespuesta = onSchedule(
       // 1) PASAR AL POOL: se libera para que cualquiera lo tome. Si ya estaba en
       //    el pool (sin dueño), no hace falta re-liberar pero igual marcamos.
       batch.update(doc.ref, {
-        asignadoA: '',
-        asignadoNombre: '',
-        alertaSinRespuestaEn: FV.serverTimestamp(),
-      })
+    asignadoA:            '',
+    asignadoNombre:       '',
+    asignadoAPrevio:      duenoPrevio,        // ← NUEVO: reversible
+    asignadoNombrePrevio: c.asignadoNombre ?? '',
+    alertaSinRespuestaEn: FV.serverTimestamp(),
+  })
 
       // 2) Avisar al dueño anterior (si tenía y sigue activo) que se liberó.
       if (duenoPrevio && await estaActivo(duenoPrevio)) {

@@ -160,8 +160,8 @@ export function useMensajesWA(conversacionId: string | null) {
     return unsub
   }, [conversacionId])
 
-  const enviar = useCallback(async (texto: string): Promise<void> => {
-    if (!texto.trim() || !conversacionId || !gestoriaId || !user?.uid) return
+  const enviar = useCallback(async (texto: string): Promise<boolean> => {
+    if (!texto.trim() || !conversacionId || !gestoriaId || !user?.uid) return false
     setEnviando(true)
     setError(null)
     try {
@@ -174,15 +174,17 @@ export function useMensajesWA(conversacionId: string | null) {
       await guardarMensajeSaliente(
         conversacionId, gestoriaId, texto, user.uid, result.data.waMessageId,
       )
+      return true
     } catch (e: any) {
       setError(e?.message ?? 'Error al enviar el mensaje')
+      return false
     } finally {
       setEnviando(false)
     }
   }, [conversacionId, gestoriaId, user?.uid])
 
-  const enviarMedia = useCallback(async (file: File, caption?: string): Promise<void> => {
-    if (!file || !conversacionId || !gestoriaId || !user?.uid) return
+  const enviarMedia = useCallback(async (file: File, caption?: string): Promise<boolean> => {
+    if (!file || !conversacionId || !gestoriaId || !user?.uid) return false
     setEnviando(true)
     setError(null)
     try {
@@ -206,8 +208,10 @@ export function useMensajesWA(conversacionId: string | null) {
         { waMessageId: string }
       >(fns, 'whatsappSendMedia')
       await sendFn({ conversacionId, gestoriaId, tipo, mediaUrl, caption: caption || '', filename: file.name, mimeType: mime })
+      return true
     } catch (e: any) {
       setError(e?.message ?? 'Error al enviar el archivo')
+      return false
     } finally {
       setEnviando(false)
     }

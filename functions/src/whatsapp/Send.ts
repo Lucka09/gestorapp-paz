@@ -42,6 +42,13 @@ export async function handleSendMessage(
   const emisor = conv.waPhoneNumberId as string | undefined
   // conversacionId = teléfono normalizado
   const waMessageId = await sendTextMessage(conversacionId, texto.trim(), emisor)
+  const ultimaActividad = admin.firestore.FieldValue.serverTimestamp()
+
+  await admin.firestore().collection('conversacionesWA').doc(conversacionId).update({
+    ultimoMensaje: texto.trim(),
+    ultimaActividad,
+    ultimoMensajeDireccion: 'saliente',
+  })
 
   console.log(`[WA Send] ${gestoriaId} → ${conversacionId} (desde ${emisor ?? 'env'}): "${texto.slice(0, 40)}" [${waMessageId}]`)
 

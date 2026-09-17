@@ -10,7 +10,7 @@ import {
 import { descargarYGuardarMedia } from './media'
 import type {
   MetaWebhookPayload, MetaIncomingMessage, MetaMetadata,
-  MetaReferral, MetaError, EstadoConversacion,
+  MetaReferral, MetaError, EstadoConversacion, MetaMessageEcho,
 } from './types'
 
 const db  = () => admin.firestore()
@@ -44,29 +44,67 @@ export function handleVerification(
 
 export async function handleIncomingMessage(payload: MetaWebhookPayload): Promise<void> {
   const gestoriaId = getGestoriaId()
-
+ 
   for (const entry of payload.entry ?? []) {
     for (const change of entry.changes ?? []) {
-      const { messages = [], contacts = [], statuses = [], metadata, errors = [] } = change.value
-
+      const {
+        messages = [], contacts = [], statuses = [], metadata, errors = [],
+        message_echoes = [],      // field: smb_message_echoes
+        history        = [],      // field: history
+      } = (change.value ?? {}) as any
+ 
+      const phoneNumberId = metadata?.phone_number_id ?? ''
+ 
+      // ── DIAGNÓSTICO — dejalo unos días y después sacalo ──────────────────
+      console.log('[WA][diag] field=%s keys=%s',
+        change.field, Object.keys(change.value ?? {}).join(','))
+ 
+      // ── HISTORIAL (field: history) ───────────────────────────────────────
+      // Llega en tandas después del onboarding. Es un import masivo: NO crea
+      // leads, NO clasifica multas, NO manda bienvenida, NO toca noLeidos.
+      if (change.field === 'history' && history.length) {
+        for (const chunk of history) {
+          try {
+            await procesarHistorial(gestoriaId, chunk, phoneNumberId)
+          } catch (e: any) {
+            console.error('[WA][hist] error en chunk', {
+              orden: chunk?.metadata?.chunk_order, msg: e?.message,
+            })
+          }
+        }
+        continue
+      }
+ 
+      // ── ECOS (field: smb_message_echoes) ─────────────────────────────────
+      // Mensajes que los secretarios mandan desde el celular.
+      // OJO: acá `from` es el número de la gestoría y `to` el del cliente.
+      if (message_echoes.length) {
+        for (const eco of message_echoes) {
+          try {
+            await procesarEcoSaliente(gestoriaId, eco)
+          } catch (e: any) {
+            console.error('[WA][eco] error', { id: eco?.id, msg: e?.message })
+          }
+        }
+        continue
+      }
+ 
+      // ── FLUJO NORMAL (sin cambios) ───────────────────────────────────────
       for (const error of errors) {
         console.warn('[WA] Error de mensaje:', error)
         try { await registrarErrorMensaje(gestoriaId, error) }
         catch (e: any) { console.warn('[WA] fallo registrarErrorMensaje:', e?.message) }
       }
-
+ 
       for (const status of statuses) {
         try { await actualizarEstadoMensaje(gestoriaId, status.id, status.status) }
         catch (e: any) { console.warn('[WA] fallo actualizarEstadoMensaje:', e?.message) }
       }
-
+ 
       for (let i = 0; i < messages.length; i++) {
         const msg     = messages[i]
         const contact = contacts[i] ?? contacts[0]
         const nombre  = contact?.profile?.name ?? ''
-        // Cada mensaje se procesa aislado: si uno falla, se loguea pero NO tira
-        // toda la invocación (si no, Meta reintenta el payload entero y se
-        // reprocesa/re-saluda). Meta siempre recibe 200 → no reintenta.
         try { await procesarMensaje(gestoriaId, msg, nombre, metadata) }
         catch (e: any) { console.error('[WA] fallo procesarMensaje:', e?.message, e?.stack) }
       }
@@ -74,6 +112,232 @@ export async function handleIncomingMessage(payload: MetaWebhookPayload): Promis
   }
 }
 
+async function procesarEcoSaliente(
+  gestoriaId: string,
+  eco: MetaMessageEcho,
+): Promise<void> {
+  const telefonoCliente = normalizarTelefono(String(eco.to ?? ''))
+  if (!telefonoCliente || !eco.id) return
+ 
+  const convRef = db().collection('conversacionesWA').doc(telefonoCliente)
+  const msgRef  = convRef.collection('mensajes').doc(idSeguro(eco.id))
+ 
+  if ((await msgRef.get()).exists) return
+ 
+  const convSnap = await convRef.get()
+ 
+  const texto = eco.text?.body
+    ?? eco.image?.caption
+    ?? eco.document?.caption
+    ?? eco.document?.filename
+    ?? `[${eco.type}]`
+ 
+  const tipo = mapTipo(eco.type)
+ 
+  const segundos = Number(eco.timestamp ?? Date.now() / 1000)
+  const ts = admin.firestore.Timestamp.fromMillis(
+    Number.isFinite(segundos) ? segundos * 1000 : Date.now(),
+  )
+ 
+  const batch = db().batch()
+ 
+  batch.set(msgRef, {
+    gestoriaId,
+    waMessageId: eco.id,
+    direccion:   'saliente',
+    tipo,
+    texto,
+    timestamp:   ts,
+    estado:      'enviado',
+    origenEnvio: 'celular',
+    enviadoPor:  '',
+  })
+  // Si la conversación no existe, el secretario escribió primero desde el
+  // celular a alguien que nunca nos había escrito. Se crea mínima.
+  const datosConv: Record<string, unknown> = {
+    ultimoMensaje:          texto.slice(0, 120),
+    ultimaActividad:        ts,
+    ultimoMensajeDireccion: 'saliente',
+    noLeidos:               0,
+    alertaSinRespuestaEn:   admin.firestore.FieldValue.delete(),
+  }
+  if (!convSnap.exists) {
+    Object.assign(datosConv, {
+      gestoriaId,
+      telefono:  telefonoCliente,
+      nombre:    telefonoCliente,
+      estado:    'en_atencion' as EstadoConversacion,
+      asignadoA: '',
+      asignadoNombre: '',
+      creadoEn:  ts,
+    })
+  }
+ 
+  batch.set(convRef, datosConv, { merge: true })
+  await batch.commit()
+ 
+  console.log('[WA][eco] guardado', { conv: telefonoCliente, tipo })
+}
+
+// Estructura real del payload:
+//   value.history[].threads[].messages[]
+//   thread.id                    → teléfono del CLIENTE
+//   message.from                 → quién mandó (gestoría o cliente)
+//   message.history_context.from_me === true → lo mandó LA GESTORÍA
+//
+// Es la única forma de recuperar la dirección de los mensajes viejos. Sin
+// mirar `from_me`, todo entra como entrante y las conversaciones quedan como
+// las que estás viendo en la Bandeja: solo el lado del cliente.
+//
+// Fases (metadata.phase): 0 = día 0 a 1 · 1 = día 1 a 90 · 2 = día 90 a 180.
+// Llega en chunks; `progress` va de 0 a 100.
+ 
+interface HistoryMensaje {
+  from:      string
+  to?:       string
+  id:        string
+  timestamp: string
+  type:      string
+  text?:     { body: string }
+  image?:    { caption?: string; id?: string }
+  video?:    { caption?: string; id?: string }
+  document?: { caption?: string; filename?: string; id?: string }
+  audio?:    { id?: string }
+  sticker?:  { id?: string }
+  history_context?: {
+    from_me?: boolean
+    status?:  string
+  }
+}
+ 
+interface HistoryChunk {
+  metadata?: { phase?: number; chunk_order?: number; progress?: number }
+  threads?:  { id: string; messages?: HistoryMensaje[] }[]
+}
+ 
+async function procesarHistorial(
+  gestoriaId:    string,
+  chunk:         HistoryChunk,
+  phoneNumberId: string,
+): Promise<void> {
+  const { phase, chunk_order, progress } = chunk.metadata ?? {}
+  const threads = chunk.threads ?? []
+ 
+  console.log('[WA][hist] chunk', {
+    fase: phase, orden: chunk_order, progreso: progress, hilos: threads.length,
+  })
+ 
+  let importados = 0, saltados = 0
+ 
+  for (const thread of threads) {
+    const telefono = normalizarTelefono(String(thread.id ?? ''))
+    const mensajes = thread.messages ?? []
+    if (!telefono || mensajes.length === 0) continue
+ 
+    const convRef = db().collection('conversacionesWA').doc(telefono)
+    const convSnap = await convSnapSeguro(convRef)
+ 
+    // Firestore: máximo 500 operaciones por batch. Dejamos margen para el
+    // update de la conversación.
+    const LOTE = 400
+    let ultimo: { ts: admin.firestore.Timestamp; texto: string; saliente: boolean } | null = null
+ 
+    for (let i = 0; i < mensajes.length; i += LOTE) {
+      const batch = db().batch()
+      let enBatch = 0
+ 
+      for (const m of mensajes.slice(i, i + LOTE)) {
+        if (!m.id) { saltados++; continue }
+ 
+        const msgRef = convRef.collection('mensajes').doc(idSeguro(m.id))
+ 
+        // La dirección sale de history_context.from_me. Si no viene, se
+        // deduce comparando `from` con el teléfono del hilo.
+        const saliente = m.history_context?.from_me === true
+          || (!!m.from && normalizarTelefono(m.from) !== telefono)
+ 
+        const texto = m.text?.body
+          ?? m.image?.caption
+          ?? m.video?.caption
+          ?? m.document?.caption
+          ?? m.document?.filename
+          ?? `[${m.type}]`
+ 
+        const segundos = Number(m.timestamp)
+        const ts = admin.firestore.Timestamp.fromMillis(
+          Number.isFinite(segundos) ? segundos * 1000 : Date.now(),
+        )
+ 
+        // set() sin merge sobre un doc id determinístico: si el chunk se
+        // reenvía, se pisa con lo mismo. Idempotente y sin lectura previa
+        // (leer 20.000 mensajes uno por uno sería carísimo).
+        batch.set(msgRef, {
+          gestoriaId,
+          waMessageId: m.id,
+          direccion:   saliente ? 'saliente' : 'entrante',
+          tipo:        mapTipo(m.type),
+          texto,
+          timestamp:   ts,
+          ...(saliente ? {
+            estado:      m.history_context?.status === 'read' ? 'leido' : 'enviado',
+            origenEnvio: 'celular',
+            enviadoPor:  '',
+          } : {}),
+          importadoDeHistorial: true,
+        })
+ 
+        enBatch++
+        importados++
+ 
+        if (!ultimo || ts.toMillis() > ultimo.ts.toMillis()) {
+          ultimo = { ts, texto, saliente }
+        }
+      }
+ 
+      if (enBatch > 0) await batch.commit()
+    }
+ 
+    // ── Cabecera de la conversación ────────────────────────────────────────
+    // Solo se pisa si el historial trae algo MÁS NUEVO que lo que ya hay.
+    // Sin este guard, un chunk viejo retrocedería la conversación y la
+    // mandaría al fondo de la Bandeja.
+    if (!ultimo) continue
+ 
+    const actualMs = convSnap?.get('ultimaActividad')?.toMillis?.() ?? 0
+    const esMasNuevo = ultimo.ts.toMillis() > actualMs
+ 
+    const datos: Record<string, unknown> = {
+      gestoriaId,
+      telefono,
+      historialImportadoEn: now(),
+      ...(convSnap?.exists ? {} : {
+        nombre:          telefono,
+        estado:          'en_atencion' as EstadoConversacion,
+        asignadoA:       '',
+        asignadoNombre:  '',
+        noLeidos:        0,          // el historial NUNCA suma pendientes
+        waPhoneNumberId: phoneNumberId,
+        creadoEn:        ultimo.ts,
+      }),
+      ...(esMasNuevo ? {
+        ultimoMensaje:          ultimo.texto.slice(0, 120),
+        ultimaActividad:        ultimo.ts,
+        ultimoMensajeDireccion: ultimo.saliente ? 'saliente' : 'entrante',
+      } : {}),
+    }
+ 
+    await convRef.set(datos, { merge: true })
+  }
+ 
+  console.log('[WA][hist] fin chunk', { importados, saltados, progreso: progress })
+}
+ 
+// getDoc que no tira si la conversación no existe
+async function convSnapSeguro(
+  ref: admin.firestore.DocumentReference,
+): Promise<admin.firestore.DocumentSnapshot | null> {
+  try { return await ref.get() } catch { return null }
+}
 // ─── CONFIG (ruteo + keywords), leída una sola vez por mensaje ────────────────
 
 interface LineaRuteo {
@@ -251,6 +515,7 @@ async function procesarMensaje(
       telefono,
       nombre:          nombre || telefono,
       ultimoMensaje:   texto,
+      ultimoMensajeDireccion: 'entrante',
       ultimaActividad: ts,
       estado:          'nueva' as EstadoConversacion,
       asignadoA:       owner?.uid    ?? '',
@@ -278,6 +543,7 @@ async function procesarMensaje(
   } else {
     const update: Record<string, unknown> = {
       ultimoMensaje:   texto,
+      ultimoMensajeDireccion: 'entrante',
       ultimaActividad: ts,
       noLeidos:        admin.firestore.FieldValue.increment(1),
       ...(nombre && prev.nombre === telefono ? { nombre } : {}),
@@ -392,7 +658,9 @@ function construirSugerida(
 function diaAR(): string {
   return new Date(Date.now() - 3 * 3600 * 1000).toISOString().slice(0, 10).replace(/-/g, '')
 }
-
+function idSeguro(wamid: string): string {
+  return String(wamid).replace(/[/\\]/g, '_').slice(0, 300)
+}
 // ¿El usuario existe y no está desactivado? (guard de secretario inactivo)
 async function estaActivo(uid: string): Promise<boolean> {
   if (!uid) return false
@@ -635,7 +903,7 @@ function extraerTexto(msg: MetaIncomingMessage): string {
 function mapTipo(type: string): string {
   const map: Record<string, string> = {
     text: 'texto', image: 'imagen', audio: 'audio',
-    document: 'documento', sticker: 'sticker',
+    video: 'video', document: 'documento', sticker: 'sticker',
   }
   return map[type] ?? 'texto'
 }

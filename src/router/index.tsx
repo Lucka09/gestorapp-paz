@@ -28,6 +28,7 @@ const TurnosPage               = lazy(() => import('@/features/turnos/TurnosPage
 const PipelinePage             = lazy(() => import('@/features/pipeline/PipelinePage'))
 const LeadsPage                = lazy(() => import('@/features/leads/LeadsPage').then(m => ({ default: m.default })))
 const BandejaWAPage            = lazy(() => import('@/features/bandeja/BandejaWAPage'))
+const RepescaPage              = lazy(() => import('@/features/repesca/RepescaPage'))
 const CobranzasPage            = lazy(() => import('@/features/cobranzas/CobranzasPage'))
 const RecibosPage               = lazy(() => import('@/features/cobranzas/RecibosPage'))
 const ReportesPage             = lazy(() => import('@/features/reportes/ReportesPage'))
@@ -123,6 +124,7 @@ export const router = createBrowserRouter([
 
       // WhatsApp
       { path: 'bandeja',           element: <L><BandejaWAPage /></L> },
+      { path: 'repesca',           element: <L><RepescaPage /></L> },
       { path: 'campanas',          element: <L><CampanasPage /></L> },
       { path: 'campanas/:id',      element: <L><CampanaDetallePage /></L> },
 

@@ -2,8 +2,8 @@ import { useState, useRef, useEffect, useMemo } from 'react'
 import {
   MessageCircle, Search, Filter, Check, CheckCheck,
   User, Link2, Tag, ChevronRight, Send, Phone,
-  MoreVertical, Clock, Wifi, WifiOff, Circle,
-  RefreshCw, UserCheck, X, ArrowLeft, Paperclip,
+  MoreVertical, Clock, Wifi, WifiOff, Circle, Smartphone,
+  RefreshCw, UserCheck, X, ArrowLeft, Paperclip, Eye,
 } from 'lucide-react'
 import { formatDistanceToNow, format, isToday, isYesterday } from 'date-fns'
 import { es } from 'date-fns/locale'
@@ -179,6 +179,12 @@ function BurbujaMensaje({ msg }: { msg: MensajeWA }) {
             {msg.texto}
           </p>
         )}
+        {msg.origenEnvio === 'celular' && (
+          <span className="flex items-center gap-1 text-[10px] text-gray-400 mt-0.5">
+            <Smartphone className="w-2.5 h-2.5" />
+            Enviado desde el celular
+          </span>
+        )}
         <div style={{
           display: 'flex', alignItems: 'center', justifyContent: 'flex-end',
           gap: 3, marginTop: 2,
@@ -231,6 +237,7 @@ function PanelChat({
   const [creandoConsulta, setCreandoConsulta] = useState(false)
   const inputRef = useRef<HTMLTextAreaElement>(null)
   const fileRef  = useRef<HTMLInputElement>(null)
+  const observando = true
 
   // Si el webhook actualiza el valor detectado (patente que llegó después), sincronizar
   useEffect(() => {
@@ -272,16 +279,12 @@ function PanelChat({
     [activos],
   )
 
-  // Marcar leída al abrir
-  useEffect(() => {
-    if (conv.noLeidos > 0) marcarLeida(conv.id)
-  }, [conv.id, conv.noLeidos])
-
   const handleEnviar = async () => {
     if (!texto.trim() || enviando) return
     const t = texto
     setTexto('')
-    await enviar(t)
+    const enviado = await enviar(t)
+    if (enviado) marcarLeida(conv.id)
     inputRef.current?.focus()
   }
 
@@ -300,7 +303,8 @@ function PanelChat({
       alert('El archivo es muy grande (máx. 16 MB).')
       return
     }
-    await enviarMedia(file, texto.trim() || undefined)
+    const enviado = await enviarMedia(file, texto.trim() || undefined)
+    if (enviado) marcarLeida(conv.id)
     setTexto('')
     inputRef.current?.focus()
   }
@@ -480,6 +484,23 @@ function PanelChat({
           )}
         </div>
       </div>
+
+      {observando && (
+        <div className="flex items-center gap-2 px-4 py-2 bg-amber-50 border-b border-amber-100">
+          <Eye className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+          <p className="text-xs text-amber-800">
+            Estás <strong>mirando</strong> este chat. Sigue marcado como pendiente
+            para los secretarios que responden desde el celular. Se marca respondido
+            cuando enviás un mensaje desde acá.
+          </p>
+          <button
+            onClick={() => marcarLeida(conv.id)}
+            className="ml-auto text-xs font-medium text-amber-700 hover:text-amber-900 underline underline-offset-2 shrink-0"
+          >
+            Marcar respondido
+          </button>
+        </div>
+      )}
 
       {/* Chip de consulta de infracciones (clasificación de multas) */}
       {conv.consultaSugerida?.estado === 'sugerida' && (

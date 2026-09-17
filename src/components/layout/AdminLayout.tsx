@@ -4,7 +4,7 @@ import {
   CalendarDays, LogOut, Radar, Menu, X, MessageCircle,
   AlertTriangle, Ban, WifiOff, TrendingUp, CheckSquare, UserCog,
   Calculator, Upload, Settings, DollarSign, BarChart2,
-  Megaphone, Trophy, Building2, Search, Target,
+  Megaphone, Trophy, Building2, Search, Target, LifeBuoy,
 } from 'lucide-react'
 import { useState } from 'react'
 import { signOut }     from 'firebase/auth'
@@ -38,6 +38,7 @@ const PREFETCH_MAP: Record<string, () => Promise<unknown>> = {
   '/admin/importar':          () => import('@/features/importar/ImportarPage'),
   '/admin/leads':             () => import('@/features/leads/LeadsPage').then(m => ({ default: m.default })),
   '/admin/bandeja':           () => import('@/features/bandeja/BandejaWAPage'),
+  '/admin/repesca':           () => import('@/features/repesca/RepescaPage'),
   '/admin/premios':           () => import('@/features/premios/PremiosPage'),
   '/admin/referidos':         () => import('@/features/referidos/ReferidosPage'),
   '/admin/torre-multas':      () => import('@/features/multas/TorreControlMultasPage'),
@@ -53,6 +54,7 @@ const NAV_ITEMS_ALL = [
   { to: '/admin/pipeline',         icon: TrendingUp,      label: 'Pipeline',         permiso: 'verCRM'         },
   { to: '/admin/leads',            icon: Target,          label: 'Leads',            permiso: 'verCRM'         },
   { to: '/admin/bandeja',          icon: MessageCircle,   label: 'WhatsApp',         permiso: 'verBandejaWA'  },
+  { to: '/admin/repesca',          icon: LifeBuoy,        label: 'Repesca',           permiso: 'verCRM'         },
   { to: '/admin/cobranzas',        icon: DollarSign,      label: 'Cobranzas',        permiso: 'verCobranzas'   },
   { to: '/admin/reportes',         icon: BarChart2,       label: 'Reportes',         permiso: 'verReportes'    },
   { to: '/admin/referidos',        icon: Building2,       label: 'Referidos',        permiso: 'verReportes'    },
@@ -266,7 +268,9 @@ export default function AdminLayout() {
                 : []),
               ...NAV_ITEMS_ALL,
             ]
-              .filter(item => puede(item.permiso as Parameters<typeof puede>[0]))
+              .filter(item => item.to === '/admin/repesca'
+                ? puede('verBandejaWA') || puede('verCRM')
+                : puede(item.permiso as Parameters<typeof puede>[0]))
               .filter(item => !(rol === 'gestor' && item.to === '/admin/tramites'))
               .map(({ to, icon: Icon, label }) => (
               <NavLink
