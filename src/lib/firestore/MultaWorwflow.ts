@@ -612,10 +612,34 @@ export async function agregarPagoMulta(
         monto: pago.monto, tipo: 'parcial', patente: tramite.patente,
       })
     }
-  } catch (e) {
-    console.error('[agregarPagoMulta] No se pudo generar el recibo/alerta:', e)
+    } catch (e) {
+    // El pago YA quedó registrado arriba: no se revierte, sería peor perderlo.
+    // Pero el fallo deja de ser silencioso: se crea una alerta visible para
+    // que alguien emita el comprobante, en vez de descubrirlo a fin de mes.
+    console.error('[agregarPagoMulta] recibo NO emitido:', e)
+    try {
+      const snap = await getDoc(doc(tramitesCol, tramiteId))
+      const t = snap.exists() ? (snap.data() as any) : {}
+      await addDoc(collection(db, 'alertas_sistema'), {
+        gestoriaId:  t.gestoriaId ?? '',
+        tipo:        'recibo_fallido',
+        titulo:      'Pago sin comprobante',
+        descripcion: `Se cobró $${pago.monto.toLocaleString('es-AR')} en ` +
+                     `${t.numero ?? tramiteId} (${t.patente ?? 's/patente'}) ` +
+                     `y no se pudo emitir el recibo.`,
+        tramiteId,
+        monto:        pago.monto,
+        registradoPor: pago.registradoPor ?? '',
+        registradoPorNombre: pago.registradoPorNombre ?? '',
+        error:       String((e as Error)?.message ?? e),
+        estado:      'pendiente',
+        prioridad:   'alta',
+        creadoEn:    serverTimestamp(),
+      })
+    } catch (e2) {
+      console.error('[agregarPagoMulta] tampoco se pudo crear la alerta:', e2)
+    }
   }
-}
  
 export async function sincronizarPagoMultaAlTramite(
   tramiteId:  string,

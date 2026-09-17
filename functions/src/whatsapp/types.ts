@@ -72,10 +72,10 @@ export interface MetaMessageEcho {
   timestamp: string
   type:      string
   text?:     { body: string }
-  image?:    { caption?: string; id?: string; mime_type?: string }
-  video?:    { caption?: string; id?: string; mime_type?: string }
-  document?: { caption?: string; filename?: string; id?: string; mime_type?: string }
+  image?:    { id?: string; caption?: string; mime_type?: string }
+  video?:    { id?: string; caption?: string; mime_type?: string }
   audio?:    { id?: string; mime_type?: string }
+  document?: { id?: string; caption?: string; filename?: string; mime_type?: string }
   sticker?:  { id?: string; mime_type?: string }
 }
 

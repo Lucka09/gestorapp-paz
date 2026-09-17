@@ -190,6 +190,9 @@ export const claudeProxy = onCall(
 export const whatsappWebhook = onRequest(
   {
     region:  'us-central1',
+     timeoutSeconds: 540,
+    memory: '1GiB',
+    maxInstances: 10,
     secrets: [
       'WHATSAPP_TOKEN',
       'WHATSAPP_VERIFY_TOKEN',

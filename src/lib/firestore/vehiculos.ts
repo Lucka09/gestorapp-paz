@@ -16,7 +16,7 @@ export function subscribeVehiculos(
     vehiculosCol,
     where('gestoriaId', '==', gestoriaId),
     orderBy('patente'),
-    limit(500)  // ⚡
+    limit(2000)  // ⚡
   )
   return onSnapshot(q, snap =>
     callback(snap.docs.map(d => ({ ...d.data(), id: d.id }) as Vehiculo))
@@ -29,7 +29,7 @@ export async function getVehiculos(gestoriaId: string): Promise<Vehiculo[]> {
     vehiculosCol,
     where('gestoriaId', '==', gestoriaId),
     orderBy('patente'),
-    limit(500),
+    limit(2000),
   ))
   return snap.docs.map(d => ({ ...d.data(), id: d.id }) as Vehiculo)
 }

@@ -162,6 +162,9 @@ exports.claudeProxy = (0, https_2.onCall)({
 // POST → mensajes y actualizaciones de estado entrantes
 exports.whatsappWebhook = (0, https_1.onRequest)({
     region: 'us-central1',
+    timeoutSeconds: 540,
+    memory: '1GiB',
+    maxInstances: 10,
     secrets: [
         'WHATSAPP_TOKEN',
         'WHATSAPP_VERIFY_TOKEN',

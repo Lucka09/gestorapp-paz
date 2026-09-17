@@ -23,7 +23,7 @@ export function subscribeTurnos(
     turnosCol,
     where('gestoriaId', '==', gestoriaId),
     orderBy('fecha', 'desc'),
-    limit(200)  // ⚡
+    limit(1000)  // ⚡
   )
   return onSnapshot(q, snap =>
     callback(snap.docs.map(d => ({ ...d.data(), id: d.id }) as Turno))
