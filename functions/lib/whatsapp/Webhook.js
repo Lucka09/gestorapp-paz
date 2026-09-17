@@ -51,11 +51,47 @@ function handleVerification(query, res) {
 }
 // ─── PROCESAR WEBHOOK (POST) ──────────────────────────────────────────────────
 async function handleIncomingMessage(payload) {
-    var _a, _b, _c, _d, _e;
+    var _a, _b, _c, _d, _e, _f, _g, _h, _j;
     const gestoriaId = (0, Utils_1.getGestoriaId)();
     for (const entry of (_a = payload.entry) !== null && _a !== void 0 ? _a : []) {
         for (const change of (_b = entry.changes) !== null && _b !== void 0 ? _b : []) {
-            const { messages = [], contacts = [], statuses = [], metadata, errors = [] } = change.value;
+            const { messages = [], contacts = [], statuses = [], metadata, errors = [], message_echoes = [], // field: smb_message_echoes
+            history = [], // field: history
+             } = ((_c = change.value) !== null && _c !== void 0 ? _c : {});
+            const phoneNumberId = (_d = metadata === null || metadata === void 0 ? void 0 : metadata.phone_number_id) !== null && _d !== void 0 ? _d : '';
+            // ── DIAGNÓSTICO — dejalo unos días y después sacalo ──────────────────
+            console.log('[WA][diag] field=%s keys=%s', change.field, Object.keys((_e = change.value) !== null && _e !== void 0 ? _e : {}).join(','));
+            // ── HISTORIAL (field: history) ───────────────────────────────────────
+            // Llega en tandas después del onboarding. Es un import masivo: NO crea
+            // leads, NO clasifica multas, NO manda bienvenida, NO toca noLeidos.
+            if (change.field === 'history' && history.length) {
+                for (const chunk of history) {
+                    try {
+                        await procesarHistorial(gestoriaId, chunk, phoneNumberId);
+                    }
+                    catch (e) {
+                        console.error('[WA][hist] error en chunk', {
+                            orden: (_f = chunk === null || chunk === void 0 ? void 0 : chunk.metadata) === null || _f === void 0 ? void 0 : _f.chunk_order, msg: e === null || e === void 0 ? void 0 : e.message,
+                        });
+                    }
+                }
+                continue;
+            }
+            // ── ECOS (field: smb_message_echoes) ─────────────────────────────────
+            // Mensajes que los secretarios mandan desde el celular.
+            // OJO: acá `from` es el número de la gestoría y `to` el del cliente.
+            if (message_echoes.length) {
+                for (const eco of message_echoes) {
+                    try {
+                        await procesarEcoSaliente(gestoriaId, eco);
+                    }
+                    catch (e) {
+                        console.error('[WA][eco] error', { id: eco === null || eco === void 0 ? void 0 : eco.id, msg: e === null || e === void 0 ? void 0 : e.message });
+                    }
+                }
+                continue;
+            }
+            // ── FLUJO NORMAL (sin cambios) ───────────────────────────────────────
             for (const error of errors) {
                 console.warn('[WA] Error de mensaje:', error);
                 try {
@@ -75,11 +111,8 @@ async function handleIncomingMessage(payload) {
             }
             for (let i = 0; i < messages.length; i++) {
                 const msg = messages[i];
-                const contact = (_c = contacts[i]) !== null && _c !== void 0 ? _c : contacts[0];
-                const nombre = (_e = (_d = contact === null || contact === void 0 ? void 0 : contact.profile) === null || _d === void 0 ? void 0 : _d.name) !== null && _e !== void 0 ? _e : '';
-                // Cada mensaje se procesa aislado: si uno falla, se loguea pero NO tira
-                // toda la invocación (si no, Meta reintenta el payload entero y se
-                // reprocesa/re-saluda). Meta siempre recibe 200 → no reintenta.
+                const contact = (_g = contacts[i]) !== null && _g !== void 0 ? _g : contacts[0];
+                const nombre = (_j = (_h = contact === null || contact === void 0 ? void 0 : contact.profile) === null || _h === void 0 ? void 0 : _h.name) !== null && _j !== void 0 ? _j : '';
                 try {
                     await procesarMensaje(gestoriaId, msg, nombre, metadata);
                 }
@@ -88,6 +121,143 @@ async function handleIncomingMessage(payload) {
                 }
             }
         }
+    }
+}
+async function procesarEcoSaliente(gestoriaId, eco) {
+    var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k;
+    const telefonoCliente = (0, Utils_1.normalizarTelefono)(String((_a = eco.to) !== null && _a !== void 0 ? _a : ''));
+    if (!telefonoCliente || !eco.id)
+        return;
+    const convRef = db().collection('conversacionesWA').doc(telefonoCliente);
+    const msgRef = convRef.collection('mensajes').doc(idSeguro(eco.id));
+    if ((await msgRef.get()).exists)
+        return;
+    const convSnap = await convRef.get();
+    const texto = (_j = (_g = (_e = (_c = (_b = eco.text) === null || _b === void 0 ? void 0 : _b.body) !== null && _c !== void 0 ? _c : (_d = eco.image) === null || _d === void 0 ? void 0 : _d.caption) !== null && _e !== void 0 ? _e : (_f = eco.document) === null || _f === void 0 ? void 0 : _f.caption) !== null && _g !== void 0 ? _g : (_h = eco.document) === null || _h === void 0 ? void 0 : _h.filename) !== null && _j !== void 0 ? _j : `[${eco.type}]`;
+    const tipo = mapTipo(eco.type);
+    const segundos = Number((_k = eco.timestamp) !== null && _k !== void 0 ? _k : Date.now() / 1000);
+    const ts = admin.firestore.Timestamp.fromMillis(Number.isFinite(segundos) ? segundos * 1000 : Date.now());
+    const batch = db().batch();
+    batch.set(msgRef, {
+        gestoriaId,
+        waMessageId: eco.id,
+        direccion: 'saliente',
+        tipo,
+        texto,
+        timestamp: ts,
+        estado: 'enviado',
+        origenEnvio: 'celular',
+        enviadoPor: '',
+    });
+    // Si la conversación no existe, el secretario escribió primero desde el
+    // celular a alguien que nunca nos había escrito. Se crea mínima.
+    const datosConv = {
+        ultimoMensaje: texto.slice(0, 120),
+        ultimaActividad: ts,
+        ultimoMensajeDireccion: 'saliente',
+        noLeidos: 0,
+        alertaSinRespuestaEn: admin.firestore.FieldValue.delete(),
+    };
+    if (!convSnap.exists) {
+        Object.assign(datosConv, {
+            gestoriaId,
+            telefono: telefonoCliente,
+            nombre: telefonoCliente,
+            estado: 'en_atencion',
+            asignadoA: '',
+            asignadoNombre: '',
+            creadoEn: ts,
+        });
+    }
+    batch.set(convRef, datosConv, { merge: true });
+    await batch.commit();
+    console.log('[WA][eco] guardado', { conv: telefonoCliente, tipo });
+}
+async function procesarHistorial(gestoriaId, chunk, phoneNumberId) {
+    var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k, _l, _m, _o, _p, _q, _r, _s, _t, _u;
+    const { phase, chunk_order, progress } = (_a = chunk.metadata) !== null && _a !== void 0 ? _a : {};
+    const threads = (_b = chunk.threads) !== null && _b !== void 0 ? _b : [];
+    console.log('[WA][hist] chunk', {
+        fase: phase, orden: chunk_order, progreso: progress, hilos: threads.length,
+    });
+    let importados = 0, saltados = 0;
+    for (const thread of threads) {
+        const telefono = (0, Utils_1.normalizarTelefono)(String((_c = thread.id) !== null && _c !== void 0 ? _c : ''));
+        const mensajes = (_d = thread.messages) !== null && _d !== void 0 ? _d : [];
+        if (!telefono || mensajes.length === 0)
+            continue;
+        const convRef = db().collection('conversacionesWA').doc(telefono);
+        const convSnap = await convSnapSeguro(convRef);
+        // Firestore: máximo 500 operaciones por batch. Dejamos margen para el
+        // update de la conversación.
+        const LOTE = 400;
+        let ultimo = null;
+        for (let i = 0; i < mensajes.length; i += LOTE) {
+            const batch = db().batch();
+            let enBatch = 0;
+            for (const m of mensajes.slice(i, i + LOTE)) {
+                if (!m.id) {
+                    saltados++;
+                    continue;
+                }
+                const msgRef = convRef.collection('mensajes').doc(idSeguro(m.id));
+                // La dirección sale de history_context.from_me. Si no viene, se
+                // deduce comparando `from` con el teléfono del hilo.
+                const saliente = ((_e = m.history_context) === null || _e === void 0 ? void 0 : _e.from_me) === true
+                    || (!!m.from && (0, Utils_1.normalizarTelefono)(m.from) !== telefono);
+                const texto = (_q = (_o = (_l = (_j = (_g = (_f = m.text) === null || _f === void 0 ? void 0 : _f.body) !== null && _g !== void 0 ? _g : (_h = m.image) === null || _h === void 0 ? void 0 : _h.caption) !== null && _j !== void 0 ? _j : (_k = m.video) === null || _k === void 0 ? void 0 : _k.caption) !== null && _l !== void 0 ? _l : (_m = m.document) === null || _m === void 0 ? void 0 : _m.caption) !== null && _o !== void 0 ? _o : (_p = m.document) === null || _p === void 0 ? void 0 : _p.filename) !== null && _q !== void 0 ? _q : `[${m.type}]`;
+                const segundos = Number(m.timestamp);
+                const ts = admin.firestore.Timestamp.fromMillis(Number.isFinite(segundos) ? segundos * 1000 : Date.now());
+                // set() sin merge sobre un doc id determinístico: si el chunk se
+                // reenvía, se pisa con lo mismo. Idempotente y sin lectura previa
+                // (leer 20.000 mensajes uno por uno sería carísimo).
+                batch.set(msgRef, Object.assign(Object.assign({ gestoriaId, waMessageId: m.id, direccion: saliente ? 'saliente' : 'entrante', tipo: mapTipo(m.type), texto, timestamp: ts }, (saliente ? {
+                    estado: ((_r = m.history_context) === null || _r === void 0 ? void 0 : _r.status) === 'read' ? 'leido' : 'enviado',
+                    origenEnvio: 'celular',
+                    enviadoPor: '',
+                } : {})), { importadoDeHistorial: true }));
+                enBatch++;
+                importados++;
+                if (!ultimo || ts.toMillis() > ultimo.ts.toMillis()) {
+                    ultimo = { ts, texto, saliente };
+                }
+            }
+            if (enBatch > 0)
+                await batch.commit();
+        }
+        // ── Cabecera de la conversación ────────────────────────────────────────
+        // Solo se pisa si el historial trae algo MÁS NUEVO que lo que ya hay.
+        // Sin este guard, un chunk viejo retrocedería la conversación y la
+        // mandaría al fondo de la Bandeja.
+        if (!ultimo)
+            continue;
+        const actualMs = (_u = (_t = (_s = convSnap === null || convSnap === void 0 ? void 0 : convSnap.get('ultimaActividad')) === null || _s === void 0 ? void 0 : _s.toMillis) === null || _t === void 0 ? void 0 : _t.call(_s)) !== null && _u !== void 0 ? _u : 0;
+        const esMasNuevo = ultimo.ts.toMillis() > actualMs;
+        const datos = Object.assign(Object.assign({ gestoriaId,
+            telefono, historialImportadoEn: now() }, ((convSnap === null || convSnap === void 0 ? void 0 : convSnap.exists) ? {} : {
+            nombre: telefono,
+            estado: 'en_atencion',
+            asignadoA: '',
+            asignadoNombre: '',
+            noLeidos: 0, // el historial NUNCA suma pendientes
+            waPhoneNumberId: phoneNumberId,
+            creadoEn: ultimo.ts,
+        })), (esMasNuevo ? {
+            ultimoMensaje: ultimo.texto.slice(0, 120),
+            ultimaActividad: ultimo.ts,
+            ultimoMensajeDireccion: ultimo.saliente ? 'saliente' : 'entrante',
+        } : {}));
+        await convRef.set(datos, { merge: true });
+    }
+    console.log('[WA][hist] fin chunk', { importados, saltados, progreso: progress });
+}
+// getDoc que no tira si la conversación no existe
+async function convSnapSeguro(ref) {
+    try {
+        return await ref.get();
+    }
+    catch (_a) {
+        return null;
     }
 }
 async function cargarConfigWA() {
@@ -225,6 +395,7 @@ async function procesarMensaje(gestoriaId, msg, nombre, metadata) {
             telefono,
             nombre: nombre || telefono,
             ultimoMensaje: texto,
+            ultimoMensajeDireccion: 'entrante',
             ultimaActividad: ts,
             estado: 'nueva',
             asignadoA: (_k = owner === null || owner === void 0 ? void 0 : owner.uid) !== null && _k !== void 0 ? _k : '',
@@ -256,7 +427,7 @@ async function procesarMensaje(gestoriaId, msg, nombre, metadata) {
         batch.set(convRef, convData);
     }
     else {
-        const update = Object.assign({ ultimoMensaje: texto, ultimaActividad: ts, noLeidos: admin.firestore.FieldValue.increment(1) }, (nombre && prev.nombre === telefono ? { nombre } : {}));
+        const update = Object.assign({ ultimoMensaje: texto, ultimoMensajeDireccion: 'entrante', ultimaActividad: ts, noLeidos: admin.firestore.FieldValue.increment(1) }, (nombre && prev.nombre === telefono ? { nombre } : {}));
         if (consultaSugeridaConv)
             update.consultaSugerida = consultaSugeridaConv;
         if (convEsMulta && !prev.esConsultaMulta)
@@ -352,6 +523,9 @@ function construirSugerida(dato, ts) {
 // para compartir el mismo dedupeKey (auto-encolada y confirmada a mano = 1 doc).
 function diaAR() {
     return new Date(Date.now() - 3 * 3600 * 1000).toISOString().slice(0, 10).replace(/-/g, '');
+}
+function idSeguro(wamid) {
+    return String(wamid).replace(/[/\\]/g, '_').slice(0, 300);
 }
 // ¿El usuario existe y no está desactivado? (guard de secretario inactivo)
 async function estaActivo(uid) {
@@ -550,7 +724,7 @@ function mapTipo(type) {
     var _a;
     const map = {
         text: 'texto', image: 'imagen', audio: 'audio',
-        document: 'documento', sticker: 'sticker',
+        video: 'video', document: 'documento', sticker: 'sticker',
     };
     return (_a = map[type]) !== null && _a !== void 0 ? _a : 'texto';
 }

@@ -10,7 +10,7 @@ import {
   Building2, Car, Store, ShieldAlert,
   TrendingUp, Users, FileText, DollarSign,
   ChevronDown, ChevronUp, ArrowUpRight,
-  BarChart3, Clock, CheckCircle2, Search, Globe,
+  BarChart3, Clock, CheckCircle2, Search, Globe, UserCheck,
 } from 'lucide-react'
 import { useNavigate }         from 'react-router-dom'
 import { usePageTitle }        from '@/hooks/usePageTitle'
@@ -49,6 +49,7 @@ function formatRelativo(d: Date | null): string {
 // ─── ICONO POR CANAL ──────────────────────────────────────────────────────────
 
 const CANAL_ICON: Record<OrigenCanal, React.ElementType> = {
+  lead_propio:      UserCheck,
   concesionaria:    Building2,
   agencia:          Car,
   reventa:          Store,

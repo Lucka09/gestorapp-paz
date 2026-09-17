@@ -67,7 +67,11 @@ async function handleSendMedia(data, context) {
         estado: 'enviado',
         enviadoPor: context.auth.uid,
     });
-    await convRef.update({ ultimoMensaje: preview, ultimaActividad: now });
+    await convRef.update({
+        ultimoMensaje: preview,
+        ultimaActividad: now,
+        ultimoMensajeDireccion: 'saliente',
+    });
     console.log(`[WA SendMedia] ${gestoriaId} → ${conversacionId}: ${tipoMsg} [${waMessageId}]`);
     return { waMessageId };
 }

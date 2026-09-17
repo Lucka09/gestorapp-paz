@@ -60,7 +60,7 @@ exports.alertasSinRespuesta = (0, scheduler_1.onSchedule)({
     memory: '256MiB',
     timeoutSeconds: 120,
 }, async () => {
-    var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k;
+    var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k, _l;
     const db = admin.firestore();
     const cfgSnap = await db.doc('configuracion/gestor').get();
     const cfg = (_a = cfgSnap.data()) === null || _a === void 0 ? void 0 : _a.alertasSinRespuesta;
@@ -84,10 +84,15 @@ exports.alertasSinRespuesta = (0, scheduler_1.onSchedule)({
     let liberadas = 0, saltadas = 0;
     for (const doc of snap.docs) {
         const c = doc.data();
-        if (((_c = c.noLeidos) !== null && _c !== void 0 ? _c : 0) <= 0) {
+        // Señal robusta: el último mensaje es del cliente. `noLeidos` queda como
+        // respaldo para conversaciones anteriores al cambio del webhook.
+        const sinResponder = c.ultimoMensajeDireccion
+            ? c.ultimoMensajeDireccion === 'entrante'
+            : ((_c = c.noLeidos) !== null && _c !== void 0 ? _c : 0) > 0;
+        if (!sinResponder) {
             saltadas++;
             continue;
-        } // ya lo abrieron
+        }
         if (c.alertaSinRespuestaEn) {
             saltadas++;
             continue;
@@ -106,6 +111,8 @@ exports.alertasSinRespuesta = (0, scheduler_1.onSchedule)({
         batch.update(doc.ref, {
             asignadoA: '',
             asignadoNombre: '',
+            asignadoAPrevio: duenoPrevio, // ← NUEVO: reversible
+            asignadoNombrePrevio: (_l = c.asignadoNombre) !== null && _l !== void 0 ? _l : '',
             alertaSinRespuestaEn: FV.serverTimestamp(),
         });
         // 2) Avisar al dueño anterior (si tenía y sigue activo) que se liberó.

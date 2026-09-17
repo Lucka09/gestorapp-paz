@@ -55,7 +55,7 @@ export default function ReciboPage() {
     if (!recibo || !tramite) return
     setGenerando(true)
     try {
-      const saldoPendiente = Math.max(0, recibo.honorariosTotales - recibo.montoCobradoAcumulado)
+           const saldoPendiente = Math.max(0, (recibo.honorariosTotales ?? 0) - (recibo.montoCobradoAcumulado ?? 0))
       const blob = await generarComprobantePago({
         tramite,
         cliente,
@@ -96,7 +96,7 @@ export default function ReciboPage() {
     </div>
   )
 
-  const saldoPendiente = Math.max(0, recibo.honorariosTotales - recibo.montoCobradoAcumulado)
+        const saldoPendiente = Math.max(0, (recibo.honorariosTotales ?? 0) - (recibo.montoCobradoAcumulado ?? 0))
 
   return (
     <div className="max-w-md mx-auto space-y-4">
@@ -116,7 +116,10 @@ export default function ReciboPage() {
 
         <div className="bg-gray-50 rounded-xl p-3 text-xs text-gray-500 space-y-1 mb-5 text-left">
           <div className="flex justify-between"><span>Forma de pago</span><span className="font-medium text-gray-700 capitalize">{recibo.formaPago}</span></div>
-          <div className="flex justify-between"><span>Cobrado acumulado</span><span className="font-medium text-gray-700">{formatPesos(recibo.montoCobradoAcumulado)} / {formatPesos(recibo.honorariosTotales)}</span></div>
+          <div className="flex justify-between"><span>Cobrado acumulado</span><span className="font-medium text-gray-700">{formatPesos(recibo.montoCobradoAcumulado ?? 0)} / {formatPesos(recibo.honorariosTotales ?? 0)}</span></div>
+                    {recibo.tipo !== 'devolucion' && (
+            <div className="flex justify-between"><span>Cobrado acumulado</span><span className="font-medium text-gray-700">{formatPesos(recibo.montoCobradoAcumulado ?? 0)} / {formatPesos(recibo.honorariosTotales ?? 0)}</span></div>
+          )}
           {saldoPendiente > 0 && (
             <div className="flex justify-between text-amber-600 font-semibold"><span>Saldo pendiente</span><span>{formatPesos(saldoPendiente)}</span></div>
           )}

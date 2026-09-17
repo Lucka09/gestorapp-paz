@@ -57,6 +57,12 @@ async function handleSendMessage(data, context) {
     const emisor = conv.waPhoneNumberId;
     // conversacionId = teléfono normalizado
     const waMessageId = await (0, Utils_1.sendTextMessage)(conversacionId, texto.trim(), emisor);
+    const ultimaActividad = admin.firestore.FieldValue.serverTimestamp();
+    await admin.firestore().collection('conversacionesWA').doc(conversacionId).update({
+        ultimoMensaje: texto.trim(),
+        ultimaActividad,
+        ultimoMensajeDireccion: 'saliente',
+    });
     console.log(`[WA Send] ${gestoriaId} → ${conversacionId} (desde ${emisor !== null && emisor !== void 0 ? emisor : 'env'}): "${texto.slice(0, 40)}" [${waMessageId}]`);
     return { waMessageId };
 }
