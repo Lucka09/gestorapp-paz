@@ -3,44 +3,61 @@
 // FUENTE ÚNICA DE VERDAD FINANCIERA
 // ═══════════════════════════════════════════════════════════════════════════
 //
-// EL PROBLEMA QUE RESUELVE
-//   Hoy hay tres pantallas mostrando tres totales distintos del mismo mes:
-//     Reportes ............. $52.517.526   (suma tramites.totalCobradoCliente)
-//     Panel de Mando ....... $50.151.526   (otra suma sobre tramites)
-//     Métricas secretario .. $37.433.328   (suma cierres ganados de prospectos)
-//   Ninguna coincide porque cada una suma de una colección distinta.
+// CAMBIO IMPORTANTE: el neto de la gestoría y la base de premios dejan de ser
+// el mismo número.
 //
-//   Y el SUATS da $0 en todas. No es un error de suma: `costosSUATS` se escribe
-//   recién al cerrar el paso 7, y los 72 trámites de multas están en Pendiente.
-//   Se cobraron $52M pero la deducción no existe en ningún lado.
+// El SUATS se le cobra al cliente a $25.000, pero producirlo le cuesta a la
+// gestoría $7.600. Esos $17.400 de diferencia SON ingreso de la gestoría.
+// Al mismo tiempo, NO cuentan para el premio del secretario: es plata del
+// trámite, no de su gestión comercial.
 //
-// LA REGLA
-//   El RECIBO es el único hecho económico. Se emite cuando entra la plata, con
-//   su desglose. Todo lo demás —reportes, panel, premios, cierre mensual— suma
-//   recibos y nada más. Un trámite abierto con seña cobrada ya aporta su neto.
+//   Cliente paga           $125.000   (honorarios 100.000 + SUATS 25.000)
+//   (−) costo real SUATS     −$7.600
+//   ─────────────────────────────────
+//   INGRESO GESTORÍA        $117.400  ← reportes, panel de mando, contabilidad
 //
-// LAS DEVOLUCIONES son recibos negativos (tipo: 'devolucion'). Así restan solas
-// de cada total, del premio del secretario y del cierre mensual, sin que ningún
-// consumidor tenga que saber que existen.
+//   Cliente paga           $125.000
+//   (−) SUATS completo      −$25.000
+//   ─────────────────────────────────
+//   BASE COMISIONABLE       $100.000  ← premios del secretario
+//
+// Mismo criterio para el informe de persona: si tiene costo de producción, se
+// carga en `costoInformePersona`. Si no se configura, se asume pass-through
+// puro (costo = precio) y no genera margen.
 
 import {
-  collection, query, where, getDocs, orderBy, limit as fbLimit,
+  collection, query, where, getDocs, limit as fbLimit,
 } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
 
-// ─── CÁLCULO DEL NETO ─────────────────────────────────────────────────────────
+// ─── COSTOS POR DEFECTO ───────────────────────────────────────────────────────
+// Sobrescribibles desde configuracion/gestor → costosMulta
+
+export const SUATS_PRECIO_DEFAULT = 25_000   // lo que paga el cliente
+export const SUATS_COSTO_DEFAULT  =  7_600   // lo que le cuesta a la gestoría
+export const INFORME_PRECIO_DEFAULT = 45_000
+
+// ─── CÁLCULO ──────────────────────────────────────────────────────────────────
 
 export interface PartesRecibo {
-  monto:                number   // lo que pagó el cliente (va en el comprobante)
-  montoSUATS?:          number   // pass-through DNRPA
-  montoInformePersona?: number   // pass-through
-  comisionReferido?:    number   // entregado al referido / encargado
+  monto:                number   // lo que paga el cliente (va en el comprobante)
+  montoSUATS?:          number   // precio del SUATS cobrado al cliente
+  costoSUATS?:          number   // lo que le cuesta producirlo a la gestoría
+  montoInformePersona?: number
+  costoInformePersona?: number   // si no viene, se asume igual al precio
+  comisionReferido?:    number
   montoAcreditado?:     number   // tarjeta: lo que realmente entra
 }
 
 export interface NetoCalculado {
+  /** Lo que realmente queda en la gestoría. Descuenta el COSTO del SUATS. */
   netoGestoria:    number
+  /** Base de premios. Descuenta el PRECIO completo del SUATS. */
+  baseComisionable: number
+  /** Ganancia del SUATS: precio − costo. */
+  margenSUATS:     number
   costoFinanciero: number
+  /** Total descontado para llegar al neto. */
   deducciones:     number
 }
 
@@ -50,54 +67,68 @@ const num = (v: unknown): number => {
 }
 
 /**
- * Único lugar donde se calcula el neto. Si esta fórmula cambia, cambia en
- * todos lados a la vez.
+ * Único lugar donde se calcula. Si esta fórmula cambia, cambia en todos lados.
  */
 export function calcularNetoGestoria(r: PartesRecibo): NetoCalculado {
   const monto = num(r.monto)
 
-  // Tarjeta: la diferencia entre lo que paga el cliente y lo que acredita el
-  // procesador. Solo si se cargó el acreditado.
   const costoFinanciero = r.montoAcreditado != null && num(r.montoAcreditado) > 0
     ? Math.max(0, monto - num(r.montoAcreditado))
     : 0
 
-  const deducciones =
-    num(r.montoSUATS) +
-    num(r.montoInformePersona) +
-    num(r.comisionReferido) +
-    costoFinanciero
+  const precioSUATS = num(r.montoSUATS)
+  // Si hay SUATS cobrado pero no se registró su costo, se usa el default.
+  // Sin esto, los recibos viejos mostrarían un margen inflado.
+  const costoSUATS = precioSUATS > 0
+    ? (r.costoSUATS != null ? num(r.costoSUATS) : SUATS_COSTO_DEFAULT)
+    : 0
+  const margenSUATS = Math.max(0, precioSUATS - costoSUATS)
 
-  // En una devolución el monto es negativo: el neto también, y la resta se
-  // propaga sola. Por eso NO se hace Math.max(0, ...) sobre el resultado.
+  const precioInforme = num(r.montoInformePersona)
+  // Sin costo configurado se asume pass-through puro: no genera margen.
+  const costoInforme = precioInforme > 0
+    ? (r.costoInformePersona != null ? num(r.costoInformePersona) : precioInforme)
+    : 0
+
+  const comision = num(r.comisionReferido)
+
+  // Neto real: solo salen de la gestoría los COSTOS, no los precios.
+  const deducciones = costoSUATS + costoInforme + comision + costoFinanciero
   const neto = monto >= 0
     ? Math.max(0, monto - deducciones)
     : monto + deducciones
 
-  return { netoGestoria: neto, costoFinanciero, deducciones }
+  // Base de premios: sale el PRECIO completo de los pass-through.
+  const deduccionesPremio = precioSUATS + precioInforme + comision + costoFinanciero
+  const base = monto >= 0
+    ? Math.max(0, monto - deduccionesPremio)
+    : monto + deduccionesPremio
+
+  return {
+    netoGestoria:     neto,
+    baseComisionable: base,
+    margenSUATS,
+    costoFinanciero,
+    deducciones,
+  }
 }
 
-/**
- * Neto de un recibo ya guardado. Cascada defensiva para que los tres consumidores
- * den lo mismo aunque haya recibos viejos sin desglose:
- *   1. si trae netoGestoria persistido, se usa
- *   2. si no, se recalcula desde las partes
- *   3. si no hay partes, el bruto (es como se contaba antes de la migración)
- */
+/** Neto de un recibo guardado, con cascada defensiva para los viejos. */
 export function netoDeRecibo(r: any): number {
   if (typeof r?.netoGestoria === 'number' && Number.isFinite(r.netoGestoria)) {
     return r.netoGestoria
   }
-  return calcularNetoGestoria({
-    monto:               num(r?.monto),
-    montoSUATS:          num(r?.montoSUATS),
-    montoInformePersona: num(r?.montoInformePersona),
-    comisionReferido:    num(r?.comisionReferido),
-    montoAcreditado:     r?.montoAcreditado,
-  }).netoGestoria
+  return calcularNetoGestoria(r ?? { monto: 0 }).netoGestoria
 }
 
-/** Quién se lleva el crédito del ingreso. */
+/** Base comisionable de un recibo guardado. */
+export function baseDeRecibo(r: any): number {
+  if (typeof r?.baseComisionable === 'number' && Number.isFinite(r.baseComisionable)) {
+    return r.baseComisionable
+  }
+  return calcularNetoGestoria(r ?? { monto: 0 }).baseComisionable
+}
+
 export function uidAtribuido(r: any): string {
   return String(r?.atribuidoA || r?.emitidoPor || '')
 }
@@ -106,30 +137,35 @@ export function uidAtribuido(r: any): string {
 
 export interface DesgloseFinanciero {
   // Entradas
-  cobradoBruto:    number   // Σ monto de recibos positivos
-  devoluciones:    number   // Σ |monto| de recibos de devolución (positivo)
-  cobradoNeto:     number   // cobradoBruto − devoluciones
-  // Deducciones (no son plata de la gestoría)
-  deducSUATS:      number
-  deducInforme:    number
+  cobradoBruto:    number
+  devoluciones:    number
+  cobradoNeto:     number
+  // Pass-through: lo que se le cobra al cliente por cuenta de terceros
+  suatsCobrado:    number   // precio cobrado al cliente
+  suatsCosto:      number   // lo que pagó la gestoría por producirlo
+  suatsMargen:     number   // la diferencia — SÍ es ingreso
+  informeCobrado:  number
+  informeCosto:    number
+  // Otras deducciones
   deducComision:   number
   deducFinanciero: number
-  deduccionesTotal: number
-  // Resultado
-  netoGestoria:    number   // lo que realmente queda
+  // Resultados
+  netoGestoria:    number   // ingreso real
+  baseComisionable: number  // base de premios
   // Volumen
   recibos:         number
   recibosDevolucion: number
   clientesUnicos:  number
-  // Formas de pago
   porFormaPago:    Record<string, number>
 }
 
 export function desgloseVacio(): DesgloseFinanciero {
   return {
     cobradoBruto: 0, devoluciones: 0, cobradoNeto: 0,
-    deducSUATS: 0, deducInforme: 0, deducComision: 0, deducFinanciero: 0,
-    deduccionesTotal: 0, netoGestoria: 0,
+    suatsCobrado: 0, suatsCosto: 0, suatsMargen: 0,
+    informeCobrado: 0, informeCosto: 0,
+    deducComision: 0, deducFinanciero: 0,
+    netoGestoria: 0, baseComisionable: 0,
     recibos: 0, recibosDevolucion: 0, clientesUnicos: 0,
     porFormaPago: {},
   }
@@ -138,6 +174,7 @@ export function desgloseVacio(): DesgloseFinanciero {
 function acumular(acc: DesgloseFinanciero, r: any, clientes: Set<string>): void {
   const monto = num(r.monto)
   const esDevolucion = r.tipo === 'devolucion' || monto < 0
+  const calc = calcularNetoGestoria(r)
 
   if (esDevolucion) {
     acc.recibosDevolucion++
@@ -145,42 +182,46 @@ function acumular(acc: DesgloseFinanciero, r: any, clientes: Set<string>): void 
   } else {
     acc.recibos++
     acc.cobradoBruto += monto
-    acc.deducSUATS      += num(r.montoSUATS)
-    acc.deducInforme    += num(r.montoInformePersona)
+
+    const precioSUATS = num(r.montoSUATS)
+    acc.suatsCobrado += precioSUATS
+    acc.suatsCosto   += precioSUATS > 0
+      ? (r.costoSUATS != null ? num(r.costoSUATS) : SUATS_COSTO_DEFAULT)
+      : 0
+    acc.suatsMargen  += calc.margenSUATS
+
+    const precioInf = num(r.montoInformePersona)
+    acc.informeCobrado += precioInf
+    acc.informeCosto   += precioInf > 0
+      ? (r.costoInformePersona != null ? num(r.costoInformePersona) : precioInf)
+      : 0
+
     acc.deducComision   += num(r.comisionReferido)
-    acc.deducFinanciero += num(r.costoFinanciero)
+    acc.deducFinanciero += calc.costoFinanciero
+
     const fp = String(r.formaPago ?? 'otro')
     acc.porFormaPago[fp] = (acc.porFormaPago[fp] ?? 0) + monto
   }
 
-  acc.netoGestoria += netoDeRecibo(r)
+  acc.netoGestoria     += netoDeRecibo(r)
+  acc.baseComisionable += baseDeRecibo(r)
   if (r.clienteId) clientes.add(String(r.clienteId))
 }
 
 function cerrar(acc: DesgloseFinanciero, clientes: Set<string>): DesgloseFinanciero {
-  acc.cobradoNeto      = acc.cobradoBruto - acc.devoluciones
-  acc.deduccionesTotal = acc.deducSUATS + acc.deducInforme
-                       + acc.deducComision + acc.deducFinanciero
-  acc.clientesUnicos   = clientes.size
+  acc.cobradoNeto    = acc.cobradoBruto - acc.devoluciones
+  acc.clientesUnicos = clientes.size
   return acc
 }
 
-// ─── CARGA DE RECIBOS ─────────────────────────────────────────────────────────
+// ─── CARGA ────────────────────────────────────────────────────────────────────
 
 const enRango = (campo: any, desde: Date, hasta: Date): boolean => {
   const ms = campo?.toMillis?.() ?? campo?.toDate?.()?.getTime?.()
   return typeof ms === 'number' && ms >= desde.getTime() && ms <= hasta.getTime()
 }
 
-/**
- * Todos los recibos de la gestoría. Se filtra por fecha en memoria para no
- * depender de un índice compuesto (las reglas exigen gestoriaId en el where,
- * y sumar orderBy pide índice).
- */
-export async function cargarRecibos(
-  gestoriaId: string,
-  limite = 5000,
-): Promise<any[]> {
+export async function cargarRecibos(gestoriaId: string, limite = 5000): Promise<any[]> {
   if (!gestoriaId) return []
   const snap = await getDocs(query(
     collection(db, 'recibos'),
@@ -189,8 +230,6 @@ export async function cargarRecibos(
   ))
   return snap.docs.map(d => ({ id: d.id, ...d.data() }))
 }
-
-// ─── API PÚBLICA ──────────────────────────────────────────────────────────────
 
 export function inicioMes(d = new Date()): Date {
   return new Date(d.getFullYear(), d.getMonth(), 1)
@@ -204,7 +243,6 @@ export function inicioSemanaLunes(d = new Date()): Date {
   return x
 }
 
-/** Desglose de la gestoría en un período. Lo usan Reportes y Panel de Mando. */
 export async function getDesglose(
   gestoriaId: string,
   desde: Date = inicioMes(),
@@ -214,7 +252,6 @@ export async function getDesglose(
   const recibos = recibosPrecargados ?? await cargarRecibos(gestoriaId)
   const acc = desgloseVacio()
   const clientes = new Set<string>()
-
   for (const r of recibos) {
     if (!enRango(r.creadoEn, desde, hasta)) continue
     acumular(acc, r, clientes)
@@ -222,7 +259,6 @@ export async function getDesglose(
   return cerrar(acc, clientes)
 }
 
-/** Desglose por secretario. Lo usan Métricas y Premios. */
 export async function getDesglosePorSecretario(
   gestoriaId: string,
   desde: Date = inicioMes(),
@@ -237,34 +273,29 @@ export async function getDesglosePorSecretario(
     if (!enRango(r.creadoEn, desde, hasta)) continue
     const uid = uidAtribuido(r)
     if (!uid) continue
-
     porUid[uid]         ??= desgloseVacio()
     clientesPorUid[uid] ??= new Set()
     acumular(porUid[uid], r, clientesPorUid[uid])
   }
-
-  for (const uid of Object.keys(porUid)) {
-    cerrar(porUid[uid], clientesPorUid[uid])
-  }
+  for (const uid of Object.keys(porUid)) cerrar(porUid[uid], clientesPorUid[uid])
   return porUid
 }
 
 /**
- * Base comisionable para premios. Es el neto, con las devoluciones ya restadas:
- * si se le devolvió plata a un cliente, el secretario no cobra premio por eso.
+ * Base de premios. Ahora es distinta del neto: descuenta el PRECIO completo
+ * del SUATS y del informe, no su costo.
  */
 export function baseComisionable(d: DesgloseFinanciero): number {
-  return d.netoGestoria
+  return d.baseComisionable
 }
 
-// ─── PROYECCIÓN (run-rate simple) ────────────────────────────────────────────
+// ─── PROYECCIÓN ───────────────────────────────────────────────────────────────
 
 export interface Proyeccion {
   netoALaFecha:      number
   diasTranscurridos: number
   diasDelMes:        number
   proyeccionNeta:    number
-  /** Ritmo diario, para mostrar junto a la proyección. */
   promedioDiario:    number
 }
 
@@ -273,11 +304,28 @@ export function proyectarMes(netoALaFecha: number, ref = new Date()): Proyeccion
   const diasTranscurridos = Math.max(1, ref.getDate())
   const promedioDiario = netoALaFecha / diasTranscurridos
   return {
-    netoALaFecha,
-    diasTranscurridos,
-    diasDelMes,
+    netoALaFecha, diasTranscurridos, diasDelMes,
     promedioDiario: Math.round(promedioDiario),
     proyeccionNeta: Math.round(promedioDiario * diasDelMes),
   }
 }
 
+// ─── CONFIGURACIÓN ────────────────────────────────────────────────────────────
+// En configuracion/gestor, ampliar costosMulta:
+/*
+  costosMulta: {
+    suats:               25000,   // precio al cliente
+    costoSuats:           7600,   // costo de producción  ← NUEVO
+    informePersona:      45000,
+    costoInformePersona: 45000,   // pass-through puro por ahora  ← NUEVO
+  }
+*/
+// Y en `Configuracion` (src/types/index.ts):
+/*
+  costosMulta?: {
+    suats?: number
+    costoSuats?: number
+    informePersona?: number
+    costoInformePersona?: number
+  }
+*/

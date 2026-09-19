@@ -22,6 +22,7 @@ import {
 } from '@/types/multa_types'
 import { origenTieneComision } from '@/types'
 import type { MetodoPago, RegistroPago, EstadoMulta } from '@/types/multa_types'
+import CamposDeduccion, { type ValoresDeduccion } from '@/components/shared/CamposDeduccion'
 import {
   AlertTriangle, CheckCircle2, Clock, RotateCcw,
   Upload, X, Eye, ChevronDown, ChevronUp,
@@ -261,6 +262,7 @@ export default function GestorMultaWorkflow({ tramiteId, numeroLITExterno }: Pro
 
   const { config } = useConfiguracion()
   const montoSuatsCfg   = config.costosMulta?.suats ?? MONTO_SUATS_DEFAULT
+  const costoSuatsCfg   = config.costosMulta?.costoSuats ?? 7600
   const montoInformeCfg = config.costosMulta?.informePersona ?? MONTO_INFORME_PERSONA_DEFAULT
 
   const {
@@ -305,6 +307,7 @@ export default function GestorMultaWorkflow({ tramiteId, numeroLITExterno }: Pro
     historialPagos: [] as RegistroPago[], montoTotal: 0,
   })
   const [nuevoPago, setNuevoPago] = useState({ monto: 0, metodoPago: 'efectivo' as MetodoPago, nota: '' })
+  const [deduc, setDeduc] = useState<ValoresDeduccion>({})
 
   const [p3, setP3] = useState({
     resultado: 'ok' as 'ok' | 'rebotado' | 'mesa_ayuda',
@@ -332,6 +335,10 @@ export default function GestorMultaWorkflow({ tramiteId, numeroLITExterno }: Pro
     informePersonaRealizado: false, montoInformePersona: 0,
     pagoTotalRecibo: 0,
     comisionReferido: 0,
+    metodoPago: 'efectivo' as MetodoPago,
+    montoAcreditado: undefined as number | undefined,
+    cuotasTarjeta: undefined as number | undefined,
+    costoSUATS: 0,
   })
 
   // Pre-carga automática del Paso 7 — el CEO/admin sigue siendo el último filtro humano.
@@ -397,6 +404,7 @@ const iniciarJob = httpsCallable(functions, 'iniciarDescargaCupones')
     if (!user || nuevoPago.monto <= 0) return
     const pago: RegistroPago = {
       ...nuevoPago,
+      ...deduc,
       registradoPor:       user.uid,
       registradoPorNombre: `${user.nombre} ${user.apellido}`.trim(),
       registradoEn:        Timestamp.now(),
@@ -404,6 +412,7 @@ const iniciarJob = httpsCallable(functions, 'iniciarDescargaCupones')
     const hist = [...p2.historialPagos, pago]
     setP2(prev => ({ ...prev, historialPagos: hist, montoTotal: hist.reduce((s, p) => s + p.monto, 0) }))
     setNuevoPago({ monto: 0, metodoPago: 'efectivo', nota: '' })
+    setDeduc({})
   }
 
   const handleGuardarFecha = async () => {
@@ -989,6 +998,14 @@ const iniciarJob = httpsCallable(functions, 'iniciarDescargaCupones')
                   </select>
                   <button onClick={agregarPagoLocal} className="py-2 bg-emerald-600 text-white text-xs font-bold rounded-xl hover:bg-emerald-700 transition-colors">+ Agregar</button>
                 </div>
+                <CamposDeduccion
+                  monto={nuevoPago.monto}
+                  metodo={nuevoPago.metodoPago}
+                  valores={deduc}
+                  onChange={setDeduc}
+                  requiereSUATS={workflow.paso1?.requiereSUATS === true}
+                  compacto
+                />
                 <div className="flex gap-3 mt-3">
                   {[{ key: 'presupuestoEnviado', label: 'Presupuesto enviado' }, { key: 'pagoConfirmado', label: 'Pago confirmado' }].map(opt => (
                     <label key={opt.key} className="flex-1 flex items-center gap-2 p-3 border border-gray-200 rounded-xl cursor-pointer text-sm">
@@ -1307,6 +1324,27 @@ const iniciarJob = httpsCallable(functions, 'iniciarDescargaCupones')
                   )}
                 </div>
               </div>
+
+              <div>
+                <label className="text-xs font-semibold text-gray-500 mb-1 block">Método de pago del cierre</label>
+                <div className="grid grid-cols-3 gap-2">
+                  {(Object.entries(METODOS_PAGO_LABELS) as [MetodoPago, string][]).map(([k, v]) => (
+                    <button key={k} type="button" onClick={() => setP7(prev => ({ ...prev, metodoPago: k }))}
+                      className={`py-2 rounded-xl text-xs font-semibold border transition-all ${p7.metodoPago === k ? 'bg-[#D4621A] border-[#D4621A] text-white' : 'border-gray-200 text-gray-600 hover:bg-gray-50'}`}>
+                      {v}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <CamposDeduccion
+                monto={p7.pagoTotalRecibo}
+                metodo={p7.metodoPago}
+                valores={{ montoAcreditado: p7.montoAcreditado, cuotasTarjeta: p7.cuotasTarjeta }}
+                onChange={v => setP7(prev => ({ ...prev, montoAcreditado: v.montoAcreditado, cuotasTarjeta: v.cuotasTarjeta }))}
+                compacto
+                mostrarConceptos={false}
+              />
 
               {/* Checkboxes */}
               <div className="space-y-2">

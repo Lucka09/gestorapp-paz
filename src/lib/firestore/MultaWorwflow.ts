@@ -456,7 +456,7 @@ export async function confirmarPaso7Multa(
     email:      'transferencia',
     otro:       'mixto',
   }
-  const formaPago = formaPagoMap[data.canalEntrega] ?? 'efectivo'
+  const formaPago = data.metodoPago ?? formaPagoMap[data.canalEntrega] ?? 'efectivo'
  
   await updateDoc(doc(tramitesCol, tramiteId), {
     honorarios:      honorariosGestoria > 0 ? honorariosGestoria : data.pagoTotalRecibo,
@@ -465,6 +465,7 @@ export async function confirmarPaso7Multa(
     formaPago,
     notasPago:       data.observacionFinal ?? '',
     costosSUATS:          data.suatsAbonado ? (data.montoSUATS ?? 0) : 0,
+    costoSUATS:           data.suatsAbonado ? (data.costoSUATS ?? 0) : 0,
     costosInformePersona: data.informePersonaRealizado ? (data.montoInformePersona ?? 0) : 0,
     totalCobradoCliente:  data.pagoTotalRecibo,
     actualizadoEn:        serverTimestamp(),
@@ -511,8 +512,11 @@ export async function confirmarPaso7Multa(
           atribuidoANombre: tramite.atribuidoANombre ?? data.completadoPorNombre,
           // Desglose de deducciones
           montoSUATS:          suatsImputado,
+          costoSUATS:          data.suatsAbonado ? (data.costoSUATS ?? 0) : 0,
           montoInformePersona: informeImputado,
           comisionReferido:    data.comisionReferido ?? 0,
+          montoAcreditado:     data.montoAcreditado,
+          cuotasTarjeta:       data.cuotasTarjeta,
           comisionDestino:     tramite.origenNombre ?? '',
           netoGestoria: Math.max(
             0,

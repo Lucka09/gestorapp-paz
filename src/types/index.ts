@@ -392,7 +392,12 @@ export interface Configuracion {
   // Financiero
   datosBancarios:   ConfiguracionBancaria
   // Contacto y RRSS
-  costosMulta?: { suats?: number; informePersona?: number }
+  costosMulta?: {
+    suats?: number
+    costoSuats?: number
+    informePersona?: number
+    costoInformePersona?: number
+  }
   redesSociales:    ConfiguracionRRSS
   // Mensajes automáticos
   mensajeBienvenida:    string

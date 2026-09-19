@@ -358,10 +358,17 @@ export interface PagoTramite {
 }
  
 export interface RegistroPago {
-  monto:     number
-  formaPago: 'efectivo' | 'transferencia' | 'cheque' | 'mixto' | 'mercadopago'
-  fecha:     string   // ISO date (yyyy-mm-dd)
-  notas?:    string
+  monto:                 number
+  formaPago:             'efectivo' | 'transferencia' | 'cheque' | 'mixto' | 'mercadopago'
+  fecha:                 string   // ISO date (yyyy-mm-dd)
+  notas?:                string
+  montoSUATS?:           number
+  costoSUATS?:           number
+  montoInformePersona?:  number
+  costoInformePersona?:  number
+  comisionReferido?:     number
+  montoAcreditado?:      number
+  cuotasTarjeta?:        number
 }
  
 export interface ResultadoPago {
@@ -432,7 +439,14 @@ export async function registrarPago(
     atribuidoANombre:  ctx.atribuidoANombre || ctx.nombre,
     cargadoPorTercero: !!(ctx.atribuidoA && ctx.atribuidoA !== ctx.uid),
     motivoTercero:     ctx.motivoTercero ?? '',
-  })
+    montoSUATS:          pago.montoSUATS,
+    costoSUATS:          pago.costoSUATS,
+    montoInformePersona: pago.montoInformePersona,
+    costoInformePersona: pago.costoInformePersona,
+    comisionReferido:    pago.comisionReferido,
+    montoAcreditado:     pago.montoAcreditado,
+    cuotasTarjeta:       pago.cuotasTarjeta,
+    })
  
   const nuevoPago: PagoTramite = {
     monto:     pago.monto,

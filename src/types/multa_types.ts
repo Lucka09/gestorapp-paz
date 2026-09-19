@@ -25,17 +25,20 @@ export type MetodoPago = 'efectivo' | 'transferencia' | 'mercadopago' | 'tarjeta
 export interface RegistroPago {
   monto:               number
   metodoPago:          MetodoPago
-  montoSUATS?:         number
-  montoInformePersona?: number
-  comisionReferido?:   number
-  montoAcreditado?:    number
-  cuotasTarjeta?:      number
   nota?:               string
-  pagadoPor?:          string                      // quién realizó el pago (cliente/tercero)
-  origen?:             'workflow' | 'otros_pagos'  // de dónde se cargó el cobro
-  registradoPor:       string                      // quién lo cargó (usuario del sistema)
+  pagadoPor?:          string
+  origen?:             'workflow' | 'otros_pagos'
+  registradoPor:       string
   registradoPorNombre: string
   registradoEn:        Timestamp
+  // ── Desglose ──────────────────────────────────────────────────────────────
+  montoSUATS?:          number   // precio cobrado al cliente
+  costoSUATS?:          number   // costo de producción para la gestoría
+  montoInformePersona?: number
+  costoInformePersona?: number
+  comisionReferido?:    number
+  montoAcreditado?:     number   // tarjeta: lo que realmente entra
+  cuotasTarjeta?:       number
 }
 
 // ─── COSTOS OPERATIVOS (fallback si la gestoría no configuró montos) ──────────
@@ -185,6 +188,12 @@ export interface MultaPaso7Data {
 
   // Comisión entregada una sola vez al cerrar el trámite
   comisionReferido?: number
+
+  // Método y condiciones del cobro de cierre
+  metodoPago?:             MetodoPago
+  montoAcreditado?:        number
+  cuotasTarjeta?:          number
+  costoSUATS?:             number
 
   completadoPor:       string
   completadoPorNombre: string

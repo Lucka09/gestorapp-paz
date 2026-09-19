@@ -75,6 +75,10 @@ export interface ReciboInput {
   // — MIGRACIÓN —
   montoCobradoAcumulado?: number
   honorariosTotales?:     number
+
+  costoSUATS?:          number
+    costoInformePersona?: number
+    baseComisionable?:    number
 }
 
 export interface Recibo extends ReciboInput {
@@ -95,10 +99,13 @@ export async function crearRecibo(data: ReciboInput): Promise<string> {
   // Si un formulario nuevo se olvida de mandarlo, el recibo igual queda
   // consistente. Es la única forma de garantizar que las tres pantallas den lo
   // mismo sin depender de que cada call site se acuerde.
-  const { netoGestoria, costoFinanciero } = calcularNetoGestoria({
+  const { netoGestoria, baseComisionable, costoFinanciero, margenSUATS } =
+      calcularNetoGestoria({
     monto:               data.monto,
     montoSUATS:          data.montoSUATS,
+    costoSUATS:          data.costoSUATS,
     montoInformePersona: data.montoInformePersona,
+    costoInformePersona: data.costoInformePersona,
     comisionReferido:    data.comisionReferido,
     montoAcreditado:     data.montoAcreditado,
   })
@@ -110,9 +117,7 @@ export async function crearRecibo(data: ReciboInput): Promise<string> {
     // Si no vino atribución explícita, se imputa a quien lo emitió.
     atribuidoA:       data.atribuidoA       || data.emitidoPor,
     atribuidoANombre: data.atribuidoANombre || data.emitidoPorNombre,
-    netoGestoria,
-    costoFinanciero,
-    esDevolucion,
+    netoGestoria, baseComisionable, costoFinanciero, margenSUATS,
   })
 
   const reciboRef = await addDoc(recibosCol, {
