@@ -517,10 +517,13 @@ const informesPersonaMes = useMemo(() =>
               </Card>
               <Card className="p-4">
                 <p className="text-xs font-bold text-gray-400 mb-2">SUATS ABONADO</p>
-                <p className="text-2xl font-extrabold text-orange-600">{formatPesos(gestoria.deducSUATS)}</p>
-                <p className="text-[10px] text-gray-400 mt-1">{gestoria.deducSUATS > 0 
-  ? `${Math.ceil(gestoria.deducSUATS / (config.costosMulta?.suats ?? 25000))} × $${(config.costosMulta?.suats ?? 25000).toLocaleString('es-AR')}`
-  : 'Sin SUATS abonados'}</p>
+                                <p className="text-2xl font-extrabold text-orange-600">
+                  {formatPesos(gestoria.suatsCobrado)}
+                </p>
+                <p className="text-[10px] text-gray-400 mt-1">{gestoria.suatsCobrado > 0
+                  ? `${Math.ceil(gestoria.suatsCobrado / (config.costosMulta?.suats ?? 25000))} × $${(config.costosMulta?.suats ?? 25000).toLocaleString('es-AR')} · margen ${formatPesos(gestoria.suatsMargen)}`
+                  : 'Sin SUATS abonados'}
+                </p>
               </Card>
               <Card className="p-4">
                 <p className="text-xs font-bold text-gray-400 mb-2">ENTREGADOS</p>

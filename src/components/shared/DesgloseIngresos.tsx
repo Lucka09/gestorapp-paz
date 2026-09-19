@@ -12,10 +12,10 @@ interface Props {
 export default function DesgloseIngresos({
   d, proyeccion, titulo = 'Desglose de ingresos', compacto = false,
 }: Props) {
-  const lineas = [
+    const lineas = [
     { label: 'Devoluciones',             valor: d.devoluciones },
-    { label: 'SUATS',                    valor: d.deducSUATS },
-    { label: 'Informes de persona',      valor: d.deducInforme },
+    { label: 'SUATS (costo real)',       valor: d.suatsCosto },
+    { label: 'Informes de persona',      valor: d.informeCosto },
     { label: 'Comisiones a terceros',    valor: d.deducComision },
     { label: 'Costo financiero tarjeta', valor: d.deducFinanciero },
   ].filter(l => compacto ? l.valor > 0 : true)
@@ -54,6 +54,33 @@ export default function DesgloseIngresos({
           </span>
         </div>
 
+        {d.suatsCobrado > 0 && (
+          <div className="mt-3 pt-2 border-t border-gray-100 space-y-1">
+            <p className="text-[11px] text-gray-400 uppercase tracking-wider">
+              Detalle del SUATS
+            </p>
+            <div className="flex justify-between text-sm">
+              <span className="text-gray-500">Cobrado al cliente</span>
+              <span className="tabular-nums text-gray-700">{fmt(d.suatsCobrado)}</span>
+            </div>
+            <div className="flex justify-between text-sm">
+              <span className="text-gray-500">Costo de los formularios</span>
+              <span className="tabular-nums text-red-500">−{fmt(d.suatsCosto)}</span>
+            </div>
+            <div className="flex justify-between text-sm font-medium">
+              <span className="text-gray-700">Margen para la gestoría</span>
+              <span className="tabular-nums text-emerald-600">{fmt(d.suatsMargen)}</span>
+            </div>
+          </div>
+        )}
+
+        {d.baseComisionable !== d.netoGestoria && (
+          <p className="text-xs text-gray-400 mt-2">
+            Base de premios: {fmt(d.baseComisionable)} — descuenta el SUATS completo,
+            no solo su costo.
+          </p>
+        )}
+        
         <p className="text-xs text-gray-400">
           {pctNeto}% de lo cobrado · {d.recibos} recibos
           {d.recibosDevolucion > 0 && ` · ${d.recibosDevolucion} devoluciones`}
