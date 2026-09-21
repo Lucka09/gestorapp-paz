@@ -257,7 +257,7 @@ const PERMISOS: Record<Rol, Permisos> = {
     verEquipo: false, gestionarEquipo: false,
     verCobranzas: false, verReportes: false,        // ← sin acceso financiero
     gestionarMultas: true,
-    verConsultasMultas: true,    verTodasLasMultas: false,
+    verConsultasMultas: true,    verTodasLasMultas: true,
     verBandejaWA: true, responderWA: true, verTodaLaBandejaWA: false, reasignarWA: false,
     verTorreCompleta: true, verTorreSoloPropia: false, requiereGeo: false,
     verPremios: true, verPremiosTorre: true,         // ← exclusivo de este rol

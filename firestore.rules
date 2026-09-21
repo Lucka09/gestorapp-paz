@@ -291,5 +291,18 @@ service cloud.firestore {
       allow update: if isStaff() && docDeMiGestoria();
       allow delete: if isAdmin() && docDeMiGestoria();
     }
+    match /encargados/{encId} {
+      // Admin y propietario ven todos; el resto del staff solo los suyos.
+      allow read:   if isAdmin() && docDeMiGestoria();
+      allow read:   if isStaff() && docDeMiGestoria()
+                    && resource.data.asignadoA == request.auth.uid;
+      allow create: if isStaff() && nuevaDocDeMiGestoria();
+      // Solo el dueño o un admin lo edita
+      allow update: if isAdmin() && docDeMiGestoria();
+      allow update: if isStaff() && docDeMiGestoria()
+                    && resource.data.asignadoA == request.auth.uid;
+      // No se borran: se desactivan. Así no se pierde el historial.
+      allow delete: if false;
+    }
   }
 }
