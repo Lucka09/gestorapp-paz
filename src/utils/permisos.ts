@@ -53,11 +53,11 @@ export interface Permisos {
   // Finanzas — solo propietario y superadmin
   verCobranzas:         boolean   // página de cobranzas completa
   verReportes:          boolean   // reportes contables / financieros
-  registrarDevoluciones: boolean
 
   // Multas — módulo de descargos / Revisión de Multas
   gestionarMultas:      boolean   // acceso al módulo de multas y su workflow
   verConsultasMultas:   boolean   // Consultas de Multas (búsqueda de infracciones) — visible a todo el staff
+  verTodasLasMultas:    boolean   // Revisión + Torre de Multas: true = todas; false = solo propias (cargadas / asignadas)
 
   // WhatsApp Bandeja — acceso por rol
   verBandejaWA:         boolean   // ver bandeja de mensajes WhatsApp
@@ -78,12 +78,6 @@ export interface Permisos {
 
   // Rendimiento de gestores — Torre de Control avanzada
   verRendimientoGestores: boolean  // % completados por gestor (propietario / admin_gral)
-
-  // Edición con trazabilidad
-  // Habilita modificar cliente / vehículo / titular dejando motivo obligatorio
-  // en audit_log. Es un permiso "blando": no da acceso a datos nuevos, solo
-  // habilita el cambio quedando registrado quién, cuándo y por qué.
-  editarConMotivo:      boolean
 }
 
 // ─── PERMISOS POR ROL ─────────────────────────────────────────────────────────
@@ -96,8 +90,7 @@ const PERMISOS: Record<Rol, Permisos> = {
     eliminarClientes: true, darAccesoPortal: true,
     verVehiculos: true, crearVehiculos: true, editarVehiculos: true,
     verTramites: true, crearTramites: true, cambiarEstadoTramite: true,
-    verHonorariosDetalle: true, registrarDevoluciones: true,
-     marcarPagado: true, verObsInternas: true,
+    verHonorariosDetalle: true, marcarPagado: true, verObsInternas: true,
     verTurnos: true, crearTurnos: true, confirmarTurnos: true, cancelarTurnos: true,
     verDashboard: true, verPanelMando: true, verMetricasFinancieras: true, verCRM: true,
     exportarDatos: true, verSeguimiento: true, crearSeguimiento: true,
@@ -106,11 +99,11 @@ const PERMISOS: Record<Rol, Permisos> = {
     verCobranzas: true, verReportes: true,  // ← acceso financiero total
     gestionarMultas: true,
     verConsultasMultas: true,
+    verTodasLasMultas: true,
     verBandejaWA: true, responderWA: true, verTodaLaBandejaWA: true, reasignarWA: true,
     verTorreCompleta: true, verTorreSoloPropia: false, requiereGeo: false,
     verPremios: true, verPremiosTorre: true,
     verRendimientoGestores: true,
-    editarConMotivo: true,
   },
 
   // ── ADMIN — operaciones completas, SIN finanzas ni eliminar clientes ───────
@@ -119,7 +112,7 @@ const PERMISOS: Record<Rol, Permisos> = {
     eliminarClientes: false, darAccesoPortal: true,
     verVehiculos: true, crearVehiculos: true, editarVehiculos: true,
     verTramites: true, crearTramites: true, cambiarEstadoTramite: true,
-    verHonorariosDetalle: false, registrarDevoluciones: true, marcarPagado: false, verObsInternas: true,
+    verHonorariosDetalle: false, marcarPagado: false, verObsInternas: true,
     verTurnos: true, crearTurnos: true, confirmarTurnos: true, cancelarTurnos: true,
     verDashboard: true, verPanelMando: false, verMetricasFinancieras: false, verCRM: true,
     exportarDatos: false, verSeguimiento: true, crearSeguimiento: true,
@@ -128,11 +121,11 @@ const PERMISOS: Record<Rol, Permisos> = {
     verCobranzas: false, verReportes: false,  // ← sin acceso financiero
     gestionarMultas: true,
     verConsultasMultas: true,
+    verTodasLasMultas: true,
     verBandejaWA: true, responderWA: true, verTodaLaBandejaWA: true, reasignarWA: true,
     verTorreCompleta: true, verTorreSoloPropia: false, requiereGeo: false,
     verPremios: true, verPremiosTorre: true,
     verRendimientoGestores: false,
-    editarConMotivo: true,
   },
 
   // ── ADMIN GENERAL — igual a admin + acceso financiero, solo 1 por gestoría ──
@@ -141,7 +134,7 @@ const PERMISOS: Record<Rol, Permisos> = {
     eliminarClientes: false, darAccesoPortal: true,
     verVehiculos: true, crearVehiculos: true, editarVehiculos: true,
     verTramites: true, crearTramites: true, cambiarEstadoTramite: true,
-    verHonorariosDetalle: true, registrarDevoluciones: true, marcarPagado: true, verObsInternas: true,
+    verHonorariosDetalle: true, marcarPagado: true, verObsInternas: true,
     verTurnos: true, crearTurnos: true, confirmarTurnos: true, cancelarTurnos: true,
     verDashboard: true, verPanelMando: true, verMetricasFinancieras: true, verCRM: true,
     exportarDatos: true, verSeguimiento: true, crearSeguimiento: true,
@@ -150,11 +143,11 @@ const PERMISOS: Record<Rol, Permisos> = {
     verCobranzas: true, verReportes: true,               // ← acceso financiero elevado
     gestionarMultas: true,
     verConsultasMultas: true,
+    verTodasLasMultas: true,
     verBandejaWA: true, responderWA: true, verTodaLaBandejaWA: true, reasignarWA: true,
     verTorreCompleta: true, verTorreSoloPropia: false, requiereGeo: false,
     verPremios: true, verPremiosTorre: true,
     verRendimientoGestores: true,                        // ← puede ver % por gestor en Torre
-    editarConMotivo: true,
   },
 
   // ── VENDEDOR — NO gestiona equipo. Bandeja: solo propias + pool ─────────────
@@ -163,7 +156,7 @@ const PERMISOS: Record<Rol, Permisos> = {
     eliminarClientes: false, darAccesoPortal: false,
     verVehiculos: true, crearVehiculos: false, editarVehiculos: false,
     verTramites: true, crearTramites: true, cambiarEstadoTramite: false,
-    verHonorariosDetalle: false, registrarDevoluciones: false, marcarPagado: false, verObsInternas: false,
+    verHonorariosDetalle: false, marcarPagado: false, verObsInternas: false,
     verTurnos: true, crearTurnos: true, confirmarTurnos: false, cancelarTurnos: false,
     verDashboard: true, verPanelMando: false, verMetricasFinancieras: false, verCRM: true,
     exportarDatos: false, verSeguimiento: true, crearSeguimiento: true,
@@ -172,11 +165,11 @@ const PERMISOS: Record<Rol, Permisos> = {
     verCobranzas: false, verReportes: false,
     gestionarMultas: false,
     verConsultasMultas: true,
+    verTodasLasMultas: true,
     verBandejaWA: true, responderWA: true, verTodaLaBandejaWA: false, reasignarWA: false,
     verTorreCompleta: false, verTorreSoloPropia: false, requiereGeo: false,
     verPremios: false, verPremiosTorre: false,
     verRendimientoGestores: false,
-    editarConMotivo: false,
   },
 
   // ── OPERADOR — NO gestiona equipo ─────────────────────────────────────────
@@ -185,7 +178,7 @@ const PERMISOS: Record<Rol, Permisos> = {
     eliminarClientes: false, darAccesoPortal: false,
     verVehiculos: true, crearVehiculos: true, editarVehiculos: true,
     verTramites: true, crearTramites: true, cambiarEstadoTramite: true,
-    verHonorariosDetalle: false, registrarDevoluciones: false, marcarPagado: false, verObsInternas: false,
+    verHonorariosDetalle: false, marcarPagado: false, verObsInternas: false,
     verTurnos: true, crearTurnos: true, confirmarTurnos: true, cancelarTurnos: true,
     verDashboard: true, verPanelMando: false, verMetricasFinancieras: false, verCRM: false,
     exportarDatos: false, verSeguimiento: false, crearSeguimiento: false,
@@ -194,11 +187,11 @@ const PERMISOS: Record<Rol, Permisos> = {
     verCobranzas: false, verReportes: false,
     gestionarMultas: false,
     verConsultasMultas: true,
+    verTodasLasMultas: true,
     verBandejaWA: false, responderWA: false, verTodaLaBandejaWA: false, reasignarWA: false,
     verTorreCompleta: false, verTorreSoloPropia: false, requiereGeo: false,
     verPremios: false, verPremiosTorre: false,
     verRendimientoGestores: false,
-    editarConMotivo: false,
   },
 
   // ── SUPERADMIN — acceso total ─────────────────────────────────────────────
@@ -206,7 +199,7 @@ const PERMISOS: Record<Rol, Permisos> = {
     verClientes: true, crearClientes: true, editarClientes: true, eliminarClientes: true,
     darAccesoPortal: true, verVehiculos: true, crearVehiculos: true, editarVehiculos: true,
     verTramites: true, crearTramites: true, cambiarEstadoTramite: true,
-    verHonorariosDetalle: true, registrarDevoluciones: true, marcarPagado: true, verObsInternas: true,
+    verHonorariosDetalle: true, marcarPagado: true, verObsInternas: true,
     verTurnos: true, crearTurnos: true, confirmarTurnos: true, cancelarTurnos: true,
     exportarDatos: true, verDashboard: true, verPanelMando: true, verCRM: true, editarConfiguracion: true,
     verMetricasFinancieras: true, verSeguimiento: true, crearSeguimiento: true,
@@ -214,11 +207,11 @@ const PERMISOS: Record<Rol, Permisos> = {
     verCobranzas: true, verReportes: true,
     gestionarMultas: true,
     verConsultasMultas: true,
+    verTodasLasMultas: true,
     verBandejaWA: true, responderWA: true, verTodaLaBandejaWA: true, reasignarWA: true,
     verTorreCompleta: true, verTorreSoloPropia: false, requiereGeo: false,
     verPremios: true, verPremiosTorre: true,
     verRendimientoGestores: true,
-    editarConMotivo: true,
   },
 
   // ── GESTOR (mandatario) — carga y gestión propia, sin finanzas ni WA ────────
@@ -227,7 +220,7 @@ const PERMISOS: Record<Rol, Permisos> = {
     eliminarClientes: false, darAccesoPortal: false,
     verVehiculos: true, crearVehiculos: true, editarVehiculos: true,
     verTramites: true,  crearTramites: true,  cambiarEstadoTramite: true,
-    verHonorariosDetalle: false, registrarDevoluciones: false, marcarPagado: false, verObsInternas: false,
+    verHonorariosDetalle: false, marcarPagado: false, verObsInternas: false,
     verTurnos: true, crearTurnos: true, confirmarTurnos: true, cancelarTurnos: false,
     verDashboard: false, verPanelMando: false, verMetricasFinancieras: false, verCRM: false,
     exportarDatos: false, verSeguimiento: true, crearSeguimiento: true,
@@ -236,11 +229,11 @@ const PERMISOS: Record<Rol, Permisos> = {
     verCobranzas: false, verReportes: false,
     gestionarMultas: true,
     verConsultasMultas: true,
+    verTodasLasMultas: true,
     verBandejaWA: false, responderWA: false, verTodaLaBandejaWA: false, reasignarWA: false,
     verTorreCompleta: false, verTorreSoloPropia: true, requiereGeo: true,
     verPremios: false, verPremiosTorre: false,
     verRendimientoGestores: false,
-    editarConMotivo: false,
   },
 
   // ── ASESOR COMERCIAL (label: Secretario Comercial) — Bandeja: propias + pool ─
@@ -249,7 +242,7 @@ const PERMISOS: Record<Rol, Permisos> = {
     eliminarClientes: false, darAccesoPortal: false,
     verVehiculos: true, crearVehiculos: true, editarVehiculos: true,
     verTramites: true, crearTramites: true, cambiarEstadoTramite: true,
-    verHonorariosDetalle: false, registrarDevoluciones: false, marcarPagado: false, verObsInternas: false,
+    verHonorariosDetalle: false, marcarPagado: false, verObsInternas: false,
     verTurnos: true, crearTurnos: true, confirmarTurnos: true, cancelarTurnos: true,
     verDashboard: true, verPanelMando: false, verMetricasFinancieras: false, verCRM: true,
     exportarDatos: false, verSeguimiento: true, crearSeguimiento: true,
@@ -258,11 +251,11 @@ const PERMISOS: Record<Rol, Permisos> = {
     verCobranzas: false, verReportes: false,        // ← sin acceso financiero
     gestionarMultas: true,
     verConsultasMultas: true,
+    verTodasLasMultas: false,   // ← solo sus multas (cargadas / asignadas)
     verBandejaWA: true, responderWA: true, verTodaLaBandejaWA: false, reasignarWA: false,
     verTorreCompleta: true, verTorreSoloPropia: false, requiereGeo: false,
     verPremios: true, verPremiosTorre: true,         // ← exclusivo de este rol
     verRendimientoGestores: false,
-    editarConMotivo: true,                           // ← puede editar dejando motivo
   },
 
   // ── ASISTENTE DE MULTAS — módulo de multas + básico, nada financiero ────────
@@ -271,7 +264,7 @@ const PERMISOS: Record<Rol, Permisos> = {
     eliminarClientes: false, darAccesoPortal: false,
     verVehiculos: false, crearVehiculos: false, editarVehiculos: false,
     verTramites: false, crearTramites: true, cambiarEstadoTramite: true,
-    verHonorariosDetalle: false, registrarDevoluciones: false, marcarPagado: false, verObsInternas: false,
+    verHonorariosDetalle: false, marcarPagado: false, verObsInternas: false,
     verTurnos: false, crearTurnos: false, confirmarTurnos: false, cancelarTurnos: false,
     verDashboard: true, verPanelMando: false, verMetricasFinancieras: false, verCRM: false,
     exportarDatos: false, verSeguimiento: false, crearSeguimiento: false,
@@ -280,11 +273,11 @@ const PERMISOS: Record<Rol, Permisos> = {
     verCobranzas: false, verReportes: false,
     gestionarMultas: true,                          // ← acceso al módulo de multas
     verConsultasMultas: true,
+    verTodasLasMultas: true,
     verBandejaWA: false, responderWA: false, verTodaLaBandejaWA: false, reasignarWA: false,
     verTorreCompleta: false, verTorreSoloPropia: true, requiereGeo: false,
     verPremios: false, verPremiosTorre: false,
     verRendimientoGestores: false,
-    editarConMotivo: false,
   },
 
   // ── CLIENTE — solo su portal ──────────────────────────────────────────────
@@ -293,7 +286,7 @@ const PERMISOS: Record<Rol, Permisos> = {
     eliminarClientes: false, darAccesoPortal: false,
     verVehiculos: false, crearVehiculos: false, editarVehiculos: false,
     verTramites: false, crearTramites: false, cambiarEstadoTramite: false,
-    verHonorariosDetalle: false, registrarDevoluciones: false, marcarPagado: false, verObsInternas: false,
+    verHonorariosDetalle: false, marcarPagado: false, verObsInternas: false,
     verTurnos: false, crearTurnos: false, confirmarTurnos: false, cancelarTurnos: false,
     verDashboard: false, verPanelMando: false, verMetricasFinancieras: false, verCRM: false,
     exportarDatos: false, verSeguimiento: false, crearSeguimiento: false,
@@ -302,11 +295,11 @@ const PERMISOS: Record<Rol, Permisos> = {
     verCobranzas: false, verReportes: false,
     gestionarMultas: false,
     verConsultasMultas: false,
+    verTodasLasMultas: false,
     verBandejaWA: false, responderWA: false, verTodaLaBandejaWA: false, reasignarWA: false,
     verTorreCompleta: false, verTorreSoloPropia: false, requiereGeo: false,
     verPremios: false, verPremiosTorre: false,
     verRendimientoGestores: false,
-    editarConMotivo: false,
   },
 }
 
@@ -318,16 +311,6 @@ export function getPermisos(rol: Rol): Permisos {
 
 export function puedeHacer(rol: Rol, permiso: keyof Permisos): boolean {
   return getPermisos(rol)[permiso] ?? false
-}
-
-// Roles habilitados a editar dejando motivo. Se usa en servicios y guards
-// donde no hay hook disponible (edicionTrazable.ts, Cloud Functions).
-export const ROLES_EDICION_CON_MOTIVO: Rol[] = [
-  'propietario', 'admin_gral', 'admin', 'superadmin', 'asesor_comercial',
-]
-
-export function puedeEditarConMotivo(rol: Rol | undefined): boolean {
-  return !!rol && ROLES_EDICION_CON_MOTIVO.includes(rol)
 }
 
 // ─── LABELS DE DISPLAY ─────────────────────────────────────────────────────────

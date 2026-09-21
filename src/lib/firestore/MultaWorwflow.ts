@@ -2,18 +2,19 @@
 import {
   doc, setDoc, collection, addDoc, updateDoc, getDoc,
   serverTimestamp, Timestamp, arrayUnion, deleteField,
-  onSnapshot, query, where,
+  onSnapshot, query, where, writeBatch,
   type CollectionReference,
 } from 'firebase/firestore'
 import { db }           from '@/lib/firebase'
 import { crearNotificacion } from '@/lib/firestore/notificaciones'
 import { cambiarEstadoTramite } from '@/lib/firestore/tramites'
-import { tramitesCol } from '@/lib/firestore/collections'
+import { tramitesCol, notificacionesCol } from '@/lib/firestore/collections'
 import type {
   MultaWorkflow, MultaPaso1Data, MultaPaso2Data,
   MultaPaso3Data, MultaReboteResolucion,
   MultaPaso4Data, MultaPaso5Data, MultaPaso6Data, MultaPaso7Data,
   EstadoMultaWorkflow, RegistroPago, EstadoMulta, DocumentoAdicional,
+  AlertaDocumentacion,
 } from '@/types/multa_types'
 import { crearRecibo, generarNumeroRecibo, getRecibosPorTramite } from '@/lib/firestore/recibos'
 import { notificarRecibo } from '@/lib/firestore/alertas'
@@ -37,6 +38,40 @@ export function subscribeMultaWorkflows(
     snap => cb(snap.docs.map(d => ({ ...d.data(), id: d.id }) as MultaWorkflow)),
     err => { console.warn('[subscribeMultaWorkflows]', err.code ?? err.message); cb([]) },
   )
+}
+
+// ─── IDS DE TRÁMITES DE MULTA PROPIOS (vista del secretario comercial) ────────
+// Trámites de multa asignados a / creados por el usuario. Sin límite (a diferencia
+// de subscribeTramites, que corta en 300) para que ninguna multa vieja del
+// secretario quede afuera. Equality-only → no requiere índice compuesto.
+// Cada listener tiene su handler de error: un permission-denied no debe dejar la
+// pantalla en loading infinito — se emite lo que haya.
+export function subscribeIdsTramitesMultaPropios(
+  gestoriaId: string,
+  uid:        string,
+  cb:         (ids: Set<string>) => void,
+): () => void {
+  let asignados: string[] | null = null
+  let creados:   string[] | null = null
+
+  const emitir = () => {
+    if (asignados === null || creados === null) return
+    cb(new Set([...asignados, ...creados]))
+  }
+  const soloMultas = (docs: { id: string; data: () => { tipo?: string } }[]) =>
+    docs.filter(d => d.data().tipo === 'descargo_multa').map(d => d.id)
+
+  const unsubA = onSnapshot(
+    query(tramitesCol, where('gestoriaId', '==', gestoriaId), where('asignadoA', '==', uid)),
+    snap => { asignados = soloMultas(snap.docs as any); emitir() },
+    err  => { console.warn('[multasPropias:asignados]', err.code ?? err.message); asignados = []; emitir() },
+  )
+  const unsubC = onSnapshot(
+    query(tramitesCol, where('gestoriaId', '==', gestoriaId), where('creadoPor', '==', uid)),
+    snap => { creados = soloMultas(snap.docs as any); emitir() },
+    err  => { console.warn('[multasPropias:creados]', err.code ?? err.message); creados = []; emitir() },
+  )
+  return () => { unsubA(); unsubC() }
 }
 
 // ─── ESTADO OPERATIVO MANUAL ──────────────────────────────────────────────────
@@ -335,102 +370,13 @@ export async function confirmarPaso6Multa(
   })
 }
  
-export interface ChequeoPaso7 {
-  ok:          boolean
-  errores:     string[]
-  montoMinimo: number
-}
- 
-
-export function chequearPaso7(
-  wf:   MultaWorkflow,
-  data: Partial<MultaPaso7Data>,
-): ChequeoPaso7 {
-  const errores: string[] = []
-  const requiereSUATS = wf.paso1?.requiereSUATS === true
-  const montoMinimo   = wf.paso2?.montoTotal ?? 0
- 
-  if (requiereSUATS && !wf.paso6?.suatsGenerado) {
-    errores.push('La multa requiere SUATS pero el Paso 6 no lo generó. Volvé al Paso 6 y completalo.')
-  }
-  if (requiereSUATS && !data.suatsAbonado) {
-    errores.push('La multa requiere SUATS: marcá que se abonó e indicá el monto.')
-  }
-  if (requiereSUATS && data.suatsAbonado && !(data.montoSUATS && data.montoSUATS > 0)) {
-    errores.push('Indicá el monto del SUATS abonado.')
-  }
-  if (data.informePersonaRealizado &&
-      !(data.montoInformePersona && data.montoInformePersona > 0)) {
-    errores.push('Indicá el monto del informe de persona.')
-  }
- 
-  const total = data.pagoTotalRecibo ?? 0
-  const comision = data.comisionReferido ?? 0
-  if (!Number.isFinite(comision) || comision < 0) {
-    errores.push('La comisión del referido no puede ser negativa.')
-  } else if (total > 0 && comision > total) {
-    errores.push('La comisión del referido no puede superar el total cobrado.')
-  }
-
-  if (!(total > 0)) {
-    errores.push('El total cobrado al cliente es obligatorio.')
-  } else if (total < montoMinimo) {
-    errores.push(
-      `El total ($${total.toLocaleString('es-AR')}) no puede ser menor a lo ya ` +
-      `cobrado en el Paso 2 ($${montoMinimo.toLocaleString('es-AR')}).`,
-    )
-  } else {
-    const suats   = data.suatsAbonado ? (data.montoSUATS ?? 0) : 0
-    const informe = data.informePersonaRealizado ? (data.montoInformePersona ?? 0) : 0
-    if (suats + informe > total) {
-      errores.push(
-        `SUATS ($${suats.toLocaleString('es-AR')}) + informe ` +
-        `($${informe.toLocaleString('es-AR')}) superan el total cobrado. Revisá los montos.`,
-      )
-    }
-  }
- 
-  if (!data.canalEntrega) {
-    errores.push('Indicá el canal de entrega.')
-  }
- 
-  return { ok: errores.length === 0, errores, montoMinimo }
-}
- 
-// ─── PASO 7: Cierre ──────────────────────────────────────────────────────────
+// ─── PASO 7: Cierre (REEMPLAZA la función completa) ───────────────────────────
  
 export async function confirmarPaso7Multa(
   tramiteId:  string,
   gestoriaId: string,
   data: Omit<MultaPaso7Data, 'completadoEn'>,
 ): Promise<void> {
- 
-  // ─── VALIDACIÓN DURA ──────────────────────────────────────────────────────
-  // Se lee el workflow para cruzar paso1 / paso2 / paso6 contra lo que llega.
-  // Si algo no cierra, se corta ACÁ: no se escribe el workflow, no se toca el
-  // trámite, no se emite recibo. Todo o nada.
-  const wfSnap = await getDoc(workflowDoc(tramiteId))
-  if (!wfSnap.exists()) {
-    throw new Error('No se encontró el workflow de esta multa.')
-  }
-  const wf = wfSnap.data() as MultaWorkflow
- 
-  if (wf.estadoWorkflow === 'completado') {
-    throw new Error('Esta multa ya fue cerrada.')
-  }
-  if ((wf.pasoActual ?? 0) < 7) {
-    throw new Error(
-      `No se puede cerrar: el workflow está en el paso ${wf.pasoActual}. ` +
-      'Completá los pasos anteriores.',
-    )
-  }
- 
-  const chequeo = chequearPaso7(wf, data)
-  if (!chequeo.ok) {
-    throw new Error(chequeo.errores.join('\n'))
-  }
-  // ─── FIN VALIDACIÓN ───────────────────────────────────────────────────────
- 
   // Limpiar campos undefined — Firestore rechaza undefined
   const paso7Clean: Record<string, unknown> = {}
   for (const [k, v] of Object.entries({ ...data, completadoEn: Timestamp.now() })) {
@@ -456,7 +402,7 @@ export async function confirmarPaso7Multa(
     email:      'transferencia',
     otro:       'mixto',
   }
-  const formaPago = data.metodoPago ?? formaPagoMap[data.canalEntrega] ?? 'efectivo'
+  const formaPago = formaPagoMap[data.canalEntrega] ?? 'efectivo'
  
   await updateDoc(doc(tramitesCol, tramiteId), {
     honorarios:      honorariosGestoria > 0 ? honorariosGestoria : data.pagoTotalRecibo,
@@ -465,31 +411,25 @@ export async function confirmarPaso7Multa(
     formaPago,
     notasPago:       data.observacionFinal ?? '',
     costosSUATS:          data.suatsAbonado ? (data.montoSUATS ?? 0) : 0,
-    costoSUATS:           data.suatsAbonado ? (data.costoSUATS ?? 0) : 0,
     costosInformePersona: data.informePersonaRealizado ? (data.montoInformePersona ?? 0) : 0,
     totalCobradoCliente:  data.pagoTotalRecibo,
     actualizadoEn:        serverTimestamp(),
   })
  
-  // 3. Recibo TOTAL de cierre + alerta al propietario (best-effort).
+  // 3. NUEVO — Recibo TOTAL de cierre + alerta al propietario (best-effort:
+  //    si falla, no revierte nada de lo anterior, solo no hay comprobante).
   try {
     const tramiteSnap = await getDoc(doc(tramitesCol, tramiteId))
     if (tramiteSnap.exists()) {
-      const tramite = tramiteSnap.data() as any
- 
+            const tramite = tramiteSnap.data() as any
+
       // Anti-doble-conteo: restamos lo YA recibido en parciales (señas), así
       // el recibo de cierre solo registra el saldo. La suma de recibos = total.
       const recibosPrevios = await getRecibosPorTramite(tramiteId)
       const yaRecibido = recibosPrevios.reduce((a, r) => a + (r.monto ?? 0), 0)
       const montoCierre = Math.max(0, data.pagoTotalRecibo - yaRecibido)
- 
+
       if (montoCierre > 0) {
-        const suats   = data.suatsAbonado ? (data.montoSUATS ?? 0) : 0
-        const informe = data.informePersonaRealizado ? (data.montoInformePersona ?? 0) : 0
-        // Las deducciones se imputan al recibo de cierre, acotadas a su monto.
-        const suatsImputado   = Math.min(suats, montoCierre)
-        const informeImputado = Math.min(informe, montoCierre - suatsImputado)
- 
         const numeroRecibo = await generarNumeroRecibo(gestoriaId)
         const reciboId = await crearRecibo({
           numeroRecibo,
@@ -497,7 +437,7 @@ export async function confirmarPaso7Multa(
           clienteId:    tramite.clienteId,
           gestoriaId,
           tipo:         'total',
-          monto:        montoCierre,
+          monto:        montoCierre,                    // ← solo el saldo, no el total
           montoCobradoAcumulado: data.pagoTotalRecibo,
           honorariosTotales:     data.pagoTotalRecibo,
           formaPago,
@@ -507,21 +447,6 @@ export async function confirmarPaso7Multa(
           tipoTramite:  tramite.tipo,
           emitidoPor:       data.completadoPor,
           emitidoPorNombre: data.completadoPorNombre,
-          // Atribución: quien cierra se lleva el crédito salvo que ya venga fijada
-          atribuidoA:       tramite.atribuidoA       ?? data.completadoPor,
-          atribuidoANombre: tramite.atribuidoANombre ?? data.completadoPorNombre,
-          // Desglose de deducciones
-          montoSUATS:          suatsImputado,
-          costoSUATS:          data.suatsAbonado ? (data.costoSUATS ?? 0) : 0,
-          montoInformePersona: informeImputado,
-          comisionReferido:    data.comisionReferido ?? 0,
-          montoAcreditado:     data.montoAcreditado,
-          cuotasTarjeta:       data.cuotasTarjeta,
-          comisionDestino:     tramite.origenNombre ?? '',
-          netoGestoria: Math.max(
-            0,
-            montoCierre - suatsImputado - informeImputado - (data.comisionReferido ?? 0),
-          ),
         })
         await notificarRecibo({
           gestoriaId, tramiteId, reciboId, numeroRecibo,
@@ -563,8 +488,6 @@ export async function agregarPagoMulta(
   const formaPagoMap: Record<string, string> = {
     efectivo:      'efectivo',
     transferencia: 'transferencia',
-    mercadopago:   'mercadopago',
-    tarjeta:       'tarjeta',
     mixto:         'mixto',
   }
   const formaPago = formaPagoMap[pago.metodoPago] ?? 'mixto'
@@ -594,11 +517,6 @@ export async function agregarPagoMulta(
         gestoriaId,
         tipo:         'parcial',
         monto:        pago.monto,
-        montoSUATS:   pago.montoSUATS,
-        montoInformePersona: pago.montoInformePersona,
-        comisionReferido: pago.comisionReferido,
-        montoAcreditado: pago.montoAcreditado,
-        cuotasTarjeta: pago.cuotasTarjeta,
         montoCobradoAcumulado: nuevoTotal,
         honorariosTotales:     nuevoTotal,
         formaPago,
@@ -608,43 +526,16 @@ export async function agregarPagoMulta(
         tipoTramite:  tramite.tipo,
         emitidoPor:       pago.registradoPor,
         emitidoPorNombre: pago.registradoPorNombre,
-        atribuidoA:       pago.registradoPor,
-        atribuidoANombre: pago.registradoPorNombre,
       })
       await notificarRecibo({
         gestoriaId, tramiteId, reciboId, numeroRecibo,
         monto: pago.monto, tipo: 'parcial', patente: tramite.patente,
       })
     }
-    } catch (e) {
-    // El pago YA quedó registrado arriba: no se revierte, sería peor perderlo.
-    // Pero el fallo deja de ser silencioso: se crea una alerta visible para
-    // que alguien emita el comprobante, en vez de descubrirlo a fin de mes.
-    console.error('[agregarPagoMulta] recibo NO emitido:', e)
-    try {
-      const snap = await getDoc(doc(tramitesCol, tramiteId))
-      const t = snap.exists() ? (snap.data() as any) : {}
-      await addDoc(collection(db, 'alertas_sistema'), {
-        gestoriaId:  t.gestoriaId ?? '',
-        tipo:        'recibo_fallido',
-        titulo:      'Pago sin comprobante',
-        descripcion: `Se cobró $${pago.monto.toLocaleString('es-AR')} en ` +
-                     `${t.numero ?? tramiteId} (${t.patente ?? 's/patente'}) ` +
-                     `y no se pudo emitir el recibo.`,
-        tramiteId,
-        monto:        pago.monto,
-        registradoPor: pago.registradoPor ?? '',
-        registradoPorNombre: pago.registradoPorNombre ?? '',
-        error:       String((e as Error)?.message ?? e),
-        estado:      'pendiente',
-        prioridad:   'alta',
-        creadoEn:    serverTimestamp(),
-      })
-    } catch (e2) {
-      console.error('[agregarPagoMulta] tampoco se pudo crear la alerta:', e2)
-    }
+  } catch (e) {
+    console.error('[agregarPagoMulta] No se pudo generar el recibo/alerta:', e)
   }
-  }
+}
  
 export async function sincronizarPagoMultaAlTramite(
   tramiteId:  string,
@@ -746,4 +637,56 @@ export async function resolverReporteControlMulta(tramiteId: string): Promise<vo
     reporteControl: deleteField(),
     actualizadoEn:  serverTimestamp(),
   })
+}
+
+// ─── ALERTA DE DOCUMENTACIÓN AL SECRETARIO (estado Docs. Requerida) ──────────
+// Un rol de control o el asistente de multas avisa al secretario comercial a
+// cargo que falta / está mal un documento. Escritura ATÓMICA (batch):
+//   1. notificaciones/{id}  → campanita in-app + push (trigger enviarPushNotificacion)
+//   2. multaWorkflow/{id}   → alertaDocs (última) + historialAlertasDocs (append)
+// Si falla una, no queda ninguna — no hay alertas "fantasma" ni avisos sin registro.
+export async function enviarAlertaDocumentacion(params: {
+  tramiteId:          string
+  gestoriaId:         string
+  destinatarioId:     string
+  destinatarioNombre: string
+  motivo:             string
+  autorId:            string
+  autorNombre:        string
+  patente?:           string
+  cliente?:           string
+}): Promise<void> {
+  const alerta: AlertaDocumentacion = {
+    motivo:             params.motivo,
+    destinatarioId:     params.destinatarioId,
+    destinatarioNombre: params.destinatarioNombre,
+    autorId:            params.autorId,
+    autorNombre:        params.autorNombre,
+    creadoEn:           Timestamp.now(),
+  }
+
+  const ref   = [params.patente, params.cliente].filter(Boolean).join(' · ') || 'Revisión de multa'
+  const batch = writeBatch(db)
+
+  const notifRef = doc(notificacionesCol)
+  batch.set(notifRef, {
+    id:             notifRef.id,
+    gestoriaId:     params.gestoriaId,
+    destinatarioId: params.destinatarioId,
+    tipo:           'documentacion',
+    titulo:         `📄 Falta documentación — ${ref}`,
+    mensaje:        `${params.autorNombre}: ${params.motivo}`,
+    tramiteId:      params.tramiteId,
+    turnoId:        null,
+    leida:          false,
+    creadoEn:       serverTimestamp(),
+  } as any)
+
+  batch.update(workflowDoc(params.tramiteId), {
+    alertaDocs:           alerta,
+    historialAlertasDocs: arrayUnion(alerta),
+    actualizadoEn:        serverTimestamp(),
+  } as any)
+
+  await batch.commit()
 }

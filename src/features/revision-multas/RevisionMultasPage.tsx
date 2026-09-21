@@ -7,10 +7,11 @@
 
 import { useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Search, AlertTriangle, FileWarning, X, ChevronRight, Download, CreditCard, ShieldAlert, RotateCcw, Plus } from 'lucide-react'
-import { useMultaWorkflows } from '@/hooks/useMultaWorkflow'
+import { Search, AlertTriangle, FileWarning, X, ChevronRight, Download, CreditCard, ShieldAlert, RotateCcw, Plus, BellRing, UserCheck } from 'lucide-react'
+import { useMultaWorkflowsVisibles } from '@/hooks/useMultaWorkflow'
 import ModalOtrosPagos from '@/components/multas/ModalOtrosPagos'
 import ModalReporteControl from '@/components/multas/ModalReporteControl'
+import ModalAlertaDocumentacion from '@/components/multas/ModalAlertaDocumentacion'
 import { resolverReporteControlMulta } from '@/lib/firestore/MultaWorwflow'
 import toast from 'react-hot-toast'
 import { useTramites } from '@/hooks/useTramites'
@@ -101,9 +102,11 @@ type Tab = 'activas' | 'vencidas' | 'archivadas' | 'a_controlar'
 export default function RevisionMultasPage() {
   usePageTitle('Revisión de Multas')
   const navigate = useNavigate()
-  const { multas, loading } = useMultaWorkflows()
+  const { multas, loading, soloPropias } = useMultaWorkflowsVisibles()
   const { puede, rol } = usePermisos()
   const esControl = ['propietario','admin_gral','admin'].includes(rol)
+  // Quién puede avisar al secretario por falta de documentación
+  const puedeAlertarDocs = esControl || rol === 'asistente_multas' || rol === 'superadmin'
   const { user }   = useAuth()
   const gestoriaId = useGestoriaId()
   const { clientes } = useClientes()
@@ -118,6 +121,7 @@ const handleExportar = async () => {
   const [search, setSearch] = useState('')
   const [otrosPagosOpen, setOtrosPagos] = useState(false)
   const [reporteModal, setReporteModal] = useState<MultaWorkflow | null>(null)
+  const [alertaModal, setAlertaModal]   = useState<MultaWorkflow | null>(null)
 
   // ── Alta liviana de Revisión de Multas ──────────────────────────────────────
   const [nuevaOpen, setNuevaOpen] = useState(false)
@@ -239,6 +243,11 @@ const handleExportar = async () => {
       </div>
       <ModalOtrosPagos open={otrosPagosOpen} onClose={() => setOtrosPagos(false)} />
       <ModalReporteControl w={reporteModal} onClose={() => setReporteModal(null)} />
+      <ModalAlertaDocumentacion
+        w={alertaModal}
+        tramite={alertaModal ? tramiteMap.get(alertaModal.id) : null}
+        onClose={() => setAlertaModal(null)}
+      />
 
       {/* Alta liviana de Revisión de Multas */}
       <Modal
@@ -291,6 +300,11 @@ const handleExportar = async () => {
           <p className="text-xs text-gray-400">
             {counts.activas} en gestión · {counts.vencidas} vencidas · {counts.archivadas} archivadas
           </p>
+          {soloPropias && (
+            <p className="inline-flex items-center gap-1 mt-1 text-[11px] font-semibold text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full">
+              <UserCheck size={12} /> Solo tus gestiones (cargadas o asignadas)
+            </p>
+          )}
         </div>
       </div>
 
@@ -380,6 +394,12 @@ const handleExportar = async () => {
                           ⚠ {w.reporteControl.motivo} · {w.reporteControl.autorNombre}
                         </p>
                       )}
+                      {est === 'docs_requerida' && w.alertaDocs && (
+                        <p className="text-[11px] text-red-700 font-medium mt-0.5 truncate max-w-[220px]"
+                          title={`${w.alertaDocs.motivo} — avisado a ${w.alertaDocs.destinatarioNombre} por ${w.alertaDocs.autorNombre}`}>
+                          🔔 {w.alertaDocs.motivo} · {soloPropias ? w.alertaDocs.autorNombre : `→ ${w.alertaDocs.destinatarioNombre}`}
+                        </p>
+                      )}
                     </td>
                     {/* Patente / Nota */}
                     <td className="px-3 py-2.5">
@@ -413,6 +433,13 @@ const handleExportar = async () => {
                     </td>
                     {/* Acción control */}
                     <td className="px-3 py-2.5 whitespace-nowrap text-right" onClick={e => e.stopPropagation()}>
+                      <div className="inline-flex items-center gap-1.5">
+                      {puedeAlertarDocs && est === 'docs_requerida' && (
+                        <button onClick={() => setAlertaModal(w)} title="Avisar al secretario a cargo"
+                          className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-semibold text-red-700 bg-red-50 hover:bg-red-100">
+                          <BellRing size={13} /> Avisar
+                        </button>
+                      )}
                       {esControl && (tab === 'a_controlar'
                         ? <button onClick={() => resolverControl(w.id)} title="Resolver y devolver al flujo"
                             className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100">
@@ -423,6 +450,7 @@ const handleExportar = async () => {
                             <ShieldAlert size={13} /> Reportar
                           </button>
                       )}
+                      </div>
                     </td>
                   </tr>
                 ))}

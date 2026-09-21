@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { Bell, FileText, CalendarDays, Info, Check, CheckCheck } from 'lucide-react'
 import { useNotificaciones } from '@/hooks/useNotificaciones'
 import { marcarLeida, marcarTodasLeidas } from '@/lib/firestore/notificaciones'
@@ -21,11 +22,15 @@ const TIPO_COLOR: Record<string, string> = {
 }
 
 function NotifItem({ notif, onRead }: { notif: Notificacion; onRead: () => void }) {
+  const navigate = useNavigate()
   return (
     <button
       onClick={async () => {
         if (!notif.leida) await marcarLeida(notif.id)
         onRead()
+        // Si la notificación apunta a un trámite (ej. alerta de documentación de
+        // una multa), llevar directo al detalle.
+        if (notif.tramiteId) navigate(`/admin/tramites/${notif.tramiteId}`)
       }}
       className={`w-full flex items-start gap-3 px-4 py-3 hover:bg-gray-50
                   transition-colors text-left border-b border-gray-50 last:border-0

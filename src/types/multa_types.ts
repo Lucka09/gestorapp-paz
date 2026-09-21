@@ -20,25 +20,17 @@ export type EstadoMultaWorkflow =
 
 // ─── PAGO / HONORARIOS ────────────────────────────────────────────────────────
 
-export type MetodoPago = 'efectivo' | 'transferencia' | 'mercadopago' | 'tarjeta' | 'cheque' | 'otro'
+export type MetodoPago = 'efectivo' | 'transferencia' | 'mercadopago' | 'cheque' | 'otro'
 
 export interface RegistroPago {
   monto:               number
   metodoPago:          MetodoPago
   nota?:               string
-  pagadoPor?:          string
-  origen?:             'workflow' | 'otros_pagos'
-  registradoPor:       string
+  pagadoPor?:          string                      // quién realizó el pago (cliente/tercero)
+  origen?:             'workflow' | 'otros_pagos'  // de dónde se cargó el cobro
+  registradoPor:       string                      // quién lo cargó (usuario del sistema)
   registradoPorNombre: string
   registradoEn:        Timestamp
-  // ── Desglose ──────────────────────────────────────────────────────────────
-  montoSUATS?:          number   // precio cobrado al cliente
-  costoSUATS?:          number   // costo de producción para la gestoría
-  montoInformePersona?: number
-  costoInformePersona?: number
-  comisionReferido?:    number
-  montoAcreditado?:     number   // tarjeta: lo que realmente entra
-  cuotasTarjeta?:       number
 }
 
 // ─── COSTOS OPERATIVOS (fallback si la gestoría no configuró montos) ──────────
@@ -186,15 +178,6 @@ export interface MultaPaso7Data {
   // Suma de: honorarios gestoría + SUATS (si abonado) + informe persona (si realizado)
   pagoTotalRecibo:  number
 
-  // Comisión entregada una sola vez al cerrar el trámite
-  comisionReferido?: number
-
-  // Método y condiciones del cobro de cierre
-  metodoPago?:             MetodoPago
-  montoAcreditado?:        number
-  cuotasTarjeta?:          number
-  costoSUATS?:             number
-
   completadoPor:       string
   completadoPorNombre: string
   completadoEn:        Timestamp
@@ -224,6 +207,17 @@ export interface ReporteControl {
   autorId:     string
   autorNombre: string
   creadoEn:    Timestamp
+}
+
+// Alerta de documentación — control / asistente de multas avisa al secretario
+// comercial a cargo que falta o está mal un documento (estado Docs. Requerida).
+export interface AlertaDocumentacion {
+  motivo:             string
+  destinatarioId:     string
+  destinatarioNombre: string
+  autorId:            string
+  autorNombre:        string
+  creadoEn:           Timestamp
 }
 
 export interface MultaWorkflow {
@@ -283,6 +277,10 @@ export interface MultaWorkflow {
 
   // Reporte de control — saca la multa del tablero activo hacia "A Controlar"
   reporteControl?: ReporteControl
+
+  // Última alerta de documentación enviada al secretario + historial append-only
+  alertaDocs?:           AlertaDocumentacion
+  historialAlertasDocs?: AlertaDocumentacion[]
 
   auditoria?: {
     campo:              string
@@ -386,7 +384,6 @@ export const METODOS_PAGO_LABELS: Record<MetodoPago, string> = {
   efectivo:      'Efectivo',
   transferencia: 'Transferencia bancaria',
   mercadopago:   'Mercado Pago',
-  tarjeta:       'Tarjeta',
   cheque:        'Cheque',
   otro:          'Otro',
 }
@@ -499,4 +496,35 @@ export function estadoMultaEfectivo(
   w: Pick<MultaWorkflow, 'pasoActual' | 'estadoWorkflow' | 'paso3' | 'estadoMultaManual'>,
 ): EstadoMulta {
   return w.estadoMultaManual ?? derivarEstadoMulta(w)
+}
+
+
+// ─── PERTENENCIA DE UNA MULTA (vista por secretario comercial) ────────────────
+// Una multa "es" de un usuario si la cargó, se la asignaron o inició el workflow.
+// Se recibe un Pick del trámite para no acoplar este archivo a los tipos de Tramite.
+
+type TramiteRef = { asignadoA?: string | null; creadoPor?: string | null } | null | undefined
+
+export function esMultaDeUsuario(
+  w:   Pick<MultaWorkflow, 'iniciadoPor' | 'asignadoAdminId'>,
+  t:   TramiteRef,
+  uid: string,
+): boolean {
+  if (!uid) return false
+  return t?.asignadoA === uid
+      || t?.creadoPor === uid
+      || w.iniciadoPor === uid
+      || w.asignadoAdminId === uid
+}
+
+// Candidatos a "secretario a cargo", en orden de prioridad:
+// asignado del trámite → quien lo cargó → quien inició el workflow → quien hizo el paso 1.
+// El que llama filtra por rol (asesor_comercial) contra el equipo.
+export function candidatosResponsableMulta(
+  w: Pick<MultaWorkflow, 'iniciadoPor' | 'paso1'>,
+  t: TramiteRef,
+): string[] {
+  const uids = [t?.asignadoA, t?.creadoPor, w.iniciadoPor, w.paso1?.completadoPor]
+    .filter((u): u is string => !!u)
+  return Array.from(new Set(uids))
 }

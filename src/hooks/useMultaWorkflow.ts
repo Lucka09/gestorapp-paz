@@ -1,5 +1,5 @@
 // src/hooks/useMultaWorkflow.ts
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { onSnapshot }     from 'firebase/firestore'
 import { useAuthStore }   from '@/store/authStore'
 import { useGestoriaId }  from '@/context/GestoriaContext'
@@ -15,6 +15,7 @@ import {
   asignarAdminMulta,
   agregarPagoMulta,
   subscribeMultaWorkflows,
+  subscribeIdsTramitesMultaPropios,
   setEstadoMultaManual,
   agregarDocumentoAdicional,
   eliminarDocumentoAdicional,
@@ -27,6 +28,9 @@ import type {
   MultaPaso4Data, MultaPaso5Data, MultaPaso6Data, MultaPaso7Data,
   DocumentoAdicional,
 } from '@/types/multa_types'
+import { esMultaDeUsuario } from '@/types/multa_types'
+import { puedeHacer } from '@/utils/permisos'
+import type { Rol } from '@/types'
 import type { FotoWorkflow } from '@/torre_types'
 import toast from 'react-hot-toast'
 
@@ -91,6 +95,39 @@ export function useMultaWorkflows() {
   }, [gestoriaId])
 
   return { multas: rows, loading }
+}
+
+// ─── HOOK DE LISTA FILTRADA POR ROL ───────────────────────────────────────────
+// Igual que useMultaWorkflows, pero si el rol NO tiene `verTodasLasMultas`
+// (Secretario Comercial) devuelve solo las multas propias: cargadas por él,
+// asignadas a él o cuyo workflow inició. Lo usan Revisión de Multas y la Torre
+// de Control de Multas. Es un filtro de UI (panel limpio), no de seguridad.
+export function useMultaWorkflowsVisibles() {
+  const { multas, loading } = useMultaWorkflows()
+  const { user }   = useAuthStore()
+  const gestoriaId = useGestoriaId()
+  const uid        = user?.uid ?? ''
+  const soloPropias = !!user && !puedeHacer((user.rol ?? 'cliente') as Rol, 'verTodasLasMultas')
+
+  const [propiosIds, setPropiosIds] = useState<Set<string> | null>(null)
+
+  useEffect(() => {
+    if (!soloPropias || !gestoriaId || !uid) { setPropiosIds(null); return }
+    return subscribeIdsTramitesMultaPropios(gestoriaId, uid, setPropiosIds)
+  }, [soloPropias, gestoriaId, uid])
+
+  const visibles = useMemo(() => {
+    if (!soloPropias) return multas
+    return multas.filter(w =>
+      propiosIds?.has(w.id) || esMultaDeUsuario(w, null, uid),
+    )
+  }, [multas, soloPropias, propiosIds, uid])
+
+  return {
+    multas:  visibles,
+    loading: loading || (soloPropias && propiosIds === null),
+    soloPropias,
+  }
 }
 
 // ─── HOOK PRINCIPAL ───────────────────────────────────────────────────────────
@@ -391,8 +428,8 @@ export function useMultaWorkflow(tramiteId: string) {
         completadoPorNombre: `${user.nombre} ${user.apellido}`.trim(),
       })
       toast.success('Trámite cerrado y archivado ✓')
-    } catch (e) {
-      toast.error((e as Error).message)
+    } catch {
+      toast.error('Error al cerrar el trámite')
     } finally {
       setGuardando(false)
     }

@@ -9,9 +9,9 @@ import type { ReactNode } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   Radar, Search, ChevronRight, ShieldAlert, Archive, Bell,
-  LayoutDashboard, LayoutGrid, Users, Activity,
+  LayoutDashboard, LayoutGrid, Users, Activity, UserCheck,
 } from 'lucide-react'
-import { useMultaWorkflows } from '@/hooks/useMultaWorkflow'
+import { useMultaWorkflowsVisibles } from '@/hooks/useMultaWorkflow'
 import { useTramites } from '@/hooks/useTramites'
 import { useEquipo } from '@/hooks/useEquipo'
 import { usePageTitle } from '@/hooks/usePageTitle'
@@ -72,7 +72,9 @@ function nivelDe(reportada: boolean, est: EstadoMulta): Nivel {
 function motivoDe(f: Fila): string {
   if (f.reportada) return `Reportada a control: ${f.w.reporteControl?.motivo ?? '—'}`
   switch (f.est) {
-    case 'docs_requerida':     return 'Documentación requerida — trabada'
+    case 'docs_requerida':     return f.w.alertaDocs
+                                 ? `Docs. requerida: ${f.w.alertaDocs.motivo} (avisado a ${f.w.alertaDocs.destinatarioNombre})`
+                                 : 'Documentación requerida — trabada'
     case 'p_envio_renaper':    return 'Pendiente de envío a RENAPER'
     case 'esperando_renaper':  return 'Esperando respuesta de RENAPER'
     case 'pendiente_revision': return 'Esperando pre-revisión'
@@ -154,7 +156,7 @@ function FilaCompacta({ f, onClick, mostrarMotivo }: { f: Fila; onClick: () => v
 export default function TorreControlMultasPage() {
   usePageTitle('Torre de Control · Multas')
   const navigate = useNavigate()
-  const { multas, loading } = useMultaWorkflows()
+  const { multas, loading, soloPropias } = useMultaWorkflowsVisibles()
   const { tramites } = useTramites()
   const { equipo } = useEquipo()
   const { rol } = usePermisos()
@@ -271,7 +273,14 @@ export default function TorreControlMultasPage() {
           <h1 className="text-lg font-extrabold text-gray-900 leading-tight" style={{ fontFamily: 'var(--font-display)' }}>
             Torre de Control · Multas
           </h1>
-          <p className="text-xs text-gray-400">Estado unificado de todas las multas en una vista</p>
+          <p className="text-xs text-gray-400">
+            {soloPropias ? 'Estado de tus multas en una vista' : 'Estado unificado de todas las multas en una vista'}
+          </p>
+          {soloPropias && (
+            <p className="inline-flex items-center gap-1 mt-1 text-[11px] font-semibold text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full">
+              <UserCheck size={12} /> Solo tus gestiones (cargadas o asignadas)
+            </p>
+          )}
         </div>
       </div>
 
