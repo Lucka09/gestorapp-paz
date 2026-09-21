@@ -22,6 +22,7 @@ import type { MetodoPago, RegistroPago, MultaWorkflow } from '@/types/multa_type
 import CamposDeduccion, {
   deduccionesValidas, type ValoresDeduccion,
 } from '@/components/shared/CamposDeduccion'
+import SelectorEncargado from '@/components/shared/SelectorEncargado'
 
 const NARANJA = '#D4621A'
 const fmt = (n: number) =>
@@ -45,6 +46,8 @@ export default function ModalOtrosPagos({ open, onClose }: Props) {
   const [pagadoPor, setPagadoPor] = useState('')
   const [nota,      setNota]      = useState('')
   const [deduc,     setDeduc]     = useState<ValoresDeduccion>({})
+  const [esPropio,  setEsPropio]  = useState(true)
+  const [encargadoId, setEncargadoId] = useState('')
   const [guardando, setGuardando] = useState(false)
 
   // Búsqueda por patente, DNI o nombre (mismo criterio que la tabla de Revisión).
@@ -69,6 +72,7 @@ export default function ModalOtrosPagos({ open, onClose }: Props) {
 
   const reset = () => {
     setSel(null); setMonto(0); setMetodo('efectivo'); setPagadoPor(''); setNota(''); setQ(''); setDeduc({})
+    setEsPropio(true); setEncargadoId('')
   }
   const cerrar = () => { reset(); onClose() }
 
@@ -89,6 +93,7 @@ export default function ModalOtrosPagos({ open, onClose }: Props) {
         monto,
         metodoPago:          metodo,
         ...deduc,
+        encargadoId:         esPropio ? undefined : encargadoId || undefined,
         nota:                nota.trim() || undefined,
         pagadoPor:           pagadoPor.trim() || undefined,
         origen:              'otros_pagos',
@@ -213,6 +218,28 @@ export default function ModalOtrosPagos({ open, onClose }: Props) {
             requiereSUATS={sel.paso1?.requiereSUATS === true}
             compacto
           />
+
+          <div className="flex gap-2">
+            <button type="button" onClick={() => { setEsPropio(true); setEncargadoId('') }}
+              className={`px-3 py-1.5 rounded-lg text-xs border ${esPropio ? 'border-[#D4621A] bg-orange-50 text-[#D4621A]' : 'border-gray-200 text-gray-500'}`}>
+              Lead propio
+            </button>
+            <button type="button" onClick={() => setEsPropio(false)}
+              className={`px-3 py-1.5 rounded-lg text-xs border ${!esPropio ? 'border-[#D4621A] bg-orange-50 text-[#D4621A]' : 'border-gray-200 text-gray-500'}`}>
+              De un referido
+            </button>
+          </div>
+          {!esPropio && (
+            <SelectorEncargado
+              value={encargadoId}
+              onChange={(id, encargado) => {
+                setEncargadoId(id)
+                const nombre = encargado ? `${encargado.nombre} ${encargado.apellido}`.trim() : ''
+                setDeduc(prev => ({ ...prev, comisionDestino: nombre }))
+              }}
+              required
+            />
+          )}
 
           {/* Quién realizó el pago */}
           <div>

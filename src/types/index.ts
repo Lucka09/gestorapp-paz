@@ -191,6 +191,8 @@ export interface Cliente {
   actualizadoEn?:         Timestamp
   creadoEn:     Timestamp
   creadoPor:    string
+  encargadoId?:     string   // referencia al encargado
+  encargadoNombre?: string
 }
 
 export interface TitularHistorial {
@@ -262,6 +264,8 @@ export interface Tramite {
   creadoEn: Timestamp
   creadoPor: string
   actualizadoEn: Timestamp
+  encargadoId?:     string   // copiado del cliente al crear
+  encargadoNombre?: string
 }
 
 export interface Turno {

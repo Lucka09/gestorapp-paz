@@ -99,9 +99,8 @@ export function useMultaWorkflows() {
 
 // ─── HOOK DE LISTA FILTRADA POR ROL ───────────────────────────────────────────
 // Igual que useMultaWorkflows, pero si el rol NO tiene `verTodasLasMultas`
-// (Secretario Comercial) devuelve solo las multas propias: cargadas por él,
-// asignadas a él o cuyo workflow inició. Lo usan Revisión de Multas y la Torre
-// de Control de Multas. Es un filtro de UI (panel limpio), no de seguridad.
+// (Secretario Comercial) devuelve solo las multas propias: cargadas, asignadas
+// o cuyo workflow inició. Filtro de UI (panel limpio), no de seguridad.
 export function useMultaWorkflowsVisibles() {
   const { multas, loading } = useMultaWorkflows()
   const { user }   = useAuthStore()
@@ -118,9 +117,7 @@ export function useMultaWorkflowsVisibles() {
 
   const visibles = useMemo(() => {
     if (!soloPropias) return multas
-    return multas.filter(w =>
-      propiosIds?.has(w.id) || esMultaDeUsuario(w, null, uid),
-    )
+    return multas.filter(w => propiosIds?.has(w.id) || esMultaDeUsuario(w, null, uid))
   }, [multas, soloPropias, propiosIds, uid])
 
   return {
@@ -428,8 +425,8 @@ export function useMultaWorkflow(tramiteId: string) {
         completadoPorNombre: `${user.nombre} ${user.apellido}`.trim(),
       })
       toast.success('Trámite cerrado y archivado ✓')
-    } catch {
-      toast.error('Error al cerrar el trámite')
+    } catch (e) {
+      toast.error((e as Error).message)
     } finally {
       setGuardando(false)
     }

@@ -2,6 +2,7 @@
 import { useState } from 'react'
 import { z }        from 'zod'
 import { Input, Textarea, Button } from '@/components/ui'
+import SelectorEncargado from '@/components/shared/SelectorEncargado'
 import type { Cliente, OrigenCanal } from '@/types'
 import {
   ORIGEN_CANAL_LABELS, ORIGEN_COMERCIAL, ORIGEN_CANALES,
@@ -40,6 +41,8 @@ const clienteSchemaBase = z.object({
     message: 'Indicá de dónde vino este cliente',
   }),
   origenNombre:  z.string().max(120).optional(),
+  encargadoId:   z.string().optional(),
+  encargadoNombre: z.string().optional(),
 })
 
 // Si el canal implica un tercero, el nombre pasa a ser obligatorio.
@@ -87,6 +90,8 @@ const EMPTY: ClienteFormData = {
   // Sin valor: obliga a decidir explícitamente antes de guardar.
   origenCanal: undefined as unknown as OrigenCanal,
   origenNombre: undefined,
+  encargadoId: undefined,
+  encargadoNombre: undefined,
 }
 
 // ─── PROPS ────────────────────────────────────────────────────────────────────
@@ -124,8 +129,8 @@ function placeholderNombre(canal: OrigenCanal | undefined): string {
 export default function ClienteForm({
   initial, onSubmit, onCancel, submitLabel = 'Guardar',
 }: Props) {
-  const initialCanal  = (initial as any)?.origenCanal as OrigenCanal | undefined
-  const initialNombre = (initial as any)?.origenNombre ?? ''
+  const initialCanal  = initial?.origenCanal as OrigenCanal | undefined
+  const initialNombre = initial?.origenNombre ?? ''
 
   const [form, setForm] = useState<ClienteFormData>({
     ...EMPTY,
@@ -133,6 +138,8 @@ export default function ClienteForm({
     userId:       initial?.userId ?? null,
     origenCanal:  initialCanal as OrigenCanal,
     origenNombre: initialNombre,
+    encargadoId: initial?.encargadoId,
+    encargadoNombre: initial?.encargadoNombre,
     origen:       initial?.origen ?? buildOrigenLegacy(initialCanal, initialNombre),
   })
   const [errors, setErrors]   = useState<Errors>({})
@@ -196,6 +203,8 @@ export default function ClienteForm({
       ...prev,
       origenCanal:  nuevo as OrigenCanal,
       origenNombre: nombre,
+      encargadoId: nuevo ? undefined : prev.encargadoId,
+      encargadoNombre: nuevo ? undefined : prev.encargadoNombre,
       origen:       buildOrigenLegacy(nuevo, nombre),
     }))
     setErrors(prev => ({ ...prev, origenCanal: undefined, origenNombre: undefined }))
@@ -371,16 +380,27 @@ export default function ClienteForm({
             {/* Nombre del tercero — obligatorio */}
             {esReferido && (
               <div className="mt-4 animate-fadein">
-                <Input
-                  label={
-                    ORIGEN_COMERCIAL.includes(canalActivo!)
-                      ? `Nombre de la ${LABEL_CORTO[canalActivo!] ?? 'entidad'} *`
-                      : 'Nombre del referente *'
-                  }
-                  value={form.origenNombre ?? ''}
-                  placeholder={placeholderNombre(canalActivo)}
-                  onChange={e => setNombreReferente(e.target.value)}
-                  error={errors.origenNombre}
+                <SelectorEncargado
+                  value={form.encargadoId}
+                  onChange={(id, encargado) => setForm(prev => ({
+                    ...prev,
+                    encargadoId: id || undefined,
+                    encargadoNombre: encargado
+                      ? `${encargado.nombre} ${encargado.apellido}`.trim()
+                      : prev.encargadoNombre,
+                    origenNombre: encargado
+                      ? `${encargado.nombre} ${encargado.apellido}`.trim()
+                      : prev.origenNombre,
+                    origen: buildOrigenLegacy(prev.origenCanal as OrigenCanal, encargado
+                      ? `${encargado.nombre} ${encargado.apellido}`.trim()
+                      : prev.origenNombre ?? ''),
+                  }))}
+                  tipos={['encargado_multas', 'concesionaria', 'agencia', 'reventa', 'referido_persona']}
+                  label={ORIGEN_COMERCIAL.includes(canalActivo!)
+                    ? `Nombre de la ${LABEL_CORTO[canalActivo!] ?? 'entidad'}`
+                    : 'Nombre del referente'}
+                  required
+                  error={errors.encargadoId ?? errors.origenNombre}
                 />
                 {ORIGEN_COMERCIAL.includes(canalActivo!) && (
                   <p className="text-xs text-[#D4621A] mt-1.5 flex items-start gap-1.5">

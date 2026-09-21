@@ -3,13 +3,14 @@
 // v2 — limpieza semántica, tema claro coherente, sin estilos duplicados
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { useState, useRef, useCallback, useEffect } from 'react'
+import { useState, useRef, useCallback, useEffect, useMemo } from 'react'
 import toast from 'react-hot-toast'
 import { useMultaWorkflow }               from '@/hooks/useMultaWorkflow'
 import { useAuthStore }                   from '@/store/authStore'
 import { usePermisos }                    from '@/hooks/usePermisos'
 import { useGestoresEquipo, useGestoresMulta } from '@/hooks/useEquipo'
-import { editarFechaTramiteMulta }        from '@/lib/firestore/MultaWorwflow'
+import { useTramite }                  from '@/hooks/useTramites'
+import { editarFechaTramiteMulta, chequearPaso7  }        from '@/lib/firestore/MultaWorwflow'
 import { useConfiguracion }              from '@/hooks/useConfiguracion'
 import {
   PASOS_MULTA_CONFIG, ESTADO_MULTA_LABELS, ESTADO_MULTA_COLORS,
@@ -19,7 +20,9 @@ import {
   ESTADO_MULTA_OP_ORDER, ESTADOS_MULTA_MANUALES,
   MONTO_SUATS_DEFAULT, MONTO_INFORME_PERSONA_DEFAULT,
 } from '@/types/multa_types'
+import { origenTieneComision } from '@/types'
 import type { MetodoPago, RegistroPago, EstadoMulta } from '@/types/multa_types'
+import CamposDeduccion, { type ValoresDeduccion } from '@/components/shared/CamposDeduccion'
 import {
   AlertTriangle, CheckCircle2, Clock, RotateCcw,
   Upload, X, Eye, ChevronDown, ChevronUp,
@@ -31,7 +34,6 @@ import { getFunctions, httpsCallable } from 'firebase/functions'
 import { app } from '@/lib/firebase'
 import { Timestamp } from 'firebase/firestore'
 import { iniciarDescargaCuponesEnExtension } from '@/lib/puenteExtension'
-import { useTramite } from '@/hooks/useTramites'
 import ModalAlertaDocumentacion from '@/components/multas/ModalAlertaDocumentacion'
 
 // ─── HELPERS ─────────────────────────────────────────────────────────────────
@@ -242,6 +244,7 @@ interface Props { tramiteId: string; numeroLITExterno?: string }
 export default function GestorMultaWorkflow({ tramiteId, numeroLITExterno }: Props) {
   const { user }   = useAuthStore()
   const { puede }  = usePermisos()
+  const { tramite } = useTramite(tramiteId)
 
   const esAdmin           = puede('editarConfiguracion') || ['admin','propietario','admin_gral'].includes(user?.rol ?? '')
   const esAsesorComercial = user?.rol === 'asesor_comercial'
@@ -262,6 +265,7 @@ export default function GestorMultaWorkflow({ tramiteId, numeroLITExterno }: Pro
 
   const { config } = useConfiguracion()
   const montoSuatsCfg   = config.costosMulta?.suats ?? MONTO_SUATS_DEFAULT
+  const costoSuatsCfg   = config.costosMulta?.costoSuats ?? 7600
   const montoInformeCfg = config.costosMulta?.informePersona ?? MONTO_INFORME_PERSONA_DEFAULT
 
   const {
@@ -273,8 +277,6 @@ export default function GestorMultaWorkflow({ tramiteId, numeroLITExterno }: Pro
     agregarDocAdicional, eliminarDocAdicional,
   } = useMultaWorkflow(tramiteId)
 
-  // Trámite (asignadoA / creadoPor) para detectar el secretario a cargo
-  const { tramite } = useTramite(tramiteId)
   const [alertaDocsOpen, setAlertaDocsOpen] = useState(false)
 
   // Cambio de estado manual: si control/asistente lo pasa a "Docs. Requerida",
@@ -301,7 +303,7 @@ export default function GestorMultaWorkflow({ tramiteId, numeroLITExterno }: Pro
 
   const [p1, setP1] = useState({
     patente: '', nombreCompleto: '', dni: '',
-    fechaTramite: '', fechaInfraccion: '', requiereSUATS: false, observacion: '',
+    fechaTramite: '', fechaInfraccion: '', requiereSUATS: true, observacion: '',
   })
 
   const [archivos, setArchivos]   = useState<Record<string, File | undefined>>({})
@@ -317,6 +319,7 @@ export default function GestorMultaWorkflow({ tramiteId, numeroLITExterno }: Pro
     historialPagos: [] as RegistroPago[], montoTotal: 0,
   })
   const [nuevoPago, setNuevoPago] = useState({ monto: 0, metodoPago: 'efectivo' as MetodoPago, nota: '' })
+  const [deduc, setDeduc] = useState<ValoresDeduccion>({})
 
   const [p3, setP3] = useState({
     resultado: 'ok' as 'ok' | 'rebotado' | 'mesa_ayuda',
@@ -343,6 +346,11 @@ export default function GestorMultaWorkflow({ tramiteId, numeroLITExterno }: Pro
     suatsAbonado: false,       montoSUATS: 0,
     informePersonaRealizado: false, montoInformePersona: 0,
     pagoTotalRecibo: 0,
+    comisionReferido: 0,
+    metodoPago: 'efectivo' as MetodoPago,
+    montoAcreditado: undefined as number | undefined,
+    cuotasTarjeta: undefined as number | undefined,
+    costoSUATS: 0,
   })
 
   // Pre-carga automática del Paso 7 — el CEO/admin sigue siendo el último filtro humano.
@@ -364,7 +372,10 @@ export default function GestorMultaWorkflow({ tramiteId, numeroLITExterno }: Pro
 
   const [pasosColapsados, setPasosColapsados] = useState<Record<number, boolean>>({})
   const toggle = (n: number) => setPasosColapsados(p => ({ ...p, [n]: !p[n] }))
-
+  const chequeo = useMemo(
+    () => workflow ? chequearPaso7(workflow, p7) : null,
+    [workflow, p7],
+  )
   // Edición de fecha del trámite
   const [editandoFecha,      setEditandoFecha]      = useState(false)
   const [nuevaFecha,         setNuevaFecha]          = useState('')
@@ -405,6 +416,7 @@ const iniciarJob = httpsCallable(functions, 'iniciarDescargaCupones')
     if (!user || nuevoPago.monto <= 0) return
     const pago: RegistroPago = {
       ...nuevoPago,
+      ...deduc,
       registradoPor:       user.uid,
       registradoPorNombre: `${user.nombre} ${user.apellido}`.trim(),
       registradoEn:        Timestamp.now(),
@@ -412,6 +424,7 @@ const iniciarJob = httpsCallable(functions, 'iniciarDescargaCupones')
     const hist = [...p2.historialPagos, pago]
     setP2(prev => ({ ...prev, historialPagos: hist, montoTotal: hist.reduce((s, p) => s + p.monto, 0) }))
     setNuevoPago({ monto: 0, metodoPago: 'efectivo', nota: '' })
+    setDeduc({})
   }
 
   const handleGuardarFecha = async () => {
@@ -1027,6 +1040,14 @@ const iniciarJob = httpsCallable(functions, 'iniciarDescargaCupones')
                   </select>
                   <button onClick={agregarPagoLocal} className="py-2 bg-emerald-600 text-white text-xs font-bold rounded-xl hover:bg-emerald-700 transition-colors">+ Agregar</button>
                 </div>
+                <CamposDeduccion
+                  monto={nuevoPago.monto}
+                  metodo={nuevoPago.metodoPago}
+                  valores={deduc}
+                  onChange={setDeduc}
+                  requiereSUATS={workflow.paso1?.requiereSUATS === true}
+                  compacto
+                />
                 <div className="flex gap-3 mt-3">
                   {[{ key: 'presupuestoEnviado', label: 'Presupuesto enviado' }, { key: 'pagoConfirmado', label: 'Pago confirmado' }].map(opt => (
                     <label key={opt.key} className="flex-1 flex items-center gap-2 p-3 border border-gray-200 rounded-xl cursor-pointer text-sm">
@@ -1346,6 +1367,27 @@ const iniciarJob = httpsCallable(functions, 'iniciarDescargaCupones')
                 </div>
               </div>
 
+              <div>
+                <label className="text-xs font-semibold text-gray-500 mb-1 block">Método de pago del cierre</label>
+                <div className="grid grid-cols-3 gap-2">
+                  {(Object.entries(METODOS_PAGO_LABELS) as [MetodoPago, string][]).map(([k, v]) => (
+                    <button key={k} type="button" onClick={() => setP7(prev => ({ ...prev, metodoPago: k }))}
+                      className={`py-2 rounded-xl text-xs font-semibold border transition-all ${p7.metodoPago === k ? 'bg-[#D4621A] border-[#D4621A] text-white' : 'border-gray-200 text-gray-600 hover:bg-gray-50'}`}>
+                      {v}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <CamposDeduccion
+                monto={p7.pagoTotalRecibo}
+                metodo={p7.metodoPago}
+                valores={{ montoAcreditado: p7.montoAcreditado, cuotasTarjeta: p7.cuotasTarjeta }}
+                onChange={v => setP7(prev => ({ ...prev, montoAcreditado: v.montoAcreditado, cuotasTarjeta: v.cuotasTarjeta }))}
+                compacto
+                mostrarConceptos={false}
+              />
+
               {/* Checkboxes */}
               <div className="space-y-2">
                 {[
@@ -1428,9 +1470,39 @@ const iniciarJob = httpsCallable(functions, 'iniciarDescargaCupones')
                 </div>
               </div>
 
+              {origenTieneComision(tramite?.origenCanal ?? undefined) && (
+                <div>
+                  <label className="text-xs font-semibold text-gray-500 mb-1 block">
+                    Comisión entregada a {tramite?.origenNombre ?? 'el referido'}
+                  </label>
+                  <input
+                    type="number"
+                    min={0}
+                    step={100}
+                    value={p7.comisionReferido || ''}
+                    onChange={e => setP7(prev => ({ ...prev, comisionReferido: Number(e.target.value) }))}
+                    placeholder="0"
+                    className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm font-bold text-gray-800 bg-white outline-none focus:border-[#D4621A]"
+                  />
+                  <p className="text-[11px] text-gray-400 mt-1">
+                    No se cuenta como ingreso de la gestoría ni para premios.
+                  </p>
+                </div>
+              )}
+
               <textarea value={p7.observacionFinal} onChange={e => setP7(prev => ({ ...prev, observacionFinal: e.target.value }))}
                 placeholder="Observaciones finales del cierre..." rows={2}
                 className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm outline-none resize-none" />
+
+              {chequeo && !chequeo.ok && (
+                <div className="rounded-lg bg-red-50 border border-red-100 p-3 space-y-1">
+                  {chequeo.errores.map((mensaje, i) => (
+                    <p key={i} className="text-xs text-red-700 flex gap-1.5">
+                      <span>•</span>{mensaje}
+                    </p>
+                  ))}
+                </div>
+              )}
 
               {/* Validaciones inline */}
               {!p7.pagoTotalRecibo && <p className="text-xs text-red-500">⚠ Ingresá el pago total del recibo para poder finalizar.</p>}
@@ -1468,10 +1540,7 @@ const iniciarJob = httpsCallable(functions, 'iniciarDescargaCupones')
 
               <button
                 disabled={
-                  !puedeCerrarPaso7 || !p7.clienteAvisado || !p7.pagoTotalRecibo ||
-                  (!!workflow.paso1?.requiereSUATS && !p7.suatsAbonado) ||
-                  (p7.suatsAbonado && !p7.montoSUATS) ||
-                  (p7.informePersonaRealizado && !p7.montoInformePersona) || guardando
+                  !puedeCerrarPaso7 || !p7.clienteAvisado || !chequeo?.ok || guardando
                 }
                 onClick={() => confirmarPaso7(p7)}
                 className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-sm disabled:opacity-50 transition-colors"

@@ -28,6 +28,8 @@ import BandejaRecibos from './BandejaRecibos'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import { useEquipo }   from '@/hooks/useEquipo'
 import { generarComprobantePago, descargarRecibo } from '@/utils/comprobantePago'
+import SelectorEncargado from '@/components/shared/SelectorEncargado'
+import CamposDeduccion, { type ValoresDeduccion } from '@/components/shared/CamposDeduccion'
 
 // ─── TIPOS ────────────────────────────────────────────────────────────────────
 
@@ -120,6 +122,9 @@ function ModalPago({
   const [fecha,     setFecha]     = useState(hoy)
   const [notas,     setNotas]     = useState('')
   const [saving,    setSaving]    = useState(false)
+  const [deduc,     setDeduc]     = useState<ValoresDeduccion>({})
+  const [esPropio,  setEsPropio]  = useState(!tramite.encargadoId)
+  const [encargadoId, setEncargadoId] = useState(tramite.encargadoId ?? '')
 
   const handleGuardar = async () => {
     if (tramite.tipo === 'descargo_multa') {
@@ -138,7 +143,11 @@ function ModalPago({
       const montoNum = parseFloat(monto)
       const resultado = await registrarPago(
         tramite.id,
-        { monto: montoNum, formaPago: formaPago as FormaPago, fecha, notas },
+        {
+          monto: montoNum, formaPago: formaPago as FormaPago, fecha, notas,
+          ...deduc,
+          encargadoId: esPropio ? undefined : encargadoId || undefined,
+        },
                 {
           uid:        user.uid,
           nombre:     `${user.nombre ?? ''} ${user.apellido ?? ''}`.trim() || user.email || 'Usuario',
@@ -248,6 +257,33 @@ function ModalPago({
 
         <Input label="Fecha del cobro *" type="date" value={fecha} max={hoy}
                onChange={e => setFecha(e.target.value)} />
+
+        <CamposDeduccion monto={parseFloat(monto) || 0} metodo={formaPago}
+          valores={deduc} onChange={setDeduc} />
+
+        <div className="flex gap-2">
+          <button type="button" onClick={() => { setEsPropio(true); setEncargadoId('') }}
+            className={`px-3 py-1.5 rounded-lg text-xs border ${esPropio ? 'border-gp-orange bg-gp-orange-pale text-gp-orange' : 'border-gray-200 text-gray-500'}`}>
+            Lead propio
+          </button>
+          <button type="button" onClick={() => setEsPropio(false)}
+            className={`px-3 py-1.5 rounded-lg text-xs border ${!esPropio ? 'border-gp-orange bg-gp-orange-pale text-gp-orange' : 'border-gray-200 text-gray-500'}`}>
+            De un referido
+          </button>
+        </div>
+        {!esPropio && (
+          <SelectorEncargado
+            value={encargadoId}
+            onChange={(id, encargado) => {
+              setEncargadoId(id)
+              setDeduc(prev => ({
+                ...prev,
+                comisionDestino: encargado ? `${encargado.nombre} ${encargado.apellido}`.trim() : '',
+              }))
+            }}
+            required
+          />
+        )}
 
         {esControl && (
           <div>

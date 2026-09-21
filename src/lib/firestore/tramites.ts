@@ -158,6 +158,8 @@ export type TramiteInput = {
   observacionesInternas: string
   honorarios:            number
   asignadoA:             string | null
+  encargadoId?:     string   // copiado del cliente al crear
+  encargadoNombre?: string
 }
 
 export async function crearTramite(
@@ -369,6 +371,7 @@ export interface RegistroPago {
   comisionReferido?:     number
   montoAcreditado?:      number
   cuotasTarjeta?:        number
+  encargadoId?:          string
 }
  
 export interface ResultadoPago {
@@ -446,6 +449,8 @@ export async function registrarPago(
     comisionReferido:    pago.comisionReferido,
     montoAcreditado:     pago.montoAcreditado,
     cuotasTarjeta:       pago.cuotasTarjeta,
+    encargadoId:         pago.encargadoId ?? tramite.encargadoId,
+    encargadoNombre:     tramite.encargadoNombre,
     })
  
   const nuevoPago: PagoTramite = {

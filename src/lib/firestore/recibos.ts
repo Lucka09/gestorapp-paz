@@ -45,6 +45,8 @@ export interface ReciboInput {
   atribuidoANombre?: string
   cargadoPorTercero?: boolean
   motivoTercero?:     string
+  encargadoId?:     string
+  encargadoNombre?: string
 
   // — MONTOS —
   monto: number              // lo que paga el cliente. Va en el comprobante.
