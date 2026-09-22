@@ -7,7 +7,7 @@
 
 import { useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Search, AlertTriangle, FileWarning, X, ChevronRight, Download, CreditCard, ShieldAlert, RotateCcw, Plus, BellRing, UserCheck } from 'lucide-react'
+import { Search, AlertTriangle, FileWarning, X, ChevronRight, Download, CreditCard, ShieldAlert, RotateCcw, Plus, BellRing, UserCheck, ArrowUp, ArrowDown } from 'lucide-react'
 import { useMultaWorkflowsVisibles } from '@/hooks/useMultaWorkflow'
 import ModalOtrosPagos from '@/components/multas/ModalOtrosPagos'
 import ModalReporteControl from '@/components/multas/ModalReporteControl'
@@ -98,7 +98,15 @@ function TileEntrega({ fechaStr, dias, sinAlerta }: { fechaStr?: string; dias: n
 // ─── PÁGINA ───────────────────────────────────────────────────────────────────
 
 type Tab = 'activas' | 'vencidas' | 'archivadas' | 'a_controlar'
+type CampoOrden = 'entrega' | 'creado' | 'honorarios'
+type DirOrden   = 'asc' | 'desc'
 
+// Dirección más útil al elegir cada campo
+const DIR_DEFAULT: Record<CampoOrden, DirOrden> = {
+  entrega:    'asc',   // las más próximas / vencidas primero
+  creado:     'desc',  // las más nuevas primero
+  honorarios: 'desc',  // las de mayor monto primero
+}
 export default function RevisionMultasPage() {
   usePageTitle('Revisión de Multas')
   const navigate = useNavigate()
@@ -163,7 +171,13 @@ const handleExportar = async () => {
   }
   const [tab, setTab]       = useState<Tab>('activas')
   const [refine, setRefine] = useState<EstadoMulta | 'todas'>('todas')
+const [ordenCampo, setOrdenCampo] = useState<CampoOrden>('entrega')
+const [ordenDir, setOrdenDir]     = useState<DirOrden>('asc')
 
+const cambiarCampoOrden = (c: CampoOrden) => {
+  setOrdenCampo(c)
+  setOrdenDir(DIR_DEFAULT[c])
+}
   const esArchivada = (e: EstadoMulta) => e === 'entregado' || e === 'cancelado'
 
   // Trámites de multa indexados por id → aportan N°, honorarios y nota interna
@@ -174,17 +188,22 @@ const handleExportar = async () => {
   }, [tramites])
 
   // Clasificación de cada multa
-  const enriquecidas = useMemo(() => multas.map(w => {
-    const est       = estadoMultaEfectivo(w)
-    const t         = tramiteMap.get(w.id)
-    const fecha     = fechaEntrega(w)
-    const dias      = diasHasta(fecha)
-    const sinAlerta = ESTADOS_MULTA_SIN_ALERTA_FECHA.includes(est)
-    const vencida   = !esArchivada(est) && !sinAlerta && dias !== null && dias < -DIAS_VENCIDA
-    const reportada = !!w.reporteControl
-    const grupo: Tab = esArchivada(est) ? 'archivadas' : reportada ? 'a_controlar' : vencida ? 'vencidas' : 'activas'
-    return { w, t, est, fecha, dias, sinAlerta, grupo }
-  }), [multas, tramiteMap])
+const enriquecidas = useMemo(() => multas.map(w => {
+  const est       = estadoMultaEfectivo(w)
+  const t         = tramiteMap.get(w.id)
+  const fecha     = fechaEntrega(w)
+  const dias      = diasHasta(fecha)
+  const sinAlerta = ESTADOS_MULTA_SIN_ALERTA_FECHA.includes(est)
+  const vencida   = !esArchivada(est) && !sinAlerta && dias !== null && dias < -DIAS_VENCIDA
+  const reportada = !!w.reporteControl
+  const grupo: Tab = esArchivada(est) ? 'archivadas' : reportada ? 'a_controlar' : vencida ? 'vencidas' : 'activas'
+
+  const creadoMs   = (t?.creadoEn ?? w.creadoEn)?.toDate?.()?.getTime() ?? null
+  const hon        = t?.honorarios ?? w.paso2?.montoTotal
+  const honorarios = hon && hon > 0 ? hon : null
+
+  return { w, t, est, fecha, dias, sinAlerta, grupo, creadoMs, honorarios }
+}), [multas, tramiteMap])
 
   const counts = useMemo(() => {
     const c = { activas: 0, vencidas: 0, archivadas: 0, a_controlar: 0 }
@@ -193,23 +212,34 @@ const handleExportar = async () => {
   }, [enriquecidas])
 
   const rows = useMemo(() => {
-    const q = search.trim().toLowerCase()
-    return enriquecidas
-      .filter(r => r.grupo === tab)
-      .filter(r => refine === 'todas' ? true : r.est === refine)
-      .filter(r => {
-        if (!q) return true
-        const p = r.w.paso1
-        return [p?.patente, p?.nombreCompleto, p?.dni, r.t?.numero]
-          .some(v => v?.toLowerCase().includes(q))
-      })
-      .sort((a, b) => {
-        if (!a.fecha && !b.fecha) return 0
-        if (!a.fecha) return 1
-        if (!b.fecha) return -1
-        return a.fecha.localeCompare(b.fecha)
-      })
-  }, [enriquecidas, search, tab, refine])
+  const q = search.trim().toLowerCase()
+
+  const valor = (r: typeof enriquecidas[number]): string | number | null => {
+    switch (ordenCampo) {
+      case 'entrega':    return r.fecha ?? null
+      case 'creado':     return r.creadoMs
+      case 'honorarios': return r.honorarios
+    }
+  }
+
+  return enriquecidas
+    .filter(r => r.grupo === tab)
+    .filter(r => refine === 'todas' ? true : r.est === refine)
+    .filter(r => {
+      if (!q) return true
+      const p = r.w.paso1
+      return [p?.patente, p?.nombreCompleto, p?.dni, r.t?.numero]
+        .some(v => v?.toLowerCase().includes(q))
+    })
+    .sort((a, b) => {
+      const va = valor(a), vb = valor(b)
+      if (va === null && vb === null) return 0
+      if (va === null) return 1          // sin dato → siempre al final
+      if (vb === null) return -1
+      const cmp = va < vb ? -1 : va > vb ? 1 : 0
+      return ordenDir === 'asc' ? cmp : -cmp
+    })
+}, [enriquecidas, search, tab, refine, ordenCampo, ordenDir])
 
   const TABS: [Tab, string, number][] = [
     ['activas',    'En gestión',    counts.activas],
@@ -344,6 +374,21 @@ const handleExportar = async () => {
             .filter(e => tab === 'archivadas' ? esArchivada(e) : !esArchivada(e))
             .map(e => <option key={e} value={e}>{ESTADO_MULTA_OP_LABELS[e]}</option>)}
         </select>
+        <div className="flex gap-2">
+  <select value={ordenCampo} onChange={e => cambiarCampoOrden(e.target.value as CampoOrden)}
+    className="flex-1 sm:flex-none py-2.5 px-3 border border-gray-200 rounded-xl text-sm outline-none focus:border-[var(--gp-orange)] bg-white text-gray-700">
+    <option value="entrega">Ordenar: Fecha de entrega</option>
+    <option value="creado">Ordenar: Fecha de creado</option>
+    <option value="honorarios">Ordenar: Honorarios</option>
+  </select>
+  <button type="button"
+    onClick={() => setOrdenDir(d => d === 'asc' ? 'desc' : 'asc')}
+    title={ordenDir === 'asc' ? 'Ascendente — click para descendente' : 'Descendente — click para ascendente'}
+    className="inline-flex items-center gap-1.5 px-3 py-2.5 border border-gray-200 rounded-xl text-sm font-semibold text-gray-700 bg-white hover:border-[var(--gp-orange)] hover:text-[var(--gp-orange)] whitespace-nowrap">
+    {ordenDir === 'asc' ? <ArrowUp size={15} /> : <ArrowDown size={15} />}
+    {ordenDir === 'asc' ? 'Asc' : 'Desc'}
+  </button>
+</div>
       </div>
 
       {/* Tabla */}
