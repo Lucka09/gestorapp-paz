@@ -23,6 +23,7 @@ import {
   type CierreMensual, type SnapshotPremiosAsesor,
 } from '@/lib/firestore/cierresMensuales'
 import { usePremios } from '@/hooks/usePremios'
+import { getDesglose } from '@/lib/firestore/finanzas'
 import toast from 'react-hot-toast'
 
 // ─── HELPERS ──────────────────────────────────────────────────────────────────
@@ -137,9 +138,8 @@ export function useCierreMensual() {
 
       const totalTramites   = tramitesPeriodo.length
       const totalHonorarios = tramitesPeriodo.reduce((s, t: any) => s + (t.honorarios ?? 0), 0)
-      const totalCobrado    = tramitesPeriodo
-        .filter((t: any) => t.pagado && (t.fechaPago?.toDate?.() ?? null) >= inicio)
-        .reduce((s, t: any) => s + (t.honorarios ?? 0), 0)
+      // Cobrado del mes = recibos con FECHA DE COBRO en el período (caja).
+      const totalCobrado = (await getDesglose(gestoriaId, inicio, fin)).cobradoNeto
 
       // 2. Construir snapshot de premios del asesor
       const snapshot: SnapshotPremiosAsesor[] = []

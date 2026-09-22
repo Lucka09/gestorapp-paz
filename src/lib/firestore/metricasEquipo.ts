@@ -14,6 +14,7 @@
 
 import { collection, getDocs, query, where } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
+import { fechaDeRecibo, netoDeRecibo as netoDeReciboFinanzas } from './finanzas'
 
 // ─── TIPOS ────────────────────────────────────────────────────────────────────
 
@@ -96,16 +97,8 @@ const num = (v: unknown): number => {
  * todo ingreso, que es como se contaba hasta ahora.
  */
 function netoDeRecibo(r: any): number {
-  if (typeof r.netoGestoria === 'number' && Number.isFinite(r.netoGestoria)) {
-    return r.netoGestoria
-  }
-  const monto = num(r.monto)
-  const deducciones =
-    num(r.montoSUATS) +
-    num(r.montoInformePersona) +
-    num(r.comisionReferido) +
-    num(r.costoFinanciero)
-  return Math.max(0, monto - deducciones)
+  // Misma fórmula que Reportes y Panel (finanzas.ts): una sola fuente de verdad.
+  return netoDeReciboFinanzas(r)
 }
 
 /** Quién se lleva el crédito del ingreso. */
@@ -131,7 +124,7 @@ export async function getMetricasPorSecretario(
   const recibosSnap = await q('recibos')
   recibosSnap.forEach(d => {
     const r = d.data() as any
-    if (!enRango(r.creadoEn, desde, hasta)) return
+    if (!enRango(fechaDeRecibo(r), desde, hasta)) return
     const uid = uidAtribuido(r)
     if (!uid) return
 
@@ -245,7 +238,7 @@ export async function getResumenSecretarios(
   const recibos = await q('recibos')
   recibos.forEach(d => {
     const r = d.data() as any
-    const fecha = r.creadoEn?.toDate?.() as Date | undefined
+    const fecha = fechaDeRecibo(r)?.toDate?.() as Date | undefined
     if (!fecha) return
     const uid = uidAtribuido(r)
     if (!uid) return
@@ -343,7 +336,7 @@ export async function getTotalesGestoria(
   const t = { ...vacio }
   snap.forEach(d => {
     const r = d.data() as any
-    if (!enRango(r.creadoEn, desde, hasta)) return
+    if (!enRango(fechaDeRecibo(r), desde, hasta)) return
     t.recibos++
     t.cobradoBruto    += num(r.monto)
     t.deducSUATS      += num(r.montoSUATS)

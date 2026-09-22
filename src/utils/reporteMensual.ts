@@ -4,6 +4,7 @@
 import type { Tramite, Cliente } from '@/types'
 import { TIPO_TRAMITE_LABELS, ESTADO_TRAMITE_LABELS } from '@/types'
 import type { IngresoMes, TipoCount, TopCliente } from '@/lib/firestore/dashboard'
+import type { DesgloseFinanciero } from '@/lib/firestore/finanzas'
 
 // ─── TIPOS ────────────────────────────────────────────────────────────────────
 
@@ -15,6 +16,8 @@ export interface DatosReporteMensual {
   ingresosMes:    IngresoMes[]    // últimos 6 meses para el gráfico
   tiposTramite:   TipoCount[]
   topClientes:    TopCliente[]
+  finanzasMes?:         DesgloseFinanciero   // recibos del mes (fecha de cobro)
+  finanzasMesAnterior?: DesgloseFinanciero
   totalSUATSMes?: number          // monto total abonado en SUATS durante el mes (M1)
   // Datos de la gestoría (desde configuracion.ts)
   gestoriaNombre:     string
@@ -188,7 +191,9 @@ export async function generarReporteMensual(
     return t.pagado && d && d >= inicioMes && d <= finMes
   })
 
-  const ingresosTotalMes = cobradosMes.reduce((a, t) => a + (t.honorarios ?? 0), 0)
+  const ingresosTotalMes = datos.finanzasMes
+    ? datos.finanzasMes.cobradoNeto
+    : cobradosMes.reduce((a, t) => a + (t.honorarios ?? 0), 0)
   const pendientesMes    = tramitesMes.filter(t => !['entregado','cancelado'].includes(t.estado))
   const entregadosMes    = tramitesMes.filter(t => t.estado === 'entregado')
 
@@ -203,7 +208,9 @@ export async function generarReporteMensual(
     const d = t.fechaPago?.toDate?.()
     return t.pagado && d && d >= inicioAnt && d <= finAnt
   })
-  const ingresosAnt = cobradosAnt.reduce((a, t) => a + (t.honorarios ?? 0), 0)
+  const ingresosAnt = datos.finanzasMesAnterior
+    ? datos.finanzasMesAnterior.cobradoNeto
+    : cobradosAnt.reduce((a, t) => a + (t.honorarios ?? 0), 0)
   const varIngresos = ingresosAnt > 0
     ? `${ingresosTotalMes >= ingresosAnt ? '+' : ''}${Math.round(((ingresosTotalMes - ingresosAnt) / ingresosAnt) * 100)}% vs mes ant.`
     : 'sin dato anterior'
@@ -360,7 +367,9 @@ export async function generarReporteMensual(
   y = seccion('RESUMEN FINANCIERO DEL MES', y)
 
   const totalHonorarios = tramitesMes.reduce((a, t) => a + (t.honorarios ?? 0), 0)
-  const totalCobrado    = cobradosMes.reduce((a, t) => a + (t.honorarios ?? 0), 0)
+  const totalCobrado    = datos.finanzasMes
+    ? datos.finanzasMes.cobradoNeto
+    : cobradosMes.reduce((a, t) => a + (t.honorarios ?? 0), 0)
   const totalPendiente  = tramitesMes.filter(t => !t.pagado && t.honorarios > 0)
                                      .reduce((a, t) => a + (t.honorarios ?? 0), 0)
 
@@ -369,6 +378,7 @@ export async function generarReporteMensual(
   ;[
     ['Total honorarios facturados', fp(totalHonorarios), NEGRO],
     ['Total cobrado en el mes',     fp(totalCobrado),    VERDE],
+    ...(datos.finanzasMes ? [['Honorarios gestoría (neto)', fp(datos.finanzasMes.netoGestoria), NARANJA]] : []),
     ['Pendiente de cobro',          fp(totalPendiente),  ROJO],
     ['% cobrado sobre facturado',   pct(totalCobrado, totalHonorarios), NARANJA],
   ].forEach(([label, valor, color]) => {

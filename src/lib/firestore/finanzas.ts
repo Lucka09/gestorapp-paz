@@ -221,6 +221,14 @@ const enRango = (campo: any, desde: Date, hasta: Date): boolean => {
   return typeof ms === 'number' && ms >= desde.getTime() && ms <= hasta.getTime()
 }
 
+/**
+ * Fecha contable de un recibo: cuándo ENTRÓ la plata. Los recibos anteriores a
+ * la fase 1 no tienen fechaCobro → se usa creadoEn (antes se contaba así).
+ */
+export function fechaDeRecibo(r: any): any {
+  return r?.fechaCobro ?? r?.creadoEn
+}
+
 export async function cargarRecibos(gestoriaId: string, limite = 5000): Promise<any[]> {
   if (!gestoriaId) return []
   const snap = await getDocs(query(
@@ -253,7 +261,7 @@ export async function getDesglose(
   const acc = desgloseVacio()
   const clientes = new Set<string>()
   for (const r of recibos) {
-    if (!enRango(r.creadoEn, desde, hasta)) continue
+    if (!enRango(fechaDeRecibo(r), desde, hasta)) continue
     acumular(acc, r, clientes)
   }
   return cerrar(acc, clientes)
@@ -270,7 +278,7 @@ export async function getDesglosePorSecretario(
   const clientesPorUid: Record<string, Set<string>> = {}
 
   for (const r of recibos) {
-    if (!enRango(r.creadoEn, desde, hasta)) continue
+    if (!enRango(fechaDeRecibo(r), desde, hasta)) continue
     const uid = uidAtribuido(r)
     if (!uid) continue
     porUid[uid]         ??= desgloseVacio()

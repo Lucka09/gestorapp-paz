@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { usePaginacion }     from '@/hooks/usePaginacion'
 import ControlPaginacion     from '@/components/shared/ControlPaginacion'
@@ -33,6 +33,7 @@ import SelectorEncargado, { nombreVisible } from '@/components/shared/SelectorEn
 import CamposDeduccion, { type ValoresDeduccion } from '@/components/shared/CamposDeduccion'
 import AdjuntarComprobante from '@/components/shared/AdjuntarComprobante'
 import { adjuntarARecibo } from '@/lib/firestore/comprobantes'
+import { cargarRecibos, getDesglose } from '@/lib/firestore/finanzas'
 
 // ─── TIPOS ────────────────────────────────────────────────────────────────────
 
@@ -494,6 +495,27 @@ export default function CobranzasPage() {
   const [modalPago,    setModalPago]    = useState<Tramite | null>(null)
   const [confirmDesm,  setConfirmDesm]  = useState<string | null>(null)
 
+  // "Cobrado total" = recibos con FECHA DE COBRO en el período (todas las
+  // áreas, multas incluidas) — el mismo número que Reportes y el Panel.
+  // Se recarga al cerrar el modal de cobro para reflejar el pago recién hecho.
+  const gestoriaIdCob = useGestoriaId()
+  const [cobradoRecibos, setCobradoRecibos] = useState<{ total: number; recibos: number } | null>(null)
+  useEffect(() => {
+    if (!gestoriaIdCob) return
+    let vivo = true
+    ;(async () => {
+      try {
+        const recibos = await cargarRecibos(gestoriaIdCob)
+        const d = await getDesglose(gestoriaIdCob, periodoInicio ?? new Date(2000, 0, 1), new Date(), recibos)
+        if (vivo) setCobradoRecibos({ total: d.cobradoNeto, recibos: d.recibos })
+      } catch (e) {
+        console.error('[Cobranzas] recibos:', e)
+        if (vivo) setCobradoRecibos(null)
+      }
+    })()
+    return () => { vivo = false }
+  }, [gestoriaIdCob, periodoInicio, modalPago])
+
   const clienteMap = useMemo(() =>
     Object.fromEntries(clientes.map(c => [c.id, c])),
   [clientes])
@@ -572,17 +594,33 @@ export default function CobranzasPage() {
       return fp && fp >= periodoInicio && fp <= periodoFin
     })
     const vencidos   = pendientes.filter(t => t.diasDesdeEntrega > 30)
-    const totalPend  = pendientes.reduce((a, t) => a + t.honorarios, 0)
+    // Saldo real: honorarios menos lo ya cobrado en parciales.
+    const totalPend  = pendientes.reduce(
+      (a, t) => a + Math.max(0, t.honorarios - Number((t as any).montoCobrado ?? 0)), 0)
     const totalCob   = cobradosPeriodo.reduce((a, t) => a + t.honorarios, 0)
     return {
       pendientes: pendientes.length,
       cobrados:   cobradosPeriodo.length,
       vencidos:   vencidos.length,
       totalPend, totalCob,
+      totalFacturado: todos.reduce((a, t) => a + t.honorarios, 0),
     }
   }, [tramitesConHonorarios, periodoInicio, periodoFin])
 
   const handleDesmarcar = async (id: string) => {
+    // Con recibos emitidos, "desmarcar" dejaría el trámite en $0 mientras los
+    // reportes siguen contando esa plata. Se revierte con una devolución.
+    const tr = tramites.find(x => x.id === id) as any
+    const tieneRecibos = Number(tr?.montoRecibidoAcumulado ?? 0) > 0
+      || (tr?.historialPagos ?? []).some((p: any) => !!p?.reciboId)
+    if (tieneRecibos) {
+      toast.error(
+        'Este trámite tiene recibos emitidos. Para revertir un cobro registrá una devolución desde el detalle del trámite: así queda reflejado en los reportes.',
+        { duration: 7000 },
+      )
+      setConfirmDesm(null)
+      return
+    }
     try {
       await desmarcarPago(id)
       toast.success('Pago desmarcado')
@@ -661,8 +699,10 @@ export default function CobranzasPage() {
           },
           {
             label: 'Cobrado total',
-            value: formatPesos(kpis.totalCob),
-            sub:   `${kpis.cobrados} pagado${kpis.cobrados !== 1 ? 's' : ''} · ${PERIODO_LABELS[periodo]}`,
+            value: formatPesos(cobradoRecibos?.total ?? kpis.totalCob),
+            sub:   cobradoRecibos
+              ? `${cobradoRecibos.recibos} recibo${cobradoRecibos.recibos !== 1 ? 's' : ''} · ${PERIODO_LABELS[periodo]}`
+              : `${kpis.cobrados} pagado${kpis.cobrados !== 1 ? 's' : ''} · ${PERIODO_LABELS[periodo]}`,
             color: '#059669', bg: '#F0FDF4',
             icon:  CheckCircle,
             active: filtroEstado === 'pagado',
@@ -670,7 +710,7 @@ export default function CobranzasPage() {
           },
           {
             label: 'Total facturado',
-            value: formatPesos(kpis.totalPend + kpis.totalCob),
+            value: formatPesos(kpis.totalFacturado),
             sub:   `${tramitesConHonorarios.length} trámites`,
             color: '#D4621A', bg: 'var(--gp-orange-pale)',
             icon:  TrendingUp,

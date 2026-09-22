@@ -5,6 +5,36 @@ import {
 } from 'firebase/firestore'
 import { tramitesCol, turnosCol, clientesCol, vehiculosCol } from './collections'
 import type { Tramite, Turno } from '@/types'
+import { cargarRecibos, getDesglose, fechaDeRecibo } from './finanzas'
+
+// ─── HELPERS DE RECIBOS (libro único de cobros) ──────────────────────────────
+// Devoluciones restan, se hayan guardado con monto negativo o positivo.
+function montoConSigno(r: any): number {
+  const m = Number(r?.monto) || 0
+  return (r?.tipo === 'devolucion' || m < 0) ? -Math.abs(m) : m
+}
+
+function sumarRecibosPor(
+  recibos: any[],
+  clave:   (r: any) => string | undefined,
+  desde?:  Date,
+  hasta?:  Date,
+): Record<string, number> {
+  const out: Record<string, number> = {}
+  for (const r of recibos) {
+    if (desde || hasta) {
+      const f = fechaDeRecibo(r)?.toDate?.() as Date | undefined
+      if (!f) continue
+      if (desde && f < desde) continue
+      if (hasta && f > hasta) continue
+    }
+    const k = clave(r)
+    if (!k) continue
+    out[k] = (out[k] ?? 0) + montoConSigno(r)
+  }
+  return out
+}
+
 
 // ─── MÉTRICAS GENERALES ───────────────────────────────────────────────────────
 // ⚡ OPTIMIZADO: lectura única (no onSnapshot) + Promise.allSettled (una query
@@ -94,13 +124,21 @@ export async function getMetricas(gestoriaId: string): Promise<MetricasDashboard
   const turnosHoy          = snapTurnosHoy?.docs.filter(d => d.data().estado !== 'cancelado').length ?? 0
   const turnosProximos     = snapTurnosProx?.size ?? 0
 
-  const ingresosMes = snapPagados?.docs.reduce((a, d) => a + (d.data().totalCobradoCliente ?? d.data().honorarios ?? 0), 0)?? 0
-  const ingresosHoy    = snapPagados?.docs
-    .filter(d => { const fp = d.data().fechaPago?.toDate?.(); return fp && fp >= hoyInicio && fp <= hoyFin })
-    .reduce((a, d) => a + (d.data().honorarios ?? 0), 0) ?? 0
-  const ingresosSemana = snapPagados?.docs
-    .filter(d => { const fp = d.data().fechaPago?.toDate?.(); return fp && fp >= semanaInicio })
-    .reduce((a, d) => a + (d.data().honorarios ?? 0), 0) ?? 0
+  // Ingresos = recibos por FECHA DE COBRO (misma fuente que Reportes y
+  // Cobranzas). Si la carga de recibos falla, cae al cálculo anterior.
+  let ingresosHoy = 0, ingresosSemana = 0, ingresosMes = 0
+  try {
+    const recibos = await cargarRecibos(gestoriaId)
+    const ahora   = new Date()
+    ingresosMes    = (await getDesglose(gestoriaId, mesInicio,    ahora,  recibos)).cobradoNeto
+    ingresosSemana = (await getDesglose(gestoriaId, semanaInicio, ahora,  recibos)).cobradoNeto
+    ingresosHoy    = (await getDesglose(gestoriaId, hoyInicio,    hoyFin, recibos)).cobradoNeto
+  } catch (e) {
+    console.error('[getMetricas] falló "ingresos (recibos)":', e)
+    errores.push('ingresos')
+    ingresosMes = snapPagados?.docs.reduce(
+      (a, d) => a + (d.data().totalCobradoCliente ?? d.data().honorarios ?? 0), 0) ?? 0
+  }
 
   return {
     tramitesHoy, tramitesPendientes, tramitesActivos,
@@ -176,19 +214,23 @@ export function subscribeDistribucionEstados(
 export interface IngresoMes { mes: string; ingresos: number; tramites: number }
 
 export async function getIngresosPorMes(gestoriaId: string, _meses = 6): Promise<IngresoMes[]> {
-  const hace6Meses = new Date(); hace6Meses.setMonth(hace6Meses.getMonth() - 6); hace6Meses.setDate(1); hace6Meses.setHours(0,0,0,0)
-  const snap = await getDocs(query(tramitesCol, where('gestoriaId','==',gestoriaId), where('pagado','==',true), where('fechaPago','>=',Timestamp.fromDate(hace6Meses)), limit(500)))
-  const meses: Record<string, IngresoMes> = {}
+  // Recibos por FECHA DE COBRO. `tramites` = trámites distintos con cobro en el mes.
+  const desde = new Date(); desde.setMonth(desde.getMonth() - 6); desde.setDate(1); desde.setHours(0, 0, 0, 0)
+  const recibos = await cargarRecibos(gestoriaId)
   const nm = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic']
-  snap.docs.forEach(d => {
-    const fp = d.data().fechaPago?.toDate?.()
-    if (!fp) return
-    const key = `${fp.getFullYear()}-${String(fp.getMonth()).padStart(2,'0')}`
-    if (!meses[key]) meses[key] = { mes: nm[fp.getMonth()], ingresos: 0, tramites: 0 }
-    meses[key].ingresos += d.data().honorarios ?? 0
-    meses[key].tramites += 1
-  })
-  return Object.entries(meses).sort(([a],[b]) => a.localeCompare(b)).map(([,v]) => v)
+  const meses: Record<string, { mes: string; ingresos: number; ids: Set<string> }> = {}
+  for (const r of recibos) {
+    const f = fechaDeRecibo(r)?.toDate?.() as Date | undefined
+    if (!f || f < desde) continue
+    const key = `${f.getFullYear()}-${String(f.getMonth()).padStart(2, '0')}`
+    meses[key] ??= { mes: nm[f.getMonth()], ingresos: 0, ids: new Set<string>() }
+    const m = montoConSigno(r)
+    meses[key].ingresos += m
+    if (m > 0 && r.tramiteId) meses[key].ids.add(String(r.tramiteId))
+  }
+  return Object.entries(meses)
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([, v]) => ({ mes: v.mes, ingresos: v.ingresos, tramites: v.ids.size }))
 }
 
 // ─── TIPOS AUXILIARES ────────────────────────────────────────────────────────
@@ -199,19 +241,25 @@ export interface TopCliente { clienteId: string; nombre: string; tramites: numbe
 // ─── TIPOS DE TRÁMITE FRECUENTES ─────────────────────────────────────────────
 // ⚡ getDocs acotado — no listener permanente
 
-export async function getTiposTramiteFrecuentes(gestoriaId: string): Promise<TipoCount[]> {
+export async function getTiposTramiteFrecuentes(
+  gestoriaId: string,
+  desde?:     Date,
+  hasta?:     Date,
+): Promise<TipoCount[]> {
   const snap = await getDocs(query(
     tramitesCol,
     where('gestoriaId', '==', gestoriaId),
     limit(500),
   ))
   const conteo: Record<string, number> = {}
-  const conteoIngresos: Record<string, number> = {}
   snap.docs.forEach(d => {
     const tipo = d.data().tipo as string
     conteo[tipo] = (conteo[tipo] ?? 0) + 1
-    conteoIngresos[tipo] = (conteoIngresos[tipo] ?? 0) + (d.data().honorarios ?? 0)
   })
+  // Ingresos por tipo = recibos (por fecha de cobro si se pasa rango).
+  const conteoIngresos = sumarRecibosPor(
+    await cargarRecibos(gestoriaId), r => r.tipoTramite ? String(r.tipoTramite) : undefined, desde, hasta,
+  )
   const labels: Record<string, string> = {
     transferencia: 'Transferencia', inscripcion_inicial: 'Inscripción Inicial',
     baja: 'Baja', formulario_08: 'Form. 08', duplicado_titulo: 'Dup. Título',
@@ -230,7 +278,9 @@ export async function getTiposTramiteFrecuentes(gestoriaId: string): Promise<Tip
 
 export async function getTopClientes(
   gestoriaId: string,
-  cantidad = 5
+  cantidad = 5,
+  desde?:  Date,
+  hasta?:  Date,
 ): Promise<TopCliente[]> {
   const snap = await getDocs(query(
     tramitesCol,
@@ -242,11 +292,10 @@ export async function getTopClientes(
     const cid = d.data().clienteId as string
     if (cid) conteo[cid] = (conteo[cid] ?? 0) + 1
   })
-  const ingresosPorCliente: Record<string, number> = {}
-  snap.docs.forEach(d => {
-    const cid = d.data().clienteId as string
-    if (cid) ingresosPorCliente[cid] = (ingresosPorCliente[cid] ?? 0) + (d.data().honorarios ?? 0)
-  })
+  // Ingresos por cliente = recibos (por fecha de cobro si se pasa rango).
+  const ingresosPorCliente = sumarRecibosPor(
+    await cargarRecibos(gestoriaId), r => r.clienteId ? String(r.clienteId) : undefined, desde, hasta,
+  )
   const top = Object.entries(conteo)
     .sort(([, a], [, b]) => b - a)
     .slice(0, cantidad)

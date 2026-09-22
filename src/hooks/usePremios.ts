@@ -13,6 +13,7 @@ import { useAuth }               from '@/hooks/useAuth'
 import { useGestoria }           from '@/context/GestoriaContext'
 import { useConfiguracion }      from '@/hooks/useConfiguracion'
 import { periodoDesde }          from '@/lib/firestore/cierresMensuales'
+import { cargarRecibos, baseDeRecibo, fechaDeRecibo } from '@/lib/firestore/finanzas'
 
 // ─── TIPOS ────────────────────────────────────────────────────────────────────
 
@@ -182,18 +183,33 @@ export async function calcularPremios(
   const multas = todos.filter(t => t.tipo === 'descargo_multa' && t.estado !== 'cancelado')
   const totalMultasCreadas = multas.length
 
-  const desgloseMultas: DesgloseMulTa[] = multas.map(t => {
-    const totalCobrado = (t as any).totalCobradoCliente ?? t.honorarios ?? 0
-    const suats        = (t as any).costosSUATS ?? 0
-    const informe      = (t as any).costosInformePersona ?? 0
-    return {
-      tramiteId:           t.id,
-      honorariosGestoria:  Math.max(0, totalCobrado - suats - informe),
-      montoSUATS:          suats,
-      montoInformePersona: informe,
-      totalCobradoCliente: totalCobrado,
+  // Facturación de multas = COBROS DEL MES (fecha de cobro) sobre las multas de
+  // este asesor, creadas en cualquier mes. Base = baseComisionable del recibo
+  // (bruto − SUATS − informe − comisión − costo financiero), la misma de finanzas.
+  const multasPropias = new Set(
+    snap.docs
+      .filter(d => d.data().tipo === 'descargo_multa' && d.data().estado !== 'cancelado')
+      .map(d => d.id),
+  )
+  const porTramite: Record<string, DesgloseMulTa> = {}
+  for (const r of await cargarRecibos(gestoriaId)) {
+    if (!multasPropias.has(r.tramiteId)) continue
+    const f = fechaDeRecibo(r)?.toDate?.() as Date | undefined
+    if (!f || f < inicio || f > fin) continue
+    const d = (porTramite[r.tramiteId] ??= {
+      tramiteId: r.tramiteId, honorariosGestoria: 0,
+      montoSUATS: 0, montoInformePersona: 0, totalCobradoCliente: 0,
+    })
+    const m     = Number(r.monto) || 0
+    const esDev = r.tipo === 'devolucion' || m < 0
+    d.honorariosGestoria  += baseDeRecibo(r)
+    d.totalCobradoCliente += esDev ? -Math.abs(m) : m
+    if (!esDev) {
+      d.montoSUATS          += Number(r.montoSUATS ?? 0)
+      d.montoInformePersona += Number(r.montoInformePersona ?? 0)
     }
-  })
+  }
+  const desgloseMultas: DesgloseMulTa[] = Object.values(porTramite)
 
   const facturacionMultas      = desgloseMultas.reduce((s, d) => s + d.honorariosGestoria,  0)
   const facturacionBrutaMultas = desgloseMultas.reduce((s, d) => s + d.totalCobradoCliente, 0)

@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import {
   FileText, Download, Eye, Calendar,
   TrendingUp, DollarSign, CheckCircle,
@@ -25,6 +25,7 @@ import { Archive, AlertTriangle as AlertWarn, ChevronDown, ChevronUp } from 'luc
 import MetricasSecretariosPanel from '@/features/reportes/MetricasSecretariosPanel'
 import DesgloseIngresos from '@/components/shared/DesgloseIngresos'
 import { useFinanzas } from '@/hooks/useFinanzas'
+import { cargarRecibos, getDesglose, fechaDeRecibo } from '@/lib/firestore/finanzas'
 
 const MESES = [
   'Enero','Febrero','Marzo','Abril','Mayo','Junio',
@@ -71,6 +72,18 @@ export default function ReportesPage() {
   const [pdfNombre, setPdfNombre] = useState('')
   const [verHistorial, setVerHistorial] = useState(false)
 
+  // Recibos (libro único de cobros): se cargan una vez y alimentan tipos y el
+  // PDF, filtrando por FECHA DE COBRO. Mismo dato que Panel y Cobranzas.
+  const [recibos, setRecibos] = useState<any[]>([])
+  useEffect(() => {
+    if (!gestoriaId) return
+    let vivo = true
+    cargarRecibos(gestoriaId)
+      .then(r => { if (vivo) setRecibos(r) })
+      .catch(e => console.error('[Reportes] recibos:', e))
+    return () => { vivo = false }
+  }, [gestoriaId])
+
   // Cierre mensual
   const {
     puedeGestionar,
@@ -98,6 +111,11 @@ export default function ReportesPage() {
   [tramites, inicioMes, finMes])
 
   const pag = usePaginacion(tramitesMes, { porPagina: 20 })
+
+  const recibosMes = useMemo(() => recibos.filter(r => {
+    const f = fechaDeRecibo(r)?.toDate?.() as Date | undefined
+    return !!f && f >= inicioMes && f <= finMes
+  }), [recibos, inicioMes, finMes])
 
   const cobradosMes = useMemo(() =>
     tramites.filter(t => {
@@ -127,29 +145,33 @@ export default function ReportesPage() {
       .sort((a, b) => b.n - a.n)
   }, [tramitesMes])
 
-  // Top tipos del mes
+  // Top tipos del mes — cantidad = trámites creados en el mes;
+  // ingresos = recibos cobrados en el mes de ese tipo (fecha de cobro).
   const porTipo = useMemo(() => {
     const conteo: Record<string, { n: number; ingresos: number }> = {}
     tramitesMes.forEach(t => {
       if (!conteo[t.tipo]) conteo[t.tipo] = { n: 0, ingresos: 0 }
       conteo[t.tipo].n++
-      if (t.pagado) conteo[t.tipo].ingresos += (t.honorarios ?? 0)
+    })
+    recibosMes.forEach(r => {
+      const tipo = String(r.tipoTramite ?? '')
+      if (!tipo) return
+      if (!conteo[tipo]) conteo[tipo] = { n: 0, ingresos: 0 }
+      const m = Number(r.monto) || 0
+      conteo[tipo].ingresos += (r.tipo === 'devolucion' || m < 0) ? -Math.abs(m) : m
     })
     return Object.entries(conteo)
       .map(([tipo, d]) => ({ tipo, label: (TIPO_TRAMITE_LABELS as any)[tipo] ?? tipo, ...d }))
-      .sort((a, b) => b.n - a.n)
+      .sort((a, b) => b.n - a.n || b.ingresos - a.ingresos)
       .slice(0, 6)
-  }, [tramitesMes])
+  }, [tramitesMes, recibosMes])
 
   // ─── Desglose real por forma de pago (reemplaza los valores hardcodeados) ────
   // Agrupa cobradosMes por t.formaPago y suma honorarios — coincide 1:1 con
   // kpis.ingresos (misma fuente: cobradosMes.honorarios).
   const porFormaPago = useMemo(() => {
-    const conteo: Record<string, number> = {}
-    cobradosMes.forEach(t => {
-      const clave = (t as any).formaPago || 'sin_especificar'
-      conteo[clave] = (conteo[clave] ?? 0) + (t.honorarios ?? 0)
-    })
+    // Desde los recibos del período (fecha de cobro) — cuadra con "Total ingresado".
+    const conteo: Record<string, number> = gestoria?.porFormaPago ?? {}
     return Object.entries(conteo)
       .map(([forma, monto]) => ({
         forma,
@@ -158,32 +180,35 @@ export default function ReportesPage() {
       }))
       .filter(f => f.monto > 0)
       .sort((a, b) => b.monto - a.monto)
-  }, [cobradosMes])
+  }, [gestoria])
 
-  // Total SUATS del mes — se lee directo de tramites.costosSUATS (fuente única,
-  // corregida por los scripts de sync fix-suats-facturacion / apply-suats-confirmados),
-  // NO de multaWorkflow.paso7. Esto asegura que cuente también los casos ya
-  // desglosados cuyo workflow de multa todavía no cerró el paso 7 — antes esos
-  // quedaban afuera de esta tarjeta aunque el honorario ya estuviera corregido.
-  const suatsMes = useMemo(() =>
-    tramitesMes.reduce((a, t) => a + (((t as any).costosSUATS as number) ?? 0), 0),
-  [tramitesMes])
-const informesPersonaMes = useMemo(() =>
-  tramitesMes.reduce((a, t) => a + (((t as any).costosInformePersona as number) ?? 0), 0),
-[tramitesMes])
+  // SUATS e informe de persona del mes — desde los recibos (fecha de cobro).
+  // Precio = lo cobrado al cliente; costo = lo que realmente sale de la gestoría.
+  const suatsMes         = gestoria?.suatsCobrado ?? 0
+  const suatsCostoMes    = gestoria?.suatsCosto   ?? 0
+  const informesCostoMes = gestoria?.informeCosto ?? 0
   const handleGenerar = async () => {
     setGenerando(true)
     setPdfBlob(null)
     try {
       const [ingresosMes, tiposTramite, topClientes] = await Promise.all([
         getIngresosPorMes(gestoriaId, 6),
-        getTiposTramiteFrecuentes(gestoriaId),
-        getTopClientes(gestoriaId, 8),
+        getTiposTramiteFrecuentes(gestoriaId, inicioMes, finMes),
+        getTopClientes(gestoriaId, 8, inicioMes, finMes),
       ])
       const totalSUATSMes = suatsMes
+      const inicioAnt = new Date(anio, mes - 1, 1)
+      const finAnt    = new Date(anio, mes, 0, 23, 59, 59)
+      const precarga  = recibos.length ? recibos : undefined
+      const [finanzasMes, finanzasMesAnterior] = await Promise.all([
+        getDesglose(gestoriaId, inicioMes, finMes, precarga),
+        getDesglose(gestoriaId, inicioAnt, finAnt, precarga),
+      ])
       const { blob, nombre } = await generarReporteMensual({
         mes, anio, tramites, clientes, ingresosMes, tiposTramite, topClientes,
         totalSUATSMes,
+        finanzasMes,
+        finanzasMesAnterior,
         // Branding dinámico del tenant
         gestoriaNombre:    config.nombreComercial    ?? nombreComercial,
         gestoriaSubtitulo: config.responsable ? `Mandataria — ${config.responsable}` : undefined,
@@ -562,13 +587,31 @@ const informesPersonaMes = useMemo(() =>
                     <span className="font-bold text-emerald-600">{formatPesos(gestoria.cobradoBruto)}</span>
                   </div>
                   <div className="flex justify-between items-center py-2 border-b border-gray-100">
-                    <span className="text-sm text-gray-600">SUATS abonado</span>
-                    <span className="font-bold text-orange-600">−{formatPesos(suatsMes || 0)}</span>
+                    <span className="text-sm text-gray-600">Costo SUATS</span>
+                    <span className="font-bold text-orange-600">−{formatPesos(suatsCostoMes)}</span>
                   </div>
                   <div className="flex justify-between items-center py-2 border-b border-gray-100">
-                    <span className="text-sm text-gray-600">Informe persona</span>
-                    <span className="font-bold text-red-600">−{formatPesos(informesPersonaMes || 0)}</span>
+                    <span className="text-sm text-gray-600">Costo informe persona</span>
+                    <span className="font-bold text-red-600">−{formatPesos(informesCostoMes)}</span>
                   </div>
+                  {gestoria.deducComision > 0 && (
+                    <div className="flex justify-between items-center py-2 border-b border-gray-100">
+                      <span className="text-sm text-gray-600">Comisiones a referidos</span>
+                      <span className="font-bold text-red-600">−{formatPesos(gestoria.deducComision)}</span>
+                    </div>
+                  )}
+                  {gestoria.deducFinanciero > 0 && (
+                    <div className="flex justify-between items-center py-2 border-b border-gray-100">
+                      <span className="text-sm text-gray-600">Costo financiero (tarjeta)</span>
+                      <span className="font-bold text-red-600">−{formatPesos(gestoria.deducFinanciero)}</span>
+                    </div>
+                  )}
+                  {gestoria.devoluciones > 0 && (
+                    <div className="flex justify-between items-center py-2 border-b border-gray-100">
+                      <span className="text-sm text-gray-600">Devoluciones</span>
+                      <span className="font-bold text-red-600">−{formatPesos(gestoria.devoluciones)}</span>
+                    </div>
+                  )}
                   <div className="flex justify-between items-center py-3 bg-emerald-50 px-3 rounded-lg">
                     <span className="font-bold text-gray-800">Honorarios gestoría</span>
                     <span className="font-extrabold text-emerald-700 text-lg">{formatPesos(gestoria.netoGestoria)}</span>
