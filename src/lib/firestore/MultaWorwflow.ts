@@ -16,7 +16,7 @@ import type {
   EstadoMultaWorkflow, RegistroPago, EstadoMulta, DocumentoAdicional,
   AlertaDocumentacion,
 } from '@/types/multa_types'
-import { crearRecibo, generarNumeroRecibo, getRecibosPorTramite } from '@/lib/firestore/recibos'
+import { crearRecibo, generarNumeroRecibo, getRecibosPorTramite, resumirCobros } from '@/lib/firestore/recibos'
 import { notificarRecibo } from '@/lib/firestore/alertas'
  
 // ─── REFS ─────────────────────────────────────────────────────────────────────
@@ -220,14 +220,42 @@ export async function confirmarPaso2Multa(
   tramiteId: string,
   data: Omit<MultaPaso2Data, 'completadoEn'>,
 ): Promise<void> {
+  // Merge con lo ya guardado: si se reconfirma (rebote), NO se pierden pagos
+  // previos ni se duplican. Clave de un pago = registradoEn + monto.
+  const snap    = await getDoc(workflowDoc(tramiteId))
+  const previos = (snap.exists() ? (snap.data() as MultaWorkflow).paso2?.historialPagos : undefined) ?? []
+  const claves  = new Set(previos.map(clavePago))
+  const nuevos  = (data.historialPagos ?? []).filter(p => !claves.has(clavePago(p)))
+  const historialPagos = [...previos, ...nuevos]
+  const montoTotal     = historialPagos.reduce((s, p) => s + (p.monto ?? 0), 0)
+
   await updateDoc(workflowDoc(tramiteId), {
-    paso2:          { ...data, completadoEn: Timestamp.now() },
+    paso2:          { ...data, historialPagos, montoTotal, completadoEn: Timestamp.now() },
     pasoActual:     3,
     estadoWorkflow: 'en_revision',
     actualizadoEn:  serverTimestamp(),
   })
+
+  // Un recibo por cada pago NUEVO, fechado cuando se registró el pago.
+  // (Los previos sin reciboId son históricos: los resuelve el script de
+  //  reconciliación, no acá — podrían estar ya absorbidos en un cierre.)
+  const marcas = new Map<string, { reciboId: string; numeroRecibo: string }>()
+  let acumulado = previos.reduce((s, p) => s + (p.monto ?? 0), 0)
+  for (const p of nuevos) {
+    if (p.reciboId || !(p.monto > 0)) continue
+    acumulado += p.monto
+    try {
+      marcas.set(clavePago(p), await emitirReciboPagoMulta(tramiteId, p, acumulado))
+    } catch (e) {
+      await alertarReciboFallido(tramiteId, p, e)
+    }
+  }
+  if (marcas.size) {
+    await marcarRecibosEnHistorial(tramiteId, marcas)
+      .catch(e => console.error('[confirmarPaso2Multa] no se pudo marcar reciboId:', e))
+  }
 }
- 
+
 // ─── PASO 3: Pre-revisión Admin ───────────────────────────────────────────────
  
 export async function confirmarPreRevision(
@@ -436,7 +464,8 @@ export async function confirmarPaso7Multa(
   tramiteId:  string,
   gestoriaId: string,
   data: Omit<MultaPaso7Data, 'completadoEn'>,
-): Promise<void> {
+): Promise<string | null> {
+  let reciboCierreId: string | null = null
  
   // ─── VALIDACIÓN DURA ──────────────────────────────────────────────────────
   // Se lee el workflow para cruzar paso1 / paso2 / paso6 contra lo que llega.
@@ -504,25 +533,33 @@ export async function confirmarPaso7Multa(
     actualizadoEn:        serverTimestamp(),
   })
  
-  // 3. Recibo TOTAL de cierre + alerta al propietario (best-effort).
+  // 3. Recibo de CIERRE por el saldo + deducciones que falten imputar (best-effort).
+  //    La suma de recibos del trámite = total cobrado, y cada deducción
+  //    (SUATS / informe / comisión) queda imputada UNA sola vez.
   try {
     const tramiteSnap = await getDoc(doc(tramitesCol, tramiteId))
     if (tramiteSnap.exists()) {
       const tramite = tramiteSnap.data() as any
- 
-      // Anti-doble-conteo: restamos lo YA recibido en parciales (señas), así
-      // el recibo de cierre solo registra el saldo. La suma de recibos = total.
-      const recibosPrevios = await getRecibosPorTramite(tramiteId)
-      const yaRecibido = recibosPrevios.reduce((a, r) => a + (r.monto ?? 0), 0)
-      const montoCierre = Math.max(0, data.pagoTotalRecibo - yaRecibido)
- 
+      const previos = resumirCobros(await getRecibosPorTramite(tramiteId))
+      const montoCierre = Math.max(0, data.pagoTotalRecibo - previos.neto)
+
+      const suatsTotal      = data.suatsAbonado ? (data.montoSUATS ?? 0) : 0
+      const costoSuatsTotal = data.suatsAbonado ? (data.costoSUATS ?? 0) : 0
+      const informeTotal    = data.informePersonaRealizado ? (data.montoInformePersona ?? 0) : 0
+      const comisionTotal   = data.comisionReferido ?? 0
+
+      const faltaSuats    = Math.max(0, suatsTotal      - previos.montoSUATS)
+      const faltaCosto    = Math.max(0, costoSuatsTotal - previos.costoSUATS)
+      const faltaInforme  = Math.max(0, informeTotal    - previos.montoInformePersona)
+      const faltaComision = Math.max(0, comisionTotal   - previos.comisionReferido)
+
+      let suatsImp = 0, informeImp = 0, comisionImp = 0
+
       if (montoCierre > 0) {
-        const suats   = data.suatsAbonado ? (data.montoSUATS ?? 0) : 0
-        const informe = data.informePersonaRealizado ? (data.montoInformePersona ?? 0) : 0
-        // Las deducciones se imputan al recibo de cierre, acotadas a su monto.
-        const suatsImputado   = Math.min(suats, montoCierre)
-        const informeImputado = Math.min(informe, montoCierre - suatsImputado)
- 
+        suatsImp    = Math.min(faltaSuats,    montoCierre)
+        informeImp  = Math.min(faltaInforme,  montoCierre - suatsImp)
+        comisionImp = Math.min(faltaComision, montoCierre - suatsImp - informeImp)
+
         const numeroRecibo = await generarNumeroRecibo(gestoriaId)
         const reciboId = await crearRecibo({
           numeroRecibo,
@@ -540,50 +577,188 @@ export async function confirmarPaso7Multa(
           tipoTramite:  tramite.tipo,
           emitidoPor:       data.completadoPor,
           emitidoPorNombre: data.completadoPorNombre,
-          // Atribución: quien cierra se lleva el crédito salvo que ya venga fijada
           atribuidoA:       tramite.atribuidoA       ?? data.completadoPor,
           atribuidoANombre: tramite.atribuidoANombre ?? data.completadoPorNombre,
-          // Desglose de deducciones
-          montoSUATS:          suatsImputado,
-          costoSUATS:          data.suatsAbonado ? (data.costoSUATS ?? 0) : 0,
-          montoInformePersona: informeImputado,
-          comisionReferido:    data.comisionReferido ?? 0,
+          montoSUATS:          suatsImp,
+          costoSUATS:          suatsImp > 0 ? faltaCosto : 0,
+          montoInformePersona: informeImp,
+          comisionReferido:    comisionImp,
+          comisionDestino:     tramite.origenNombre ?? '',
           montoAcreditado:     data.montoAcreditado,
           cuotasTarjeta:       data.cuotasTarjeta,
-          comisionDestino:     tramite.origenNombre ?? '',
-          netoGestoria: Math.max(
-            0,
-            montoCierre - suatsImputado - informeImputado - (data.comisionReferido ?? 0),
-          ),
+          encargadoId:         tramite.encargadoId,
+          encargadoNombre:     tramite.encargadoNombre,
+          fechaCobro:          Timestamp.now(),
         })
+        reciboCierreId = reciboId
         await notificarRecibo({
           gestoriaId, tramiteId, reciboId, numeroRecibo,
           monto: montoCierre, tipo: 'total', patente: tramite.patente,
         })
       }
-      // Si montoCierre === 0, ya estaba todo cobrado en parciales → no se crea
-      // recibo de cierre (evita el doble conteo).
+
+      // Deducción sin saldo donde imputarla (ej: todo se cobró en parciales y
+      // el SUATS recién se declara al cierre) → no se inventa un recibo en $0:
+      // queda una alerta para ajustarlo a mano. Así el neto no queda inflado
+      // en silencio.
+      const sinImputar = (faltaSuats - suatsImp) + (faltaInforme - informeImp) + (faltaComision - comisionImp)
+      if (sinImputar > 0) {
+        await addDoc(collection(db, 'alertas_sistema'), {
+          gestoriaId,
+          tipo:        'deducciones_sin_recibo',
+          titulo:      'Deducciones del cierre sin imputar',
+          descripcion: `${tramite.numero ?? tramiteId} (${tramite.patente ?? 's/patente'}): quedaron ` +
+                       `$${sinImputar.toLocaleString('es-AR')} de SUATS/informe/comisión sin recibo ` +
+                       `porque todo el cobro ya estaba en recibos parciales.`,
+          tramiteId,
+          monto:       sinImputar,
+          detalle: {
+            suats:    faltaSuats - suatsImp,
+            informe:  faltaInforme - informeImp,
+            comision: faltaComision - comisionImp,
+          },
+          estado:      'pendiente',
+          prioridad:   'media',
+          creadoEn:    serverTimestamp(),
+        }).catch(e => console.error('[confirmarPaso7Multa] alerta deducciones:', e))
+      }
     }
   } catch (e) {
     console.error('[confirmarPaso7Multa] No se pudo generar el recibo/alerta de cierre:', e)
   }
- 
+
   // 4. Marcar como entregado — desaparece de Torre de Control
   await cambiarEstadoTramite(tramiteId, 'entregado', {
     completadoPor:       data.completadoPor,
     completadoPorNombre: data.completadoPorNombre,
   })
+  return reciboCierreId
 }
  
-// ─── AGREGAR PAGO POST-PASO2 (REEMPLAZA la función completa) ─────────────────
- 
+// ─── HELPERS DE COBRO DE MULTAS ──────────────────────────────────────────────
+
+const FORMA_PAGO_METODO: Record<string, string> = {
+  efectivo:      'efectivo',
+  transferencia: 'transferencia',
+  mercadopago:   'mercadopago',
+  tarjeta:       'tarjeta',
+  cheque:        'cheque',
+  mixto:         'mixto',
+}
+
+// Identidad de un pago dentro de historialPagos (registradoEn es Timestamp.now()
+// al momento de cargarlo → único en la práctica).
+function clavePago(p: RegistroPago): string {
+  const ms = (p.registradoEn as any)?.toMillis?.() ?? 0
+  return `${ms}_${p.monto}`
+}
+
+// Emite el recibo PARCIAL de un pago de multa con TODO su desglose.
+async function emitirReciboPagoMulta(
+  tramiteId: string,
+  pago:      RegistroPago,
+  acumulado: number,
+): Promise<{ reciboId: string; numeroRecibo: string }> {
+  const snap = await getDoc(doc(tramitesCol, tramiteId))
+  if (!snap.exists()) throw new Error('Trámite no encontrado')
+  const t = snap.data() as any
+  const gestoriaId = t.gestoriaId as string
+
+  const mismoEncargado = !pago.encargadoId || pago.encargadoId === t.encargadoId
+  const numeroRecibo = await generarNumeroRecibo(gestoriaId)
+  const reciboId = await crearRecibo({
+    numeroRecibo,
+    tramiteId,
+    clienteId:    t.clienteId,
+    gestoriaId,
+    tipo:         'parcial',
+    monto:        pago.monto,
+    montoSUATS:          pago.montoSUATS,
+    costoSUATS:          pago.costoSUATS,
+    montoInformePersona: pago.montoInformePersona,
+    costoInformePersona: pago.costoInformePersona,
+    comisionReferido:    pago.comisionReferido,
+    comisionDestino:     pago.comisionDestino,
+    montoAcreditado:     pago.montoAcreditado,
+    cuotasTarjeta:       pago.cuotasTarjeta,
+    encargadoId:         pago.encargadoId ?? t.encargadoId,
+    encargadoNombre:     mismoEncargado ? t.encargadoNombre : pago.comisionDestino,
+    montoCobradoAcumulado: acumulado,
+    honorariosTotales:     acumulado,
+    formaPago:    FORMA_PAGO_METODO[pago.metodoPago] ?? 'mixto',
+    notas:        pago.nota ?? '',
+    patente:      t.patente,
+    numeroTramite: t.numero,
+    tipoTramite:  t.tipo,
+    emitidoPor:       pago.registradoPor,
+    emitidoPorNombre: pago.registradoPorNombre,
+    atribuidoA:       pago.registradoPor,
+    atribuidoANombre: pago.registradoPorNombre,
+    fechaCobro:       pago.registradoEn ?? Timestamp.now(),
+  })
+  await notificarRecibo({
+    gestoriaId, tramiteId, reciboId, numeroRecibo,
+    monto: pago.monto, tipo: 'parcial', patente: t.patente,
+  }).catch(e => console.error('[emitirReciboPagoMulta] alerta:', e))
+  return { reciboId, numeroRecibo }
+}
+
+// Escribe reciboId/numeroRecibo en los pagos del historial (reescritura del
+// array — arrayUnion no puede modificar un elemento existente).
+async function marcarRecibosEnHistorial(
+  tramiteId: string,
+  marcas:    Map<string, { reciboId: string; numeroRecibo: string }>,
+): Promise<void> {
+  const snap = await getDoc(workflowDoc(tramiteId))
+  if (!snap.exists()) return
+  const hist = (snap.data() as MultaWorkflow).paso2?.historialPagos ?? []
+  const nuevo = hist.map(p => {
+    const m = marcas.get(clavePago(p))
+    return m && !p.reciboId ? { ...p, ...m } : p
+  })
+  await updateDoc(workflowDoc(tramiteId), {
+    'paso2.historialPagos': nuevo,
+    actualizadoEn:          serverTimestamp(),
+  } as any)
+}
+
+// El pago YA quedó registrado: no se revierte. El fallo se hace visible.
+// Un pago sin reciboId en el historial = pendiente para el script de reconciliación.
+async function alertarReciboFallido(tramiteId: string, pago: RegistroPago, e: unknown): Promise<void> {
+  console.error('[cobro multa] recibo NO emitido:', e)
+  try {
+    const snap = await getDoc(doc(tramitesCol, tramiteId))
+    const t = snap.exists() ? (snap.data() as any) : {}
+    await addDoc(collection(db, 'alertas_sistema'), {
+      gestoriaId:  t.gestoriaId ?? '',
+      tipo:        'recibo_fallido',
+      titulo:      'Pago sin comprobante',
+      descripcion: `Se cobró $${pago.monto.toLocaleString('es-AR')} en ` +
+                   `${t.numero ?? tramiteId} (${t.patente ?? 's/patente'}) ` +
+                   `y no se pudo emitir el recibo.`,
+      tramiteId,
+      monto:        pago.monto,
+      registradoPor: pago.registradoPor ?? '',
+      registradoPorNombre: pago.registradoPorNombre ?? '',
+      error:       String((e as Error)?.message ?? e),
+      estado:      'pendiente',
+      prioridad:   'alta',
+      creadoEn:    serverTimestamp(),
+    })
+  } catch (e2) {
+    console.error('[cobro multa] tampoco se pudo crear la alerta:', e2)
+  }
+}
+
+// ─── AGREGAR PAGO POST-PASO2 ─────────────────────────────────────────────────
+
 export async function agregarPagoMulta(
   tramiteId:   string,
   pago:        RegistroPago,
   pagosPrevios: RegistroPago[],
-): Promise<void> {
+): Promise<string | null> {
   const nuevoTotal = [...pagosPrevios, pago].reduce((s, p) => s + p.monto, 0)
- 
+
   // 1. Escribir el pago en el workflow
   await updateDoc(workflowDoc(tramiteId), {
     'paso2.historialPagos': arrayUnion(pago),
@@ -591,94 +766,28 @@ export async function agregarPagoMulta(
     'paso2.pagoConfirmado': true,
     actualizadoEn:          serverTimestamp(),
   })
- 
-  // 2. Propagar el monto al trámite principal
-  const formaPagoMap: Record<string, string> = {
-    efectivo:      'efectivo',
-    transferencia: 'transferencia',
-    mercadopago:   'mercadopago',
-    tarjeta:       'tarjeta',
-    mixto:         'mixto',
-  }
-  const formaPago = formaPagoMap[pago.metodoPago] ?? 'mixto'
- 
+
+  // 2. Propagar el monto al trámite principal (caché; la verdad son los recibos)
   await updateDoc(doc(tramitesCol, tramiteId), {
     honorarios:          nuevoTotal,
     totalCobradoCliente: nuevoTotal,
-    formaPago,
+    formaPago:           FORMA_PAGO_METODO[pago.metodoPago] ?? 'mixto',
     // pagado=false mientras no se complete el workflow — solo se marca true en paso7
     actualizadoEn: serverTimestamp(),
   })
- 
-  // 3. NUEVO — Recibo PARCIAL + alerta al propietario (best-effort).
-  //    En multas, el cierre real es siempre en paso 7 (puede sumarse SUATS o
-  //    informe de persona más adelante) — por eso ningún pago intermedio es
-  //    "total" todavía, sin importar el monto.
+
+  // 3. Recibo PARCIAL con todo el desglose + marcar el pago con su reciboId
   try {
-    const tramiteSnap = await getDoc(doc(tramitesCol, tramiteId))
-    if (tramiteSnap.exists()) {
-      const tramite = tramiteSnap.data() as any
-      const gestoriaId = tramite.gestoriaId as string
-      const numeroRecibo = await generarNumeroRecibo(gestoriaId)
-      const reciboId = await crearRecibo({
-        numeroRecibo,
-        tramiteId,
-        clienteId:    tramite.clienteId,
-        gestoriaId,
-        tipo:         'parcial',
-        monto:        pago.monto,
-        montoSUATS:   pago.montoSUATS,
-        montoInformePersona: pago.montoInformePersona,
-        comisionReferido: pago.comisionReferido,
-        montoAcreditado: pago.montoAcreditado,
-        cuotasTarjeta: pago.cuotasTarjeta,
-        montoCobradoAcumulado: nuevoTotal,
-        honorariosTotales:     nuevoTotal,
-        formaPago,
-        notas:        pago.nota ?? '',
-        patente:      tramite.patente,
-        numeroTramite: tramite.numero,
-        tipoTramite:  tramite.tipo,
-        emitidoPor:       pago.registradoPor,
-        emitidoPorNombre: pago.registradoPorNombre,
-        atribuidoA:       pago.registradoPor,
-        atribuidoANombre: pago.registradoPorNombre,
-      })
-      await notificarRecibo({
-        gestoriaId, tramiteId, reciboId, numeroRecibo,
-        monto: pago.monto, tipo: 'parcial', patente: tramite.patente,
-      })
-    }
-    } catch (e) {
-    // El pago YA quedó registrado arriba: no se revierte, sería peor perderlo.
-    // Pero el fallo deja de ser silencioso: se crea una alerta visible para
-    // que alguien emita el comprobante, en vez de descubrirlo a fin de mes.
-    console.error('[agregarPagoMulta] recibo NO emitido:', e)
-    try {
-      const snap = await getDoc(doc(tramitesCol, tramiteId))
-      const t = snap.exists() ? (snap.data() as any) : {}
-      await addDoc(collection(db, 'alertas_sistema'), {
-        gestoriaId:  t.gestoriaId ?? '',
-        tipo:        'recibo_fallido',
-        titulo:      'Pago sin comprobante',
-        descripcion: `Se cobró $${pago.monto.toLocaleString('es-AR')} en ` +
-                     `${t.numero ?? tramiteId} (${t.patente ?? 's/patente'}) ` +
-                     `y no se pudo emitir el recibo.`,
-        tramiteId,
-        monto:        pago.monto,
-        registradoPor: pago.registradoPor ?? '',
-        registradoPorNombre: pago.registradoPorNombre ?? '',
-        error:       String((e as Error)?.message ?? e),
-        estado:      'pendiente',
-        prioridad:   'alta',
-        creadoEn:    serverTimestamp(),
-      })
-    } catch (e2) {
-      console.error('[agregarPagoMulta] tampoco se pudo crear la alerta:', e2)
-    }
+    const r = await emitirReciboPagoMulta(tramiteId, pago, nuevoTotal)
+    await marcarRecibosEnHistorial(tramiteId, new Map([[clavePago(pago), r]]))
+      .catch(e => console.error('[agregarPagoMulta] no se pudo marcar reciboId:', e))
+    return r.reciboId
+  } catch (e) {
+    await alertarReciboFallido(tramiteId, pago, e)
+    return null
   }
-  }
- 
+}
+
 export async function sincronizarPagoMultaAlTramite(
   tramiteId:  string,
   gestoriaId: string,

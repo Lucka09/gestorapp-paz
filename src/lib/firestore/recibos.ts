@@ -16,7 +16,7 @@
 import {
   collection, doc, addDoc, getDoc, getDocs, query, where, orderBy,
   serverTimestamp, runTransaction, updateDoc, onSnapshot, limit,
-  type Timestamp, type Unsubscribe,
+  Timestamp, type Unsubscribe,
 } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
 import { emitirEventoSilencioso } from './eventos'
@@ -47,6 +47,7 @@ export interface ReciboInput {
   motivoTercero?:     string
   encargadoId?:     string
   encargadoNombre?: string
+  fechaCobro?:      Timestamp   // cuándo ENTRÓ la plata — base de todos los reportes por mes
 
   // — MONTOS —
   monto: number              // lo que paga el cliente. Va en el comprobante.
@@ -120,6 +121,8 @@ export async function crearRecibo(data: ReciboInput): Promise<string> {
     atribuidoA:       data.atribuidoA       || data.emitidoPor,
     atribuidoANombre: data.atribuidoANombre || data.emitidoPorNombre,
     netoGestoria, baseComisionable, costoFinanciero, margenSUATS,
+    // Criterio de caja: si el caller no la manda, el cobro es de hoy.
+    fechaCobro: data.fechaCobro ?? Timestamp.now(),
   })
 
   const reciboRef = await addDoc(recibosCol, {
@@ -221,8 +224,37 @@ export function subscribeRecibos(
   )
 }
 
-// ─── TIPOS DE EVENTO ──────────────────────────────────────────────────────────
-// Agregar en src/types/evento.ts → TipoEvento:
-//   | 'recibo.devolucion'
-// TIPO_EVENTO_LABELS: 'recibo.devolucion': 'Devolución de dinero'
-// TIPO_EVENTO_EMOJI:  'recibo.devolucion': '↩️'
+// ─── RESUMEN DE LO YA COBRADO / IMPUTADO EN UN TRÁMITE ───────────────────────
+// Base para que el recibo de cierre impute solo lo que falta (sin descontar dos
+// veces un SUATS o una comisión que ya fue en un parcial).
+export interface ResumenCobros {
+  cobrado:             number   // suma de cobros (sin devoluciones)
+  devuelto:            number   // suma (positiva) de devoluciones
+  neto:                number   // cobrado − devuelto
+  montoSUATS:          number
+  costoSUATS:          number
+  montoInformePersona: number
+  costoInformePersona: number
+  comisionReferido:    number
+}
+
+export function resumirCobros(recibos: Recibo[]): ResumenCobros {
+  const r: ResumenCobros = {
+    cobrado: 0, devuelto: 0, neto: 0,
+    montoSUATS: 0, costoSUATS: 0,
+    montoInformePersona: 0, costoInformePersona: 0,
+    comisionReferido: 0,
+  }
+  for (const x of recibos) {
+    const m = Number(x.monto ?? 0)
+    if (m < 0 || x.tipo === 'devolucion') { r.devuelto += Math.abs(m); continue }
+    r.cobrado             += m
+    r.montoSUATS          += Number(x.montoSUATS ?? 0)
+    r.costoSUATS          += Number(x.costoSUATS ?? 0)
+    r.montoInformePersona += Number(x.montoInformePersona ?? 0)
+    r.costoInformePersona += Number(x.costoInformePersona ?? 0)
+    r.comisionReferido    += Number(x.comisionReferido ?? 0)
+  }
+  r.neto = r.cobrado - r.devuelto
+  return r
+}

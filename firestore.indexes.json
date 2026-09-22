@@ -578,6 +578,57 @@
       "density": "SPARSE_ALL"
     },
     {
+      "collectionGroup": "recibos",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "gestoriaId", "order": "ASCENDING" },
+        { "fieldPath": "encargadoId", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "comprobantes",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "gestoriaId", "order": "ASCENDING" },
+        { "fieldPath": "tipo", "order": "ASCENDING" },
+        { "fieldPath": "creadoEn", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "liquidacionesEncargado",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "gestoriaId", "order": "ASCENDING" },
+        { "fieldPath": "creadoEn", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "liquidacionesEncargado",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "gestoriaId", "order": "ASCENDING" },
+        { "fieldPath": "asignadoA", "order": "ASCENDING" },
+        { "fieldPath": "creadoEn", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "liquidacionesEncargado",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "gestoriaId", "order": "ASCENDING" },
+        { "fieldPath": "encargadoId", "order": "ASCENDING" }
+      ]
+    },
+    { "collectionGroup": "encargados", "queryScope": "COLLECTION",
+  "fields": [
+    { "fieldPath": "gestoriaId", "order": "ASCENDING" },
+    { "fieldPath": "nombre",     "order": "ASCENDING" } ] },
+{ "collectionGroup": "encargados", "queryScope": "COLLECTION",
+  "fields": [
+    { "fieldPath": "gestoriaId", "order": "ASCENDING" },
+    { "fieldPath": "asignadoA",  "order": "ASCENDING" },
+    { "fieldPath": "nombre",     "order": "ASCENDING" } ] },
+    {
       "collectionGroup": "tareas",
       "queryScope": "COLLECTION",
       "fields": [

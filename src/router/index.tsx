@@ -47,7 +47,8 @@ const SuperAdminPage           = lazy(() => import('@/features/superadmin/SuperA
 const PremiosPage              = lazy(() => import('@/features/premios/PremiosPage'))
 const RevisionMultasPage       = lazy(() => import('@/features/revision-multas/RevisionMultasPage'))
 const TorreControlMultasPage   = lazy(() => import('@/features/multas/TorreControlMultasPage'))
-
+const EncargadosPage        = lazy(() => import('@/features/encargados/EncargadosPage'))
+const EncargadoDetallePage  = lazy(() => import('@/features/encargados/EncargadoDetallePage'))
 
 // ─── GESTOR (mandatario) ──────────────────────────────────────────────────────
 const GestorHomePage           = lazy(() => import('@/features/gestor/GestorHomePage'))
@@ -148,6 +149,8 @@ export const router = createBrowserRouter([
       { path: 'importar',          element: <L><ImportarPage /></L> },
       { path: 'importar/whatsapp', element: <L><ImportadorWA /></L> },
       { path: 'referidos',         lazy: () => import('@/features/referidos/ReferidosPage').then(m => ({ Component: m.default })),},
+      { path: 'encargados',     element: <L><EncargadosPage /></L> },
+      { path: 'encargados/:id', element: <L><EncargadoDetallePage /></L> },
       { path: 'actividad',         element: <L><ActividadPage /></L> },
       { path: 'analytics',         element: <L><AnalyticsPage /></L> },
       { path: 'alertas',           element: <L><AlertasPage /></L> },

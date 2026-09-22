@@ -32,6 +32,9 @@ export interface RegistroPago {
   registradoPorNombre: string
   registradoEn:        Timestamp
     encargadoId?:        string   // encargado que gestionó el cobro (si no fue propio)
+  comisionDestino?:    string   // a quién va la comisión (nombre)
+  reciboId?:           string   // recibo emitido por este pago (vacío = pendiente de reconciliar)
+  numeroRecibo?:       string
   // ── Desglose ──────────────────────────────────────────────────────────────
   montoSUATS?:          number   // precio cobrado al cliente
   costoSUATS?:          number   // costo de producción para la gestoría

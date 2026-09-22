@@ -2,10 +2,10 @@
 import { useState } from 'react'
 import { z }        from 'zod'
 import { Input, Textarea, Button } from '@/components/ui'
-import SelectorEncargado from '@/components/shared/SelectorEncargado'
+import SelectorEncargado, { nombreVisible } from '@/components/shared/SelectorEncargado'
 import type { Cliente, OrigenCanal } from '@/types'
 import {
-  ORIGEN_CANAL_LABELS, ORIGEN_COMERCIAL, ORIGEN_CANALES,
+  ORIGEN_CANAL_LABELS, ORIGEN_COMERCIAL, ORIGEN_CON_COMISION, ORIGEN_CANALES,
   origenRequiereNombre,
 } from '@/types'
 
@@ -228,7 +228,8 @@ export default function ClienteForm({
   }
 
   const canalActivo = form.origenCanal as OrigenCanal | undefined
-  const esReferido  = origenRequiereNombre(canalActivo)
+  const esComercial = !!canalActivo && ORIGEN_CON_COMISION.includes(canalActivo)
+  const esOtro      = canalActivo === 'otro'
   const hayErrorOrigen = !!errors.origenCanal || !!errors.origenNombre
 
   return (
@@ -377,8 +378,8 @@ export default function ClienteForm({
               <p className="text-xs text-red-600 mt-2">{errors.origenCanal}</p>
             )}
 
-            {/* Nombre del tercero — obligatorio */}
-            {esReferido && (
+            {/* Encargado comercial — obligatorio */}
+            {esComercial && (
               <div className="mt-4 animate-fadein">
                 <SelectorEncargado
                   value={form.encargadoId}
@@ -386,13 +387,13 @@ export default function ClienteForm({
                     ...prev,
                     encargadoId: id || undefined,
                     encargadoNombre: encargado
-                      ? `${encargado.nombre} ${encargado.apellido}`.trim()
+                      ? nombreVisible(encargado)
                       : prev.encargadoNombre,
                     origenNombre: encargado
-                      ? `${encargado.nombre} ${encargado.apellido}`.trim()
+                      ? nombreVisible(encargado)
                       : prev.origenNombre,
                     origen: buildOrigenLegacy(prev.origenCanal as OrigenCanal, encargado
-                      ? `${encargado.nombre} ${encargado.apellido}`.trim()
+                      ? nombreVisible(encargado)
                       : prev.origenNombre ?? ''),
                   }))}
                   tipos={['encargado_multas', 'concesionaria', 'agencia', 'reventa', 'referido_persona']}
@@ -411,6 +412,18 @@ export default function ClienteForm({
                     </span>
                   </p>
                 )}
+              </div>
+            )}
+
+            {esOtro && (
+              <div className="mt-4 animate-fadein">
+                <Input
+                  label="¿Por dónde llegó?"
+                  value={form.origenNombre ?? ''}
+                  placeholder={placeholderNombre(canalActivo)}
+                  onChange={e => setNombreReferente(e.target.value)}
+                  error={errors.origenNombre}
+                />
               </div>
             )}
           </div>

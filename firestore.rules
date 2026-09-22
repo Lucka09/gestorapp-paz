@@ -247,6 +247,20 @@ service cloud.firestore {
     match /recibos/{reciboId} {
       allow read:   if isStaff() && docDeMiGestoria();
       allow create: if isStaff() && nuevaDocDeMiGestoria();
+      allow update: if isStaff() && docDeMiGestoria()
+                    && request.resource.data.diff(resource.data).affectedKeys()
+                       .hasOnly(['tieneComprobante','comprobanteId',
+                                 'liquidacionId','comisionPagadaEn']);
+    }
+
+    match /comprobantes/{id} {
+      allow read:   if isStaff() && docDeMiGestoria();
+      allow create: if isStaff() && nuevaDocDeMiGestoria()
+                    && request.resource.data.subidoPor == request.auth.uid;
+      allow update: if isAdmin() && docDeMiGestoria()
+                    && request.resource.data.diff(resource.data).affectedKeys()
+                       .hasOnly(['verificado','verificadoPor','verificadoEn']);
+      allow delete: if false;
     }
 
     match /contadoresRecibos/{contadorId} {
@@ -263,6 +277,17 @@ service cloud.firestore {
       allow read:  if usuarioAutenticado() && request.auth.uid == uid;
       allow read:  if isAdmin() && docDeMiGestoria();
       allow write: if isAdmin() && docDeMiGestoria();
+    }
+match /liquidacionesEncargado/{id} {
+      allow read:   if isAdmin() && docDeMiGestoria();
+      allow read:   if isStaff() && docDeMiGestoria()
+                    && resource.data.asignadoA == request.auth.uid;
+      allow create: if isStaff() && nuevaDocDeMiGestoria()
+                    && request.resource.data.pagadoPor == request.auth.uid;
+      allow update: if isStaff() && docDeMiGestoria()
+                    && request.resource.data.diff(resource.data).affectedKeys()
+                       .hasOnly(['tieneComprobante','comprobanteId']);
+      allow delete: if false;
     }
 
     // ─── NUEVAS ENTIDADES SaaS+IA ────────────────────────────────────────────
@@ -291,17 +316,18 @@ service cloud.firestore {
       allow update: if isStaff() && docDeMiGestoria();
       allow delete: if isAdmin() && docDeMiGestoria();
     }
+        // ─── ENCARGADOS DE MULTAS Y REFERIDOS ─────────────────────────────────
     match /encargados/{encId} {
       // Admin y propietario ven todos; el resto del staff solo los suyos.
       allow read:   if isAdmin() && docDeMiGestoria();
       allow read:   if isStaff() && docDeMiGestoria()
                     && resource.data.asignadoA == request.auth.uid;
-      allow create: if isStaff() && nuevaDocDeMiGestoria();
-      // Solo el dueño o un admin lo edita
+      allow create: if isStaff() && nuevaDocDeMiGestoria()
+                    && request.resource.data.asignadoA == request.auth.uid;
       allow update: if isAdmin() && docDeMiGestoria();
       allow update: if isStaff() && docDeMiGestoria()
                     && resource.data.asignadoA == request.auth.uid;
-      // No se borran: se desactivan. Así no se pierde el historial.
+      // No se borran: se desactivan, para no perder el historial.
       allow delete: if false;
     }
   }

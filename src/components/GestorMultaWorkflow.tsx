@@ -20,9 +20,12 @@ import {
   ESTADO_MULTA_OP_ORDER, ESTADOS_MULTA_MANUALES,
   MONTO_SUATS_DEFAULT, MONTO_INFORME_PERSONA_DEFAULT,
 } from '@/types/multa_types'
-import { origenTieneComision } from '@/types'
 import type { MetodoPago, RegistroPago, EstadoMulta } from '@/types/multa_types'
-import CamposDeduccion, { type ValoresDeduccion } from '@/components/shared/CamposDeduccion'
+import CamposDeduccion, {
+  deduccionesValidas, type ValoresDeduccion,
+} from '@/components/shared/CamposDeduccion'
+import AdjuntarComprobante from '@/components/shared/AdjuntarComprobante'
+import { adjuntarARecibo } from '@/lib/firestore/comprobantes'
 import {
   AlertTriangle, CheckCircle2, Clock, RotateCcw,
   Upload, X, Eye, ChevronDown, ChevronUp,
@@ -292,6 +295,9 @@ export default function GestorMultaWorkflow({ tramiteId, numeroLITExterno }: Pro
   const [nuevoPagoModal, setNuevoPagoModal] = useState<{ monto: number; metodoPago: MetodoPago; nota: string }>(
     { monto: 0, metodoPago: 'efectivo', nota: '' }
   )
+  const [deducModal, setDeducModal] = useState<ValoresDeduccion>({})
+  const [comprobanteModal, setComprobanteModal] = useState<File | null>(null)
+  const [comprobanteCierre, setComprobanteCierre] = useState<File | null>(null)
 
   // Documentación adicional (multi-DNI)
   const [docNuevo, setDocNuevo]       = useState({ etiqueta: '', dni: '', nombre: '' })
@@ -350,7 +356,7 @@ export default function GestorMultaWorkflow({ tramiteId, numeroLITExterno }: Pro
     metodoPago: 'efectivo' as MetodoPago,
     montoAcreditado: undefined as number | undefined,
     cuotasTarjeta: undefined as number | undefined,
-    costoSUATS: 0,
+    costoSUATS: undefined as number | undefined,
   })
 
   // Pre-carga automática del Paso 7 — el CEO/admin sigue siendo el último filtro humano.
@@ -417,6 +423,7 @@ const iniciarJob = httpsCallable(functions, 'iniciarDescargaCupones')
     const pago: RegistroPago = {
       ...nuevoPago,
       ...deduc,
+      encargadoId:       tramite?.encargadoId,
       registradoPor:       user.uid,
       registradoPorNombre: `${user.nombre} ${user.apellido}`.trim(),
       registradoEn:        Timestamp.now(),
@@ -449,9 +456,54 @@ const iniciarJob = httpsCallable(functions, 'iniciarDescargaCupones')
 
   const handleAgregarPago = async () => {
     if (!nuevoPagoModal.monto || nuevoPagoModal.monto <= 0) { toast.error('Ingresá un monto válido'); return }
-    await agregarPago(nuevoPagoModal.monto, nuevoPagoModal.metodoPago, nuevoPagoModal.nota || undefined)
+    const reciboId = await agregarPago({
+      monto: nuevoPagoModal.monto,
+      metodoPago: nuevoPagoModal.metodoPago,
+      nota: nuevoPagoModal.nota || undefined,
+      ...deducModal,
+      encargadoId: tramite?.encargadoId,
+    })
+    if (comprobanteModal && reciboId && tramite?.gestoriaId && user) {
+      try {
+        await adjuntarARecibo(comprobanteModal, {
+          id: reciboId,
+          gestoriaId: tramite.gestoriaId,
+          monto: nuevoPagoModal.monto,
+          formaPago: nuevoPagoModal.metodoPago,
+          tramiteId: tramite.id,
+          clienteId: tramite.clienteId,
+          patente: tramite.patente,
+        }, { uid: user.uid, nombre: `${user.nombre ?? ''} ${user.apellido ?? ''}`.trim() })
+      } catch (e) {
+        console.error('[GestorMultaWorkflow] No se pudo subir el comprobante:', e)
+        toast('El pago se guardó, pero el comprobante no se pudo subir. Adjuntalo desde Cobranzas → Comprobantes.', { icon: '📎' })
+      }
+    }
     setNuevoPagoModal({ monto: 0, metodoPago: 'efectivo', nota: '' })
+    setDeducModal({})
+    setComprobanteModal(null)
     setModalPago(false)
+  }
+
+  const handleConfirmarPaso7 = async () => {
+    const reciboId = await confirmarPaso7(p7)
+    if (comprobanteCierre && reciboId && tramite?.gestoriaId && user) {
+      try {
+        await adjuntarARecibo(comprobanteCierre, {
+          id: reciboId,
+          gestoriaId: tramite.gestoriaId,
+          monto: p7.pagoTotalRecibo,
+          formaPago: p7.metodoPago,
+          tramiteId: tramite.id,
+          clienteId: tramite.clienteId,
+          patente: tramite.patente,
+        }, { uid: user.uid, nombre: `${user.nombre ?? ''} ${user.apellido ?? ''}`.trim() })
+      } catch (e) {
+        console.error('[GestorMultaWorkflow] No se pudo subir el comprobante de cierre:', e)
+        toast('El cierre se guardó, pero el comprobante no se pudo subir. Adjuntalo desde Cobranzas → Comprobantes.', { icon: '📎' })
+      }
+    }
+    setComprobanteCierre(null)
   }
 
   const handleAgregarDoc = async () => {
@@ -774,7 +826,7 @@ const iniciarJob = httpsCallable(functions, 'iniciarDescargaCupones')
       {/* Modal registrar pago */}
       {modalPago && (
         <div className="fixed inset-0 z-50 bg-black/60 flex items-end sm:items-center justify-center p-4" onClick={() => setModalPago(false)}>
-          <div className="bg-white rounded-2xl w-full max-w-sm shadow-2xl p-5 space-y-4" onClick={e => e.stopPropagation()}>
+          <div className="bg-white rounded-2xl w-full max-w-md max-h-[90vh] overflow-y-auto shadow-2xl p-5 space-y-4" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between">
               <h3 className="font-bold text-gray-900 flex items-center gap-2">
                 <CreditCard size={16} className="text-emerald-600" /> Registrar pago
@@ -783,6 +835,21 @@ const iniciarJob = httpsCallable(functions, 'iniciarDescargaCupones')
                 <X size={14} className="text-gray-600" />
               </button>
             </div>
+            <CamposDeduccion
+              monto={nuevoPagoModal.monto}
+              metodo={nuevoPagoModal.metodoPago}
+              valores={deducModal}
+              onChange={setDeducModal}
+              requiereSUATS={workflow.paso1?.requiereSUATS === true}
+              referidoNombre={tramite?.encargadoNombre || undefined}
+              compacto
+            />
+            <AdjuntarComprobante
+              metodo={nuevoPagoModal.metodoPago}
+              archivo={comprobanteModal}
+              onChange={setComprobanteModal}
+              compacto
+            />
             <div>
               <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">Monto ($)</label>
               <input
@@ -821,7 +888,7 @@ const iniciarJob = httpsCallable(functions, 'iniciarDescargaCupones')
             </div>
             <button
               onClick={handleAgregarPago}
-              disabled={guardando || !nuevoPagoModal.monto || nuevoPagoModal.monto <= 0}
+              disabled={guardando || !nuevoPagoModal.monto || nuevoPagoModal.monto <= 0 || !deduccionesValidas(nuevoPagoModal.monto, deducModal)}
               className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-sm transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
             >
               {guardando ? 'Guardando...' : <><CheckCircle2 size={15} /> Confirmar — {formatARS(nuevoPagoModal.monto || 0)}</>}
@@ -1046,6 +1113,7 @@ const iniciarJob = httpsCallable(functions, 'iniciarDescargaCupones')
                   valores={deduc}
                   onChange={setDeduc}
                   requiereSUATS={workflow.paso1?.requiereSUATS === true}
+                  referidoNombre={tramite?.encargadoNombre || undefined}
                   compacto
                 />
                 <div className="flex gap-3 mt-3">
@@ -1388,6 +1456,13 @@ const iniciarJob = httpsCallable(functions, 'iniciarDescargaCupones')
                 mostrarConceptos={false}
               />
 
+              <AdjuntarComprobante
+                metodo={p7.metodoPago}
+                archivo={comprobanteCierre}
+                onChange={setComprobanteCierre}
+                compacto
+              />
+
               {/* Checkboxes */}
               <div className="space-y-2">
                 {[
@@ -1407,7 +1482,12 @@ const iniciarJob = httpsCallable(functions, 'iniciarDescargaCupones')
 <div className={`border rounded-xl overflow-hidden ${workflow.paso1?.requiereSUATS ? 'border-red-300 bg-red-50' : 'border-gray-100'}`}>
   <label className={`flex items-center gap-2 p-3 cursor-pointer text-sm hover:bg-opacity-70 transition-colors ${workflow.paso1?.requiereSUATS ? 'bg-red-50' : 'hover:bg-gray-50'}`}>
     <input type="checkbox" checked={p7.suatsAbonado}
-      onChange={e => setP7(prev => ({ ...prev, suatsAbonado: e.target.checked, montoSUATS: e.target.checked ? (prev.montoSUATS || montoSuatsCfg) : 0 }))}
+      onChange={e => setP7(prev => ({
+        ...prev,
+        suatsAbonado: e.target.checked,
+        montoSUATS:   e.target.checked ? (prev.montoSUATS || montoSuatsCfg) : 0,
+        costoSUATS:   e.target.checked ? costoSuatsCfg : 0,
+      }))}
       className="accent-[#D4621A]" />
     <span className="font-medium text-gray-700">¿Se abonó SUATS?</span>
     <span className={`text-xs ml-auto font-bold ${workflow.paso1?.requiereSUATS ? 'text-red-600' : 'text-gray-400'}`}>
@@ -1470,10 +1550,10 @@ const iniciarJob = httpsCallable(functions, 'iniciarDescargaCupones')
                 </div>
               </div>
 
-              {origenTieneComision(tramite?.origenCanal ?? undefined) && (
+              {tramite?.encargadoId && (
                 <div>
                   <label className="text-xs font-semibold text-gray-500 mb-1 block">
-                    Comisión entregada a {tramite?.origenNombre ?? 'el referido'}
+                    Comisión entregada a {tramite.encargadoNombre ?? 'el encargado'}
                   </label>
                   <input
                     type="number"
@@ -1542,7 +1622,7 @@ const iniciarJob = httpsCallable(functions, 'iniciarDescargaCupones')
                 disabled={
                   !puedeCerrarPaso7 || !p7.clienteAvisado || !chequeo?.ok || guardando
                 }
-                onClick={() => confirmarPaso7(p7)}
+                onClick={handleConfirmarPaso7}
                 className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-sm disabled:opacity-50 transition-colors"
               >
                 {guardando ? 'Archivando...' : puedeCerrarPaso7 ? '🗂️ Finalizar y archivar trámite' : '🔒 Solo Admin / Propietario puede cerrar'}

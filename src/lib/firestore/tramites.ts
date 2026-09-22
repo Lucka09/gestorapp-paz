@@ -176,7 +176,28 @@ export async function crearTramite(
   const secuencial = countSnap.data().count + 1
   const numero     = generarNumeroTramite(data.tipo, secuencial)
 
+  // El trámite hereda del cliente a quién pertenece. Si el caller ya indicó
+  // un encargado, ese valor explícito tiene prioridad.
+  let herencia: Record<string, unknown> = {}
+  if (data.clienteId && !data.encargadoId) {
+    try {
+      const cSnap = await getDoc(clienteDoc(data.clienteId))
+      if (cSnap.exists()) {
+        const cliente = cSnap.data() as unknown as Record<string, unknown>
+        herencia = {
+          encargadoId:     cliente.encargadoId     ?? null,
+          encargadoNombre: cliente.encargadoNombre ?? null,
+          origenCanal:     cliente.origenCanal     ?? null,
+          origenNombre:    cliente.origenNombre    ?? null,
+        }
+      }
+    } catch (e) {
+      console.warn('[crearTramite] no se pudo leer el cliente para heredar origen:', e)
+    }
+  }
+
   const ref = await addDoc(tramitesCol as CollectionReference<DocumentData>, {
+    ...herencia,
     ...data,
     numero,
     estado:           'pendiente',
@@ -349,7 +370,7 @@ export async function marcarPagado(
 
 export interface PagoTramite {
   monto:               number
-  formaPago:           'efectivo' | 'transferencia' | 'cheque' | 'mixto' | 'mercadopago'
+  formaPago:           'efectivo' | 'transferencia' | 'tarjeta' | 'cheque' | 'mixto' | 'mercadopago'
   fecha:               Timestamp
   notas:               string
   tipo:                'parcial' | 'total'   // calculado automáticamente
@@ -361,7 +382,7 @@ export interface PagoTramite {
  
 export interface RegistroPago {
   monto:                 number
-  formaPago:             'efectivo' | 'transferencia' | 'cheque' | 'mixto' | 'mercadopago'
+  formaPago:             'efectivo' | 'transferencia' | 'tarjeta' | 'cheque' | 'mixto' | 'mercadopago'
   fecha:                 string   // ISO date (yyyy-mm-dd)
   notas?:                string
   montoSUATS?:           number
@@ -369,6 +390,7 @@ export interface RegistroPago {
   montoInformePersona?:  number
   costoInformePersona?:  number
   comisionReferido?:     number
+  comisionDestino?:      string
   montoAcreditado?:      number
   cuotasTarjeta?:        number
   encargadoId?:          string
@@ -447,10 +469,13 @@ export async function registrarPago(
     montoInformePersona: pago.montoInformePersona,
     costoInformePersona: pago.costoInformePersona,
     comisionReferido:    pago.comisionReferido,
+    comisionDestino:     pago.comisionDestino,
     montoAcreditado:     pago.montoAcreditado,
     cuotasTarjeta:       pago.cuotasTarjeta,
     encargadoId:         pago.encargadoId ?? tramite.encargadoId,
     encargadoNombre:     tramite.encargadoNombre,
+    // Fecha que eligió el usuario en el formulario = fecha de cobro del recibo
+    fechaCobro:          Timestamp.fromDate(new Date(pago.fecha + 'T12:00:00')),
     })
  
   const nuevoPago: PagoTramite = {

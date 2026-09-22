@@ -25,17 +25,20 @@ import type { Tramite } from '@/types'
 import { formatFecha, formatPesos } from '@/utils'
 import toast from 'react-hot-toast'
 import BandejaRecibos from './BandejaRecibos'
+import ComprobantesTab from './ComprobantesTab'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import { useEquipo }   from '@/hooks/useEquipo'
 import { generarComprobantePago, descargarRecibo } from '@/utils/comprobantePago'
-import SelectorEncargado from '@/components/shared/SelectorEncargado'
+import SelectorEncargado, { nombreVisible } from '@/components/shared/SelectorEncargado'
 import CamposDeduccion, { type ValoresDeduccion } from '@/components/shared/CamposDeduccion'
+import AdjuntarComprobante from '@/components/shared/AdjuntarComprobante'
+import { adjuntarARecibo } from '@/lib/firestore/comprobantes'
 
 // ─── TIPOS ────────────────────────────────────────────────────────────────────
 
 type FiltroEstadoPago = 'todos' | 'pendiente' | 'pagado' | 'vencido'
 type OrdenCobranza   = 'monto-desc' | 'monto-asc' | 'antiguedad' | 'estado'
-type FormaPago = 'efectivo' | 'transferencia' | 'mercadopago' | 'cheque' | 'mixto'
+type FormaPago = 'efectivo' | 'transferencia' | 'tarjeta' | 'mercadopago' | 'cheque' | 'mixto'
 type PeriodoCobranza = 'semana' | 'mes' | 'todos'
 
 interface TramiteConCliente extends Tramite {
@@ -47,6 +50,7 @@ interface TramiteConCliente extends Tramite {
 const FORMA_PAGO_OPTS = [
   { value: 'efectivo',      label: '💵 Efectivo',          icon: Banknote   },
   { value: 'transferencia', label: '📱 Transferencia',      icon: CreditCard },
+  { value: 'tarjeta',       label: '💳 Tarjeta',            icon: CreditCard },
   { value: 'mercadopago',   label: '🔵 Mercado Pago',       icon: CreditCard },
   { value: 'cheque',        label: '📄 Cheque',             icon: FileCheck  },
   { value: 'mixto',         label: '🔀 Mixto',              icon: Banknote   },
@@ -123,8 +127,12 @@ function ModalPago({
   const [notas,     setNotas]     = useState('')
   const [saving,    setSaving]    = useState(false)
   const [deduc,     setDeduc]     = useState<ValoresDeduccion>({})
+  const [comprobante, setComprobante] = useState<File | null>(null)
   const [esPropio,  setEsPropio]  = useState(!tramite.encargadoId)
   const [encargadoId, setEncargadoId] = useState(tramite.encargadoId ?? '')
+  const [encargadoNombre, setEncargadoNombre] = useState(tramite.encargadoNombre ?? '')
+
+  const cerrar = () => { setComprobante(null); onClose() }
 
   const handleGuardar = async () => {
     if (tramite.tipo === 'descargo_multa') {
@@ -133,6 +141,7 @@ function ModalPago({
     }
     if (!monto || parseFloat(monto) <= 0) { toast.error('Ingresá el monto cobrado'); return }
     if (!fecha)  { toast.error('Seleccioná la fecha del cobro'); return }
+    if (!esPropio && !encargadoId) { toast.error('Elegí el encargado'); return }
         if (!user)   { toast.error('Sesión no encontrada — recargá la página'); return }
     const esTercero = esControl && atribuidoA && atribuidoA !== user.uid
     if (esTercero && !motivoTercero.trim()) {
@@ -162,6 +171,24 @@ function ModalPago({
           } : {}),
         },
       )
+
+      if (comprobante && resultado.reciboId && gestoriaId) {
+        try {
+          await adjuntarARecibo(comprobante, {
+            id: resultado.reciboId,
+            gestoriaId,
+            monto: montoNum,
+            formaPago,
+            tramiteId: tramite.id,
+            clienteId: tramite.clienteId,
+            patente: tramite.patente,
+            numeroRecibo: resultado.numeroRecibo,
+          }, { uid: user.uid, nombre: `${user.nombre ?? ''} ${user.apellido ?? ''}`.trim() })
+        } catch (e) {
+          console.error('[ModalPago] No se pudo subir el comprobante:', e)
+          toast('El cobro se guardó, pero el comprobante no se pudo subir. Adjuntalo desde Cobranzas → Comprobantes.', { icon: '📎' })
+        }
+      }
 
       toast.success(
         resultado.tipo === 'total'
@@ -195,7 +222,7 @@ function ModalPago({
         toast('El recibo se guardó — podés descargarlo desde Notificaciones', { icon: '📄' })
       }
 
-      onClose()
+      cerrar()
     } catch {
       toast.error('Error al registrar el pago')
     } finally {
@@ -204,7 +231,7 @@ function ModalPago({
   }
 
   return (
-    <Modal open={open} onClose={onClose} title="Registrar cobro" size="sm"
+    <Modal open={open} onClose={cerrar} title="Registrar cobro" size="sm"
            subtitle={`${TIPO_TRAMITE_LABELS[tramite.tipo]} — ${clienteNombre}`}>
       <div className="space-y-4">
         <div className="bg-gray-50 rounded-xl p-3.5 flex items-center justify-between">
@@ -258,11 +285,13 @@ function ModalPago({
         <Input label="Fecha del cobro *" type="date" value={fecha} max={hoy}
                onChange={e => setFecha(e.target.value)} />
 
-        <CamposDeduccion monto={parseFloat(monto) || 0} metodo={formaPago}
-          valores={deduc} onChange={setDeduc} />
-
         <div className="flex gap-2">
-          <button type="button" onClick={() => { setEsPropio(true); setEncargadoId('') }}
+          <button type="button" onClick={() => {
+            setEsPropio(true)
+            setEncargadoId('')
+            setEncargadoNombre('')
+            setDeduc(prev => ({ ...prev, comisionReferido: undefined, comisionDestino: undefined }))
+          }}
             className={`px-3 py-1.5 rounded-lg text-xs border ${esPropio ? 'border-gp-orange bg-gp-orange-pale text-gp-orange' : 'border-gray-200 text-gray-500'}`}>
             Lead propio
           </button>
@@ -276,14 +305,26 @@ function ModalPago({
             value={encargadoId}
             onChange={(id, encargado) => {
               setEncargadoId(id)
+              const nombre = encargado ? nombreVisible(encargado) : ''
+              setEncargadoNombre(nombre)
               setDeduc(prev => ({
                 ...prev,
-                comisionDestino: encargado ? `${encargado.nombre} ${encargado.apellido}`.trim() : '',
+                comisionDestino: nombre,
               }))
             }}
             required
           />
         )}
+
+        <CamposDeduccion
+          monto={parseFloat(monto) || 0}
+          metodo={formaPago}
+          valores={deduc}
+          onChange={setDeduc}
+          referidoNombre={!esPropio && encargadoNombre ? encargadoNombre : undefined}
+        />
+
+        <AdjuntarComprobante metodo={formaPago} archivo={comprobante} onChange={setComprobante} />
 
         {esControl && (
           <div>
@@ -440,7 +481,7 @@ export default function CobranzasPage() {
   const [periodo, setPeriodo] = useState<PeriodoCobranza>(
     ['semana', 'mes', 'todos'].includes(periodoInicial) ? periodoInicial : 'mes'
   )
-  const [tab, setTab] = useState<'cobranzas' | 'recibos'>('cobranzas')
+  const [tab, setTab] = useState<'cobranzas' | 'recibos' | 'comprobantes'>('cobranzas')
   const cambiarPeriodo = (p: PeriodoCobranza) => {
     setPeriodo(p)
     setSearchParams(p === 'mes' ? {} : { periodo: p })
@@ -665,7 +706,7 @@ export default function CobranzasPage() {
 
       {/* Switcher de pestañas */}
       <div className="flex gap-2 mb-4">
-        {([['cobranzas', 'Por cobrar'], ['recibos', 'Recibos emitidos']] as const).map(([k, label]) => (
+        {([['cobranzas', 'Por cobrar'], ['recibos', 'Recibos emitidos'], ['comprobantes', 'Comprobantes']] as const).map(([k, label]) => (
           <button
             key={k}
             onClick={() => setTab(k)}
@@ -680,7 +721,7 @@ export default function CobranzasPage() {
         ))}
       </div>
 
-      {tab === 'recibos' ? <BandejaRecibos /> : (
+      {tab === 'recibos' ? <BandejaRecibos /> : tab === 'comprobantes' ? <ComprobantesTab /> : (
       <>
       {/* Filtros */}
       <Card className="p-4">

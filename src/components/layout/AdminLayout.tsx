@@ -4,7 +4,7 @@ import {
   CalendarDays, LogOut, Radar, Menu, X, MessageCircle,
   AlertTriangle, Ban, WifiOff, TrendingUp, CheckSquare, UserCog,
   Calculator, Upload, Settings, DollarSign, BarChart2,
-  Megaphone, Trophy, Building2, Search, Target, LifeBuoy,
+  Megaphone, Trophy, Building2, Search, Target, LifeBuoy, Handshake,
 } from 'lucide-react'
 import { useState } from 'react'
 import { signOut }     from 'firebase/auth'
@@ -58,6 +58,7 @@ const NAV_ITEMS_ALL = [
   { to: '/admin/cobranzas',        icon: DollarSign,      label: 'Cobranzas',        permiso: 'verCobranzas'   },
   { to: '/admin/reportes',         icon: BarChart2,       label: 'Reportes',         permiso: 'verReportes'    },
   { to: '/admin/referidos',        icon: Building2,       label: 'Referidos',        permiso: 'verReportes'    },
+  { to: '/admin/encargados',       icon: Handshake,       label: 'Encargados',       permiso: 'verCRM'         },
   { to: '/admin/tareas',           icon: CheckSquare,     label: 'Tareas',           permiso: 'verTramites'    },
   { to: '/admin/premios',          icon: Trophy,          label: 'Mis Premios',      permiso: 'verPremios'     },
   { to: '/admin/equipo',           icon: UserCog,         label: 'Equipo',           permiso: 'verEquipo'      },

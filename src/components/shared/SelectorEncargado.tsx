@@ -21,6 +21,9 @@ import { useAuth } from '@/hooks/useAuth'
 import { usePermisos } from '@/hooks/usePermisos'
 import { useGestoriaId } from '@/context/GestoriaContext'
 
+export const nombreVisible = (e: { nombre: string; apellido?: string; apodo?: string | null }) =>
+  `${e.nombre} ${e.apellido ?? ''}`.trim() + (e.apodo ? ` (${e.apodo})` : '')
+
 interface Props {
   value?:    string                       // encargadoId elegido
   onChange:  (id: string, e: Encargado | null) => void
@@ -181,7 +184,7 @@ export default function SelectorEncargado({
         <div className="flex items-center justify-between rounded-xl border border-gray-200 bg-white px-3 py-2.5">
           <div className="min-w-0">
             <p className="text-sm font-medium text-gray-900 truncate">
-              {elegido.nombre} {elegido.apellido}
+              {nombreVisible(elegido)}
             </p>
             <p className="text-xs text-gray-400 flex items-center gap-2">
               <span>{TIPO_ENCARGADO_LABELS[elegido.tipo]}</span>
@@ -222,7 +225,7 @@ export default function SelectorEncargado({
                   onClick={() => onChange(e.id, e)}
                   className="w-full text-left px-3 py-2 hover:bg-orange-50 transition-colors"
                 >
-                  <p className="text-sm text-gray-900">{e.nombre} {e.apellido}</p>
+                  <p className="text-sm text-gray-900">{nombreVisible(e)}</p>
                   <p className="text-xs text-gray-400">
                     {TIPO_ENCARGADO_LABELS[e.tipo]} · {e.telefono}
                     {e.clientesAportados ? ` · ${e.clientesAportados} clientes` : ''}

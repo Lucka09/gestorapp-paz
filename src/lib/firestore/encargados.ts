@@ -47,6 +47,7 @@ export interface Encargado {
   // — Contacto —
   nombre:     string          // obligatorio
   apellido:   string          // obligatorio
+  apodo?:     string | null
   telefono:   string          // obligatorio
   email?:     string
   instagram?: string
@@ -132,23 +133,27 @@ export async function crearEncargado(
   // Duplicados por teléfono dentro de la gestoría. Se avisa pero no se bloquea:
   // dos secretarios pueden compartir un encargado legítimamente.
   const tel = String(input.telefono).replace(/\D/g, '').slice(-10)
-  const dup = await getDocs(query(
-    encargadosCol,
-    where('gestoriaId', '==', input.gestoriaId),
-    limit(200),
-  ))
-  const yaExiste = dup.docs.find(d => {
-    const t = String((d.data() as any).telefono ?? '').replace(/\D/g, '').slice(-10)
-    return t === tel
-  })
-  if (yaExiste) {
-    const e = yaExiste.data() as any
-    throw new Error(
-      `Ya existe "${e.nombre} ${e.apellido}" con ese teléfono, ` +
-      `asignado a ${e.asignadoANombre || 'otro secretario'}. ` +
-      'Pedí que te lo compartan en vez de duplicarlo.',
-    )
-  }
+  try {
+    const propios = await getDocs(query(
+      encargadosCol,
+      where('gestoriaId', '==', input.gestoriaId),
+      where('asignadoA',  '==', input.asignadoA),
+      limit(500),
+    ))
+    const yaExiste = propios.docs.find(d => {
+      const t = String((d.data() as any).telefono ?? '').replace(/\D/g, '').slice(-10)
+      return t && t === tel
+    })
+    if (yaExiste) {
+      const e = yaExiste.data() as any
+      throw new Error(`Ya tenés cargado a "${e.nombre} ${e.apellido ?? ''}" con ese teléfono.`)
+    }
+  } catch (e: any) {
+    // Solo relanzamos el error de duplicado; los de permisos o red se ignoran.
+    if (String(e?.message ?? '').startsWith('Ya tenés')) throw e
+    console.warn('[crearEncargado] no se pudo chequear duplicados:', e?.code ?? e)
+  } 
+  
 
   const ref = await addDoc(encargadosCol, {
     ...input,

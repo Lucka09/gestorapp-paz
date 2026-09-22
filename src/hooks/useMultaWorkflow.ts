@@ -26,8 +26,9 @@ import type {
   MultaWorkflow, MultaPaso1Data, MultaPaso2Data,
   MultaPaso3Data, MultaReboteResolucion,
   MultaPaso4Data, MultaPaso5Data, MultaPaso6Data, MultaPaso7Data,
-  DocumentoAdicional,
+  DocumentoAdicional, RegistroPago, MetodoPago,
 } from '@/types/multa_types'
+import type { ValoresDeduccion } from '@/components/shared/CamposDeduccion'
 import { esMultaDeUsuario } from '@/types/multa_types'
 import { puedeHacer } from '@/utils/permisos'
 import type { Rol } from '@/types'
@@ -414,19 +415,21 @@ export function useMultaWorkflow(tramiteId: string) {
   // ── PASO 7 ────────────────────────────────────────────────────────────────
   const confirmarPaso7 = useCallback(async (
     campos: Omit<MultaPaso7Data, 'completadoPor' | 'completadoPorNombre' | 'completadoEn'>
-  ) => {
-    if (!user || !gestoriaId) return
+  ): Promise<string | null> => {
+    if (!user || !gestoriaId) return null
     setGuardando(true)
     setError(null)
     try {
-      await confirmarPaso7Multa(tramiteId, gestoriaId, {
+      const reciboId = await confirmarPaso7Multa(tramiteId, gestoriaId, {
         ...campos,
         completadoPor:       user.uid,
         completadoPorNombre: `${user.nombre} ${user.apellido}`.trim(),
       })
       toast.success('Trámite cerrado y archivado ✓')
+      return reciboId
     } catch (e) {
       toast.error((e as Error).message)
+      return null
     } finally {
       setGuardando(false)
     }
@@ -441,26 +444,29 @@ export function useMultaWorkflow(tramiteId: string) {
 
   // ── AGREGAR PAGO POST-CONFIRMACIÓN ──────────────────────────────────────
   const agregarPagoFn = useCallback(async (
-    monto:      number,
-    metodoPago: import('@/types/multa_types').MetodoPago,
-    nota?:      string,
-  ) => {
-    if (!user || !workflow) return
+    pagoInput: {
+      monto: number
+      metodoPago: MetodoPago
+      nota?: string
+      encargadoId?: string
+    } & ValoresDeduccion,
+  ): Promise<string | null> => {
+    if (!user || !workflow) return null
     setGuardando(true)
     try {
-      const pago: import('@/types/multa_types').RegistroPago = {
-        monto,
-        metodoPago,
-        nota,
+      const pago: RegistroPago = {
+        ...pagoInput,
         registradoPor:       user.uid,
         registradoPorNombre: `${user.nombre} ${user.apellido}`.trim(),
         registradoEn:        Timestamp.now(),
       }
-      await agregarPagoMulta(tramiteId, pago, workflow.paso2?.historialPagos ?? [])
+      const reciboId = await agregarPagoMulta(tramiteId, pago, workflow.paso2?.historialPagos ?? [])
       toast.success('Pago registrado')
+      return reciboId
     } catch (e: any) {
       toast.error('Error al registrar el pago')
       console.error('[agregarPago]', e)
+      return null
     } finally {
       setGuardando(false)
     }

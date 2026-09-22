@@ -1,0 +1,519 @@
+[
+ {
+  "nombre": "Julian",
+  "apellido": "Zeiss",
+  "apodo": "",
+  "tipo": "encargado_multas",
+  "telefono": "5491165321424",
+  "telefonoAlt": "",
+  "notas": "",
+  "asignado": "jessica",
+  "alias": [
+   "julian zeiss"
+  ],
+  "clientes": 13,
+  "fusion": false
+ },
+ {
+  "nombre": "Nahuel",
+  "apellido": "",
+  "apodo": "",
+  "tipo": "encargado_multas",
+  "telefono": "5491136924775",
+  "telefonoAlt": "",
+  "notas": "",
+  "asignado": "jessica",
+  "alias": [
+   "nahuel"
+  ],
+  "clientes": 7,
+  "fusion": false
+ },
+ {
+  "nombre": "Tatiana",
+  "apellido": "",
+  "apodo": "",
+  "tipo": "encargado_multas",
+  "telefono": "5491136742057",
+  "telefonoAlt": "",
+  "notas": "",
+  "asignado": "jessica",
+  "alias": [
+   "tatiana"
+  ],
+  "clientes": 6,
+  "fusion": false
+ },
+ {
+  "nombre": "Fabrizio",
+  "apellido": "",
+  "apodo": "",
+  "tipo": "encargado_multas",
+  "telefono": "5491133513307",
+  "telefonoAlt": "",
+  "notas": "",
+  "asignado": "jessica",
+  "alias": [
+   "fabrizio"
+  ],
+  "clientes": 5,
+  "fusion": false
+ },
+ {
+  "nombre": "Luca",
+  "apellido": "Di Tomasso",
+  "apodo": "",
+  "tipo": "encargado_multas",
+  "telefono": "5491179012001",
+  "telefonoAlt": "",
+  "notas": "",
+  "asignado": "jessica",
+  "alias": [
+   "luca",
+   "luca di tomasso"
+  ],
+  "clientes": 6,
+  "fusion": true
+ },
+ {
+  "nombre": "Diego",
+  "apellido": "Aguilera",
+  "apodo": "",
+  "tipo": "encargado_multas",
+  "telefono": "5491137315409",
+  "telefonoAlt": "",
+  "notas": "",
+  "asignado": "jessica",
+  "alias": [
+   "diego",
+   "diego aguilera"
+  ],
+  "clientes": 6,
+  "fusion": true
+ },
+ {
+  "nombre": "Laureano",
+  "apellido": "",
+  "apodo": "",
+  "tipo": "encargado_multas",
+  "telefono": "5491123223756",
+  "telefonoAlt": "",
+  "notas": "",
+  "asignado": "jessica",
+  "alias": [
+   "laureano"
+  ],
+  "clientes": 5,
+  "fusion": false
+ },
+ {
+  "nombre": "Alejandro",
+  "apellido": "Lasia",
+  "apodo": "",
+  "tipo": "encargado_multas",
+  "telefono": "5491151783293",
+  "telefonoAlt": "",
+  "notas": "",
+  "asignado": "jessica",
+  "alias": [
+   "alejandro",
+   "alejandro lasia"
+  ],
+  "clientes": 5,
+  "fusion": true
+ },
+ {
+  "nombre": "Cecilia",
+  "apellido": "",
+  "apodo": "",
+  "tipo": "encargado_multas",
+  "telefono": "5491130145152",
+  "telefonoAlt": "",
+  "notas": "Figuraba también como \"Ceci\"",
+  "asignado": "jessica",
+  "alias": [
+   "ceci",
+   "cecilia"
+  ],
+  "clientes": 6,
+  "fusion": true
+ },
+ {
+  "nombre": "German",
+  "apellido": "",
+  "apodo": "",
+  "tipo": "encargado_multas",
+  "telefono": "5491158207819",
+  "telefonoAlt": "",
+  "notas": "",
+  "asignado": "jessica",
+  "alias": [
+   "german"
+  ],
+  "clientes": 4,
+  "fusion": false
+ },
+ {
+  "nombre": "Ruben",
+  "apellido": "Purif",
+  "apodo": "",
+  "tipo": "encargado_multas",
+  "telefono": "5491132191184",
+  "telefonoAlt": "",
+  "notas": "",
+  "asignado": "jessica",
+  "alias": [
+   "ruben",
+   "ruben purif"
+  ],
+  "clientes": 5,
+  "fusion": true
+ },
+ {
+  "nombre": "Norma",
+  "apellido": "",
+  "apodo": "",
+  "tipo": "encargado_multas",
+  "telefono": "5491171300867",
+  "telefonoAlt": "",
+  "notas": "",
+  "asignado": "jessica",
+  "alias": [
+   "norma"
+  ],
+  "clientes": 3,
+  "fusion": false
+ },
+ {
+  "nombre": "Erick",
+  "apellido": "",
+  "apodo": "Electricista",
+  "tipo": "encargado_multas",
+  "telefono": "5491166539979",
+  "telefonoAlt": "",
+  "notas": "Es electricista",
+  "asignado": "jessica",
+  "alias": [
+   "erick",
+   "erick electricista"
+  ],
+  "clientes": 3,
+  "fusion": true
+ },
+ {
+  "nombre": "Sebastian",
+  "apellido": "",
+  "apodo": "",
+  "tipo": "reventa",
+  "telefono": "5491144397478",
+  "telefonoAlt": "",
+  "notas": "",
+  "asignado": "florencia",
+  "alias": [
+   "sebastian"
+  ],
+  "clientes": 2,
+  "fusion": false
+ },
+ {
+  "nombre": "Armando",
+  "apellido": "",
+  "apodo": "Toyota",
+  "tipo": "referido_persona",
+  "telefono": "",
+  "telefonoAlt": "",
+  "notas": "Vinculado a Toyota. Apellido pendiente",
+  "asignado": "jessica",
+  "alias": [
+   "armando toyota"
+  ],
+  "clientes": 2,
+  "fusion": false
+ },
+ {
+  "nombre": "Gaston",
+  "apellido": "Corvalan",
+  "apodo": "",
+  "tipo": "encargado_multas",
+  "telefono": "5491144364211",
+  "telefonoAlt": "",
+  "notas": "",
+  "asignado": "jessica",
+  "alias": [
+   "gaston corvalan"
+  ],
+  "clientes": 2,
+  "fusion": false
+ },
+ {
+  "nombre": "Armando",
+  "apellido": "",
+  "apodo": "Chino",
+  "tipo": "referido_persona",
+  "telefono": "",
+  "telefonoAlt": "",
+  "notas": "Apodo \"Chino\". Apellido pendiente",
+  "asignado": "jessica",
+  "alias": [
+   "armando chino"
+  ],
+  "clientes": 2,
+  "fusion": false
+ },
+ {
+  "nombre": "Manuel",
+  "apellido": "",
+  "apodo": "",
+  "tipo": "encargado_multas",
+  "telefono": "5491167684167",
+  "telefonoAlt": "",
+  "notas": "",
+  "asignado": "jessica",
+  "alias": [
+   "manuel"
+  ],
+  "clientes": 1,
+  "fusion": false
+ },
+ {
+  "nombre": "Macarena",
+  "apellido": "",
+  "apodo": "",
+  "tipo": "encargado_multas",
+  "telefono": "5491131976937",
+  "telefonoAlt": "",
+  "notas": "",
+  "asignado": "jessica",
+  "alias": [
+   "macarena"
+  ],
+  "clientes": 1,
+  "fusion": false
+ },
+ {
+  "nombre": "Nicolas",
+  "apellido": "Joel",
+  "apodo": "",
+  "tipo": "encargado_multas",
+  "telefono": "5491138473209",
+  "telefonoAlt": "5491134281121",
+  "notas": "",
+  "asignado": "jessica",
+  "alias": [
+   "nicolas",
+   "nicolas joel"
+  ],
+  "clientes": 2,
+  "fusion": true
+ },
+ {
+  "nombre": "Antonella",
+  "apellido": "",
+  "apodo": "",
+  "tipo": "encargado_multas",
+  "telefono": "",
+  "telefonoAlt": "",
+  "notas": "",
+  "asignado": "jessica",
+  "alias": [
+   "antonella"
+  ],
+  "clientes": 1,
+  "fusion": false
+ },
+ {
+  "nombre": "Daniela",
+  "apellido": "",
+  "apodo": "",
+  "tipo": "encargado_multas",
+  "telefono": "",
+  "telefonoAlt": "",
+  "notas": "",
+  "asignado": "jessica",
+  "alias": [
+   "daniela"
+  ],
+  "clientes": 1,
+  "fusion": false
+ },
+ {
+  "nombre": "Camila",
+  "apellido": "",
+  "apodo": "",
+  "tipo": "encargado_multas",
+  "telefono": "",
+  "telefonoAlt": "",
+  "notas": "",
+  "asignado": "jessica",
+  "alias": [
+   "camila"
+  ],
+  "clientes": 1,
+  "fusion": false
+ },
+ {
+  "nombre": "San Juan",
+  "apellido": "",
+  "apodo": "",
+  "tipo": "encargado_multas",
+  "telefono": "",
+  "telefonoAlt": "",
+  "notas": "¿Persona o lugar? Confirmar con Jessica",
+  "asignado": "jessica",
+  "alias": [
+   "san juan"
+  ],
+  "clientes": 1,
+  "fusion": false
+ },
+ {
+  "nombre": "Silvina",
+  "apellido": "Sierra",
+  "apodo": "",
+  "tipo": "encargado_multas",
+  "telefono": "",
+  "telefonoAlt": "",
+  "notas": "",
+  "asignado": "jessica",
+  "alias": [
+   "silvina sierra"
+  ],
+  "clientes": 1,
+  "fusion": false
+ },
+ {
+  "nombre": "Sergio",
+  "apellido": "",
+  "apodo": "",
+  "tipo": "reventa",
+  "telefono": "5491164585046",
+  "telefonoAlt": "",
+  "notas": "",
+  "asignado": "jessica",
+  "alias": [
+   "sergio"
+  ],
+  "clientes": 1,
+  "fusion": false
+ },
+ {
+  "nombre": "Tomas",
+  "apellido": "Coca",
+  "apodo": "",
+  "tipo": "encargado_multas",
+  "telefono": "5491137931716",
+  "telefonoAlt": "",
+  "notas": "",
+  "asignado": "jessica",
+  "alias": [
+   "tomas coca"
+  ],
+  "clientes": 1,
+  "fusion": false
+ },
+ {
+  "nombre": "Gonzalo",
+  "apellido": "",
+  "apodo": "",
+  "tipo": "encargado_multas",
+  "telefono": "5491176333576",
+  "telefonoAlt": "",
+  "notas": "¿Es el mismo que Gonzalo Vasquez? Teléfonos distintos",
+  "asignado": "jessica",
+  "alias": [
+   "gonzalo"
+  ],
+  "clientes": 1,
+  "fusion": false
+ },
+ {
+  "nombre": "Edwin",
+  "apellido": "Garcia",
+  "apodo": "",
+  "tipo": "referido_persona",
+  "telefono": "",
+  "telefonoAlt": "",
+  "notas": "",
+  "asignado": "gonzalo",
+  "alias": [
+   "edwin garcia"
+  ],
+  "clientes": 1,
+  "fusion": false
+ },
+ {
+  "nombre": "Analia",
+  "apellido": "Lopez",
+  "apodo": "",
+  "tipo": "encargado_multas",
+  "telefono": "",
+  "telefonoAlt": "",
+  "notas": "",
+  "asignado": "jessica",
+  "alias": [
+   "analia lopez encargada de multas"
+  ],
+  "clientes": 1,
+  "fusion": false
+ },
+ {
+  "nombre": "Mario",
+  "apellido": "Martinez",
+  "apodo": "",
+  "tipo": "encargado_multas",
+  "telefono": "",
+  "telefonoAlt": "",
+  "notas": "",
+  "asignado": "jessica",
+  "alias": [
+   "mario martinez"
+  ],
+  "clientes": 1,
+  "fusion": false
+ },
+ {
+  "nombre": "Claudio",
+  "apellido": "",
+  "apodo": "Alquiler",
+  "tipo": "referido_persona",
+  "telefono": "",
+  "telefonoAlt": "",
+  "notas": "Vinculado a alquiler. Apellido pendiente",
+  "asignado": "jessica",
+  "alias": [
+   "claudio alquiler"
+  ],
+  "clientes": 1,
+  "fusion": false
+ },
+ {
+  "nombre": "Cristian",
+  "apellido": "",
+  "apodo": "",
+  "tipo": "encargado_multas",
+  "telefono": "",
+  "telefonoAlt": "",
+  "notas": "",
+  "asignado": "jessica",
+  "alias": [
+   "cristian encargado de multas"
+  ],
+  "clientes": 1,
+  "fusion": false
+ },
+ {
+  "nombre": "Gonzalo",
+  "apellido": "Vasquez",
+  "apodo": "",
+  "tipo": "encargado_multas",
+  "telefono": "5491134418851",
+  "telefonoAlt": "",
+  "notas": "Agregado por Jessica, sin clientes todavía",
+  "asignado": "jessica",
+  "alias": [
+   "gonzalo vasquez"
+  ],
+  "clientes": 0,
+  "fusion": false
+ }
+]

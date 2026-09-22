@@ -13,6 +13,7 @@ import { Search, CheckCircle2, AlertTriangle, ChevronLeft } from 'lucide-react'
 import Modal from '@/components/shared/Modal'
 import { useMultaWorkflows } from '@/hooks/useMultaWorkflow'
 import { useAuthStore } from '@/store/authStore'
+import { useConfiguracion } from '@/hooks/useConfiguracion'
 import { agregarPagoMulta } from '@/lib/firestore/MultaWorwflow'
 import {
   METODOS_PAGO_LABELS, estadoMultaEfectivo,
@@ -22,7 +23,9 @@ import type { MetodoPago, RegistroPago, MultaWorkflow } from '@/types/multa_type
 import CamposDeduccion, {
   deduccionesValidas, type ValoresDeduccion,
 } from '@/components/shared/CamposDeduccion'
-import SelectorEncargado from '@/components/shared/SelectorEncargado'
+import SelectorEncargado, { nombreVisible } from '@/components/shared/SelectorEncargado'
+import AdjuntarComprobante from '@/components/shared/AdjuntarComprobante'
+import { adjuntarARecibo } from '@/lib/firestore/comprobantes'
 
 const NARANJA = '#D4621A'
 const fmt = (n: number) =>
@@ -38,6 +41,7 @@ interface Props {
 export default function ModalOtrosPagos({ open, onClose }: Props) {
   const { multas } = useMultaWorkflows()
   const { user }   = useAuthStore()
+  const { config } = useConfiguracion()
 
   const [q,         setQ]         = useState('')
   const [sel,       setSel]       = useState<MultaWorkflow | null>(null)
@@ -48,6 +52,8 @@ export default function ModalOtrosPagos({ open, onClose }: Props) {
   const [deduc,     setDeduc]     = useState<ValoresDeduccion>({})
   const [esPropio,  setEsPropio]  = useState(true)
   const [encargadoId, setEncargadoId] = useState('')
+  const [encargadoNombre, setEncargadoNombre] = useState('')
+  const [comprobante, setComprobante] = useState<File | null>(null)
   const [guardando, setGuardando] = useState(false)
 
   // Búsqueda por patente, DNI o nombre (mismo criterio que la tabla de Revisión).
@@ -72,7 +78,7 @@ export default function ModalOtrosPagos({ open, onClose }: Props) {
 
   const reset = () => {
     setSel(null); setMonto(0); setMetodo('efectivo'); setPagadoPor(''); setNota(''); setQ(''); setDeduc({})
-    setEsPropio(true); setEncargadoId('')
+    setEsPropio(true); setEncargadoId(''); setEncargadoNombre(''); setComprobante(null)
   }
   const cerrar = () => { reset(); onClose() }
 
@@ -81,7 +87,9 @@ export default function ModalOtrosPagos({ open, onClose }: Props) {
     setPagadoPor(w.paso1?.nombreCompleto ?? '')
     const yaCobrado = (w.paso2?.historialPagos ?? [])
       .reduce((total, pago) => total + (pago.montoSUATS ?? 0), 0)
-    setDeduc(w.paso1?.requiereSUATS && yaCobrado === 0 ? { montoSUATS: 25000 } : {})
+    setDeduc(w.paso1?.requiereSUATS && yaCobrado === 0
+      ? { montoSUATS: config.costosMulta?.suats ?? 25000 }
+      : {})
   }
 
   const confirmar = async () => {
@@ -101,7 +109,22 @@ export default function ModalOtrosPagos({ open, onClose }: Props) {
         registradoPorNombre: `${user.nombre ?? ''} ${user.apellido ?? ''}`.trim(),
         registradoEn:        Timestamp.now(),
       }
-      await agregarPagoMulta(sel.id, pago, sel.paso2?.historialPagos ?? [])
+      const reciboId = await agregarPagoMulta(sel.id, pago, sel.paso2?.historialPagos ?? [])
+      if (comprobante && reciboId && sel.gestoriaId && user) {
+        try {
+          await adjuntarARecibo(comprobante, {
+            id: reciboId,
+            gestoriaId: sel.gestoriaId,
+            monto,
+            formaPago: metodo,
+            tramiteId: sel.id,
+            patente: sel.paso1?.patente,
+          }, { uid: user.uid, nombre: `${user.nombre ?? ''} ${user.apellido ?? ''}`.trim() })
+        } catch (e) {
+          console.error('[OtrosPagos] No se pudo subir el comprobante:', e)
+          toast('El cobro se guardó, pero el comprobante no se pudo subir. Adjuntalo desde Cobranzas → Comprobantes.', { icon: '📎' })
+        }
+      }
       toast.success(`Cobro de ${fmt(monto)} registrado en ${sel.paso1?.patente ?? 'la multa'}`)
       cerrar()
     } catch (e) {
@@ -210,17 +233,13 @@ export default function ModalOtrosPagos({ open, onClose }: Props) {
             </div>
           </div>
 
-          <CamposDeduccion
-            monto={monto}
-            metodo={metodo}
-            valores={deduc}
-            onChange={setDeduc}
-            requiereSUATS={sel.paso1?.requiereSUATS === true}
-            compacto
-          />
-
           <div className="flex gap-2">
-            <button type="button" onClick={() => { setEsPropio(true); setEncargadoId('') }}
+            <button type="button" onClick={() => {
+              setEsPropio(true)
+              setEncargadoId('')
+              setEncargadoNombre('')
+              setDeduc(p => ({ ...p, comisionReferido: undefined, comisionDestino: undefined }))
+            }}
               className={`px-3 py-1.5 rounded-lg text-xs border ${esPropio ? 'border-[#D4621A] bg-orange-50 text-[#D4621A]' : 'border-gray-200 text-gray-500'}`}>
               Lead propio
             </button>
@@ -234,12 +253,25 @@ export default function ModalOtrosPagos({ open, onClose }: Props) {
               value={encargadoId}
               onChange={(id, encargado) => {
                 setEncargadoId(id)
-                const nombre = encargado ? `${encargado.nombre} ${encargado.apellido}`.trim() : ''
+                const nombre = encargado ? nombreVisible(encargado) : ''
+                setEncargadoNombre(nombre)
                 setDeduc(prev => ({ ...prev, comisionDestino: nombre }))
               }}
               required
             />
           )}
+
+          <CamposDeduccion
+            monto={monto}
+            metodo={metodo}
+            valores={deduc}
+            onChange={setDeduc}
+            requiereSUATS={sel.paso1?.requiereSUATS === true}
+            referidoNombre={!esPropio && encargadoNombre ? encargadoNombre : undefined}
+            compacto
+          />
+
+          <AdjuntarComprobante metodo={metodo} archivo={comprobante} onChange={setComprobante} compacto />
 
           {/* Quién realizó el pago */}
           <div>
@@ -275,7 +307,7 @@ export default function ModalOtrosPagos({ open, onClose }: Props) {
           </p>
 
           <button
-            disabled={guardando || !deduccionesValidas(monto, deduc)}
+            disabled={guardando || !deduccionesValidas(monto, deduc) || (!esPropio && !encargadoId)}
             onClick={confirmar}
             className="w-full py-3 text-white text-sm font-bold rounded-xl flex items-center justify-center gap-2 disabled:opacity-50"
             style={{ background: NARANJA }}
