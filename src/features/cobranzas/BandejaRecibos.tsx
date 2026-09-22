@@ -3,8 +3,10 @@
 // Solo lectura: el CEO revisa el flujo de recibos sin inundar el Panel de Mando.
 import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Search, FileCheck, ArrowRight } from 'lucide-react'
+import { Search, FileCheck, ArrowRight, RotateCcw } from 'lucide-react'
 import { useRecibos } from '@/hooks/useRecibos'
+import { usePermisos } from '@/hooks/usePermisos'
+import ModalDevolucion from '@/components/shared/ModalDevolucion'
 import { usePaginacion } from '@/hooks/usePaginacion'
 import ControlPaginacion from '@/components/shared/ControlPaginacion'
 import { Card, Spinner } from '@/components/ui'
@@ -13,6 +15,8 @@ import { formatFecha, formatPesos } from '@/utils'
 export default function BandejaRecibos() {
   const { recibos, loading } = useRecibos()
   const [search, setSearch] = useState('')
+  const { puede } = usePermisos()
+  const [devolver, setDevolver] = useState<any | null>(null)
 
   const filtrados = useMemo(() => {
     const q = search.trim().toLowerCase()
@@ -83,17 +87,44 @@ export default function BandejaRecibos() {
                   <div className="text-xs text-gray-400 truncate">{r.tipoTramite}</div>
                 </div>
                 <div className="col-span-2 text-right">
-                  <div className="font-semibold text-gray-900">{formatPesos(r.monto)}</div>
-                  <span className={`text-[10px] rounded-full px-1.5 py-0.5 ${
-                    r.tipo === 'total' ? 'bg-green-50 text-green-700' : 'bg-amber-50 text-amber-700'
-                  }`}>
-                    {r.tipo === 'total' ? 'total' : 'parcial'}
-                  </span>
+                  {(() => {
+                    const esDev = r.tipo === 'devolucion' || Number(r.monto ?? 0) < 0
+                    return (
+                      <>
+                        <div className={`font-semibold ${esDev ? 'text-red-600' : 'text-gray-900'}`}>
+                          {esDev
+                            ? `−${formatPesos(Math.abs(Number(r.monto ?? 0)))}`
+                            : formatPesos(r.monto)}
+                        </div>
+                        <span className={`text-[10px] rounded-full px-1.5 py-0.5 ${
+                          esDev              ? 'bg-red-50 text-red-600'
+                          : r.tipo === 'total' ? 'bg-green-50 text-green-700'
+                          :                      'bg-amber-50 text-amber-700'
+                        }`}>
+                          {esDev ? 'devolución' : r.tipo === 'total' ? 'total' : 'parcial'}
+                        </span>
+                      </>
+                    )
+                  })()}
                 </div>
                 <div className="col-span-2 text-gray-600 capitalize truncate">{r.formaPago || '—'}</div>
                 <div className="col-span-2 flex items-center justify-between gap-1 min-w-0">
                   <span className="text-gray-500 text-xs truncate">{r.emitidoPorNombre || '—'}</span>
-                  <ArrowRight size={13} className="text-gray-300 shrink-0" />
+                  <div className="flex items-center gap-1 shrink-0">
+                    {puede('registrarDevoluciones')
+                      && !!r.tramiteId
+                      && r.tipo !== 'devolucion'
+                      && Number(r.monto ?? 0) > 0 && (
+                      <button
+                        title="Registrar devolución de este cobro"
+                        onClick={e => { e.preventDefault(); e.stopPropagation(); setDevolver(r) }}
+                        className="p-1 rounded-lg text-gray-300 hover:text-red-600 hover:bg-red-50 transition-colors"
+                      >
+                        <RotateCcw size={13} />
+                      </button>
+                    )}
+                    <ArrowRight size={13} className="text-gray-300" />
+                  </div>
                 </div>
               </Link>
             ))}
@@ -117,6 +148,14 @@ export default function BandejaRecibos() {
           </div>
         )}
       </Card>
+
+      <ModalDevolucion
+        open={!!devolver}
+        tramiteId={devolver?.tramiteId ?? ''}
+        tramiteLabel={`${devolver?.numeroTramite ?? ''} · ${devolver?.patente ?? ''}`}
+        reciboOriginalId={devolver?.id}
+        onClose={() => setDevolver(null)}
+      />
     </>
   )
 }

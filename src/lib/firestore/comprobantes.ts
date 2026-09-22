@@ -223,7 +223,7 @@ export async function getRecibosSinComprobante(
     .filter(r =>
       !r.tieneComprobante &&
       requiereComprobante(r.formaPago) &&
-      Number(r.monto ?? 0) > 0 &&
+      Math.abs(Number(r.monto ?? 0)) > 0 &&   // incluye devoluciones (monto negativo)
       (r.creadoEn?.toMillis?.() ?? 0) >= d0)
     .sort((a, b) => (b.creadoEn?.toMillis?.() ?? 0) - (a.creadoEn?.toMillis?.() ?? 0))
 }

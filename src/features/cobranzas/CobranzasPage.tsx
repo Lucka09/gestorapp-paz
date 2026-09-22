@@ -1,6 +1,7 @@
 import { useState, useMemo, useEffect } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { usePaginacion }     from '@/hooks/usePaginacion'
+import { usePermisos }       from '@/hooks/usePermisos'
 import ControlPaginacion     from '@/components/shared/ControlPaginacion'
 import {
   DollarSign, CheckCircle, Clock, AlertTriangle,
@@ -18,6 +19,7 @@ import { registrarPago, desmarcarPago } from '@/lib/firestore/tramites'
 import { PageHeader, Card, Button, Input, Select, Spinner } from '@/components/ui'
 import Modal from '@/components/shared/Modal'
 import ConfirmDialog from '@/components/shared/ConfirmDialog'
+import ModalDevolucion from '@/components/shared/ModalDevolucion'
 import { useGestoriaId }    from '@/context/GestoriaContext'
 import { EstadoBadge } from '@/features/tramites/EstadoBadge'
 import { TIPO_TRAMITE_LABELS } from '@/types'
@@ -371,12 +373,13 @@ function ModalPago({
 // ─── FILA DE COBRANZA ─────────────────────────────────────────────────────────
 
 function FilaCobranza({
-  item, onMarcarPago, onDesmarcar, onWhatsApp,
+  item, onMarcarPago, onDesmarcar, onWhatsApp, onDevolver,
 }: {
   item:          TramiteConCliente
   onMarcarPago:  (t: Tramite) => void
   onDesmarcar:   (id: string) => void
   onWhatsApp:    (t: TramiteConCliente) => void
+  onDevolver?:   (t: TramiteConCliente) => void
 }) {
   const antiguedad = badgeAntiguedad(item.diasDesdeEntrega)
   const vencido    = !item.pagado && item.diasDesdeEntrega > 30
@@ -453,20 +456,33 @@ function FilaCobranza({
             </Button>
           </>
         ) : (
-          <button
-            onClick={() => onDesmarcar(item.id)}
-            aria-label="Desmarcar pago"
-            className="w-8 h-8 bg-gray-100 text-gray-400 rounded-lg flex items-center
-                       justify-center hover:bg-gray-200 transition-colors touch-xs"
-            title="Desmarcar como cobrado"
-          >
-            <RotateCcw size={13} />
-          </button>
+          <>
+            {onDevolver && (
+              <button
+                onClick={() => onDevolver(item)}
+                aria-label="Registrar devolución"
+                title="Registrar devolución — emite recibo negativo"
+                className="w-8 h-8 bg-red-50 text-red-500 rounded-lg flex items-center
+                           justify-center hover:bg-red-100 transition-colors touch-xs"
+              >
+                <RotateCcw size={13} />
+              </button>
+            )}
+            <button
+              onClick={() => onDesmarcar(item.id)}
+              aria-label="Desmarcar pago"
+              className="w-8 h-8 bg-gray-100 text-gray-400 rounded-lg flex items-center
+                         justify-center hover:bg-gray-200 transition-colors touch-xs"
+              title="Desmarcar como cobrado"
+            >
+              <RotateCcw size={13} />
+            </button>
+          </>
         )}
       </div>
     </div>
   )
-}
+}     
 
 // ─── PÁGINA PRINCIPAL ─────────────────────────────────────────────────────────
 
@@ -474,6 +490,7 @@ export default function CobranzasPage() {
   const { tramites, loading: loadT } = useTramites()
   usePageTitle('Cobranzas')
   const { clientes }                 = useClientes()
+  const { puede }                    = usePermisos()
 
 
   // ── Período (lee ?periodo=semana de la URL — click desde el Panel de Mando) ──
@@ -494,6 +511,7 @@ export default function CobranzasPage() {
   const [orden,        setOrden]        = useState<OrdenCobranza>('antiguedad')
   const [modalPago,    setModalPago]    = useState<Tramite | null>(null)
   const [confirmDesm,  setConfirmDesm]  = useState<string | null>(null)
+  const [devolucion,   setDevolucion]   = useState<TramiteConCliente | null>(null)
 
   // "Cobrado total" = recibos con FECHA DE COBRO en el período (todas las
   // áreas, multas incluidas) — el mismo número que Reportes y el Panel.
@@ -836,6 +854,7 @@ export default function CobranzasPage() {
                 onMarcarPago={t => setModalPago(t)}
                 onDesmarcar={id => setConfirmDesm(id)}
                 onWhatsApp={handleWhatsApp}
+                onDevolver={puede('registrarDevoluciones') ? setDevolucion : undefined}
               />
             ))}
 
@@ -873,6 +892,13 @@ export default function CobranzasPage() {
           onClose={() => setModalPago(null)}
         />
       )}
+
+      <ModalDevolucion
+        open={!!devolucion}
+        tramiteId={devolucion?.id ?? ''}
+        tramiteLabel={`${devolucion?.numero ?? ''} · ${devolucion?.patente ?? ''}`}
+        onClose={() => setDevolucion(null)}
+      />
 
       <ConfirmDialog
         open={!!confirmDesm}

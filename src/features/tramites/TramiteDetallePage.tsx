@@ -26,7 +26,7 @@ import BotonComprobantePago  from './BotonComprobantePago'
 import { PanelNotas }  from '@/components/shared/PanelNotas'
 import { PanelDocumentacion } from '@/components/shared/PanelDocumentacion'
 import ModalDevolucion from '@/components/shared/ModalDevolucion'
-import { chequearDevolucion } from '@/lib/firestore/devoluciones'
+import { chequearDevolucion, getDevolucionesPorTramite } from '@/lib/firestore/devoluciones'
 import GestorMultaWorkflow     from '@/components/GestorMultaWorkflow'
 import NumeroBadge             from '@/components/shared/NumeroBadge'
 import { TIPO_TRAMITE_LABELS, type EstadoTramite } from '@/types'
@@ -103,6 +103,7 @@ export default function TramiteDetallePage() {
   const [deleteNota, setDeleteNota] = useState('')
   const [devolviendo, setDevolviendo] = useState(false)
   const [montoDisponibleDevolucion, setMontoDisponibleDevolucion] = useState(0)
+  const [devoluciones, setDevoluciones] = useState<any[]>([])
   const { puede }                  = usePermisos()
   const [editForm, setEditForm] = useState({ descripcion: '', observacionesInternas: '', honorarios: 0 })
 
@@ -122,6 +123,7 @@ export default function TramiteDetallePage() {
     try {
       const chequeo = await chequearDevolucion(id, 0, '')
       setMontoDisponibleDevolucion(chequeo.disponible)
+      setDevoluciones(await getDevolucionesPorTramite(id).catch(() => []))
     } catch (error) {
       console.warn('[TramiteDetallePage] no se pudo consultar devolución:', error)
       setMontoDisponibleDevolucion(0)
@@ -489,6 +491,38 @@ export default function TramiteDetallePage() {
                 : <><DollarSign size={16} /> Marcar pagado</>
               }
             </button>
+          </div>
+        </Card>
+      )}
+
+      {/* Devoluciones al cliente — recibos negativos del trámite */}
+      {devoluciones.length > 0 && (
+        <Card className="p-5 border-l-4 border-l-red-400">
+          <div className="flex items-center gap-2 mb-3">
+            <RotateCcw size={14} className="text-red-500" />
+            <p className="text-xs font-bold text-gray-400 uppercase tracking-wider">
+              Devoluciones al cliente ({devoluciones.length})
+            </p>
+          </div>
+          <div className="space-y-2">
+            {devoluciones.map(d => (
+              <div key={d.id}
+                className="flex items-start justify-between gap-3 bg-red-50/50 border border-red-100 rounded-xl px-3 py-2">
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold text-gray-800">
+                    {d.numeroRecibo} · {formatFecha(d.fechaCobro ?? d.creadoEn)}
+                  </p>
+                  <p className="text-xs text-gray-500 whitespace-pre-line">{d.notas}</p>
+                  <p className="text-[11px] text-gray-400 mt-0.5">
+                    Devolvió {d.devueltoPorNombre ?? d.emitidoPorNombre} · {d.formaPago}
+                    {d.tieneComprobante ? ' · comprobante adjunto' : ' · sin comprobante'}
+                  </p>
+                </div>
+                <span className="text-sm font-bold text-red-600 shrink-0">
+                  −{formatPesos(Math.abs(Number(d.monto ?? 0)))}
+                </span>
+              </div>
+            ))}
           </div>
         </Card>
       )}

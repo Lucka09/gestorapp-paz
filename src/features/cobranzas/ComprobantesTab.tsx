@@ -95,7 +95,7 @@ function CobrosClientes() {
     }
   }
 
-  const montoFaltante = faltan.reduce((a, r) => a + Number(r.monto ?? 0), 0)
+  const montoFaltante = faltan.reduce((a, r) => a + Math.abs(Number(r.monto ?? 0)), 0)
 
   return (
     <div className="space-y-3">
@@ -135,10 +135,21 @@ function CobrosClientes() {
                 </tr></thead>
                 <tbody>{faltan.map(r => (
                   <tr key={r.id} className="border-b border-gray-50">
-                    <td className="px-4 py-2.5 font-medium">{r.numeroRecibo}</td>
+                    <td className="px-4 py-2.5 font-medium">
+                      {r.numeroRecibo}
+                      {(r.tipo === 'devolucion' || Number(r.monto ?? 0) < 0) && (
+                        <span className="ml-2 text-[10px] font-bold px-1.5 py-0.5 rounded bg-red-50 text-red-600">
+                          devolución
+                        </span>
+                      )}
+                    </td>
                     <td className="px-2 py-2.5 tabular-nums">{r.patente}</td>
                     <td className="px-2 py-2.5 capitalize text-gray-500">{r.formaPago}</td>
-                    <td className="px-2 py-2.5 text-right tabular-nums">{fmt(Number(r.monto ?? 0))}</td>
+                    <td className={`px-2 py-2.5 text-right tabular-nums ${Number(r.monto ?? 0) < 0 ? 'text-red-600' : ''}`}>
+                      {Number(r.monto ?? 0) < 0
+                        ? `−${fmt(Math.abs(Number(r.monto ?? 0)))}`
+                        : fmt(Number(r.monto ?? 0))}
+                    </td>
                     <td className="px-2 py-2.5 text-xs text-gray-500">{r.atribuidoANombre || r.emitidoPorNombre}</td>
                     <td className="px-2 py-2.5 text-xs text-gray-400">{fFec(r.creadoEn)}</td>
                     <td className="px-3 py-2.5">
@@ -174,7 +185,9 @@ function CobrosClientes() {
                     </td>
                     <td className="px-2 py-2.5">{c.referencia}</td>
                     <td className="px-2 py-2.5 tabular-nums">{c.patente}</td>
-                    <td className="px-2 py-2.5 text-right tabular-nums">{fmt(c.monto)}</td>
+                    <td className={`px-2 py-2.5 text-right tabular-nums ${c.monto < 0 ? 'text-red-600' : ''}`}>
+                      {c.monto < 0 ? `−${fmt(Math.abs(c.monto))}` : fmt(c.monto)}
+                    </td>
                     <td className="px-2 py-2.5 text-xs text-gray-500">
                       {c.subidoPorNombre}<br /><span className="text-gray-400">{fFec(c.creadoEn)}</span>
                     </td>

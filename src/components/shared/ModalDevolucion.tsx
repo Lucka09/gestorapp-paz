@@ -7,6 +7,9 @@ import {
   MOTIVO_DEVOLUCION_LABELS, type MotivoDevolucion, type ChequeoDevolucion,
 } from '@/lib/firestore/devoluciones'
 import { useAuth } from '@/hooks/useAuth'
+import toast from 'react-hot-toast'
+import AdjuntarComprobante from '@/components/shared/AdjuntarComprobante'
+import { adjuntarARecibo } from '@/lib/firestore/comprobantes'
 import { useGestoriaId } from '@/context/GestoriaContext'
 
 const FORMAS_PAGO = [
@@ -24,10 +27,12 @@ interface Props {
   tramiteLabel: string
   onClose:    () => void
   onHecho?:   () => void
+  /** Recibo de cobro que se está revirtiendo, si se abre desde uno. */
+  reciboOriginalId?: string
 }
 
 export default function ModalDevolucion({
-  open, tramiteId, tramiteLabel, onClose, onHecho,
+  open, tramiteId, tramiteLabel, onClose, onHecho, reciboOriginalId,
 }: Props) {
   const { user }   = useAuth()
   const gestoriaId = useGestoriaId()
@@ -36,6 +41,8 @@ export default function ModalDevolucion({
   const [motivo,    setMotivo]    = useState<MotivoDevolucion>('tramite_cancelado')
   const [detalle,   setDetalle]   = useState('')
   const [formaPago, setFormaPago] = useState('efectivo')
+  const [fecha,     setFecha]     = useState(() => new Date().toISOString().slice(0, 10))
+  const [archivo,   setArchivo]   = useState<File | null>(null)
   const [chequeo,   setChequeo]   = useState<ChequeoDevolucion | null>(null)
   const [saving,    setSaving]    = useState(false)
   const [error,     setError]     = useState<string | null>(null)
@@ -55,11 +62,12 @@ export default function ModalDevolucion({
   const disponible = chequeo?.disponible ?? 0
   const excede     = montoNum > disponible
   const detalleOk  = detalle.trim().length >= 10
-  const puede      = montoNum > 0 && !excede && detalleOk && !saving
+  const puede      = montoNum > 0 && !excede && detalleOk && !!fecha && !saving
 
   const reset = () => {
     setMonto(''); setDetalle(''); setMotivo('tramite_cancelado')
     setFormaPago('efectivo'); setError(null); setChequeo(null)
+    setFecha(new Date().toISOString().slice(0, 10)); setArchivo(null)
   }
 
   const handleClose = () => { reset(); onClose() }
@@ -69,12 +77,13 @@ export default function ModalDevolucion({
     setSaving(true)
     setError(null)
     try {
-      await registrarDevolucion(
+      const reciboId = await registrarDevolucion(
         {
           tramiteId, gestoriaId,
           monto: montoNum, motivo,
           detalle: detalle.trim(),
-          formaPago,
+          formaPago, fecha,
+          ...(reciboOriginalId ? { reciboOriginalId } : {}),
         },
         {
           uid:    user.uid,
@@ -82,7 +91,25 @@ export default function ModalDevolucion({
           rol:    user.rol,
         },
       )
-      reset()
+
+      // Comprobante del reintegro. Si falla, la devolución YA quedó registrada:
+      // no se revierte, se avisa para adjuntarlo desde Cobranzas → Comprobantes.
+      if (archivo && reciboId) {
+        try {
+          await adjuntarARecibo(archivo, {
+            id: reciboId, gestoriaId,
+            monto: -Math.abs(montoNum),
+            formaPago, tramiteId,
+            patente: tramiteLabel,
+          }, { uid: user.uid, nombre: `${user.nombre} ${user.apellido}`.trim() })
+        } catch (e) {
+          console.error('[ModalDevolucion] comprobante:', e)
+          toast('La devolución se registró, pero el comprobante no se pudo subir. Adjuntalo desde Cobranzas → Comprobantes.', { icon: '📎' })
+        }
+      }
+
+      toast.success(`Devolución de ${fmt(montoNum)} registrada`)
+      reset()      
       onHecho?.()
       onClose()
     } catch (e: any) {
@@ -181,6 +208,22 @@ export default function ModalDevolucion({
             <option key={f.value} value={f.value}>{f.label}</option>
           ))}
         </Select>
+
+        {/* Fecha real — define en qué mes impacta la salida de plata */}
+        <Input
+          label="Fecha de la devolución *"
+          type="date"
+          value={fecha}
+          max={new Date().toISOString().slice(0, 10)}
+          onChange={e => setFecha(e.target.value)}
+        />
+
+        {/* Comprobante del reintegro (queda en Cobranzas → Comprobantes) */}
+        <AdjuntarComprobante
+          metodo={formaPago === 'efectivo' ? 'transferencia' : formaPago}
+          archivo={archivo}
+          onChange={setArchivo}
+        />
 
         {/* Aviso de impacto */}
         {montoNum > 0 && !excede && (

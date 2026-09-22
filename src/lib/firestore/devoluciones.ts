@@ -1,6 +1,6 @@
 import {
   doc, getDoc, collection, query, where, getDocs,
-  serverTimestamp, runTransaction,
+  serverTimestamp, runTransaction, Timestamp,
 } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
 import { crearRecibo, generarNumeroRecibo } from './recibos'
@@ -34,6 +34,8 @@ export interface DevolucionInput {
   formaPago:   string              // cómo se le devolvió
   /** Recibo original que se está revirtiendo, si aplica. */
   reciboOriginalId?: string
+  /** Fecha real de la devolución (ISO aaaa-mm-dd). Define en qué mes impacta. */
+  fecha?: string
 }
  
 export interface ContextoDevolucion {
@@ -151,6 +153,11 @@ export async function registrarDevolucion(
     devueltoPor:       ctx.uid,
     devueltoPorNombre: ctx.nombre,
     reciboOriginalId:  input.reciboOriginalId ?? '',
+    // Criterio de caja: la plata salió el día que dice el usuario, no el día
+    // que se cargó. Si no viene, crearRecibo usa hoy.
+    fechaCobro: input.fecha
+      ? Timestamp.fromDate(new Date(input.fecha + 'T12:00:00'))
+      : undefined,
   } as any)
  
   // ── Trazabilidad ─────────────────────────────────────────────────────────

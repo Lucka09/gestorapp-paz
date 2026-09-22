@@ -38,6 +38,7 @@ import { app } from '@/lib/firebase'
 import { Timestamp } from 'firebase/firestore'
 import { iniciarDescargaCuponesEnExtension } from '@/lib/puenteExtension'
 import ModalAlertaDocumentacion from '@/components/multas/ModalAlertaDocumentacion'
+import ModalDevolucion from '@/components/shared/ModalDevolucion'
 
 // ─── HELPERS ─────────────────────────────────────────────────────────────────
 
@@ -281,6 +282,7 @@ export default function GestorMultaWorkflow({ tramiteId, numeroLITExterno }: Pro
   } = useMultaWorkflow(tramiteId)
 
   const [alertaDocsOpen, setAlertaDocsOpen] = useState(false)
+  const [devolucionOpen, setDevolucionOpen] = useState(false)
 
   // Cambio de estado manual: si control/asistente lo pasa a "Docs. Requerida",
   // se abre directo el aviso al secretario (cancelable).
@@ -624,6 +626,13 @@ const iniciarJob = httpsCallable(functions, 'iniciarDescargaCupones')
         onClose={() => setAlertaDocsOpen(false)}
       />
 
+      <ModalDevolucion
+        open={devolucionOpen}
+        tramiteId={tramiteId}
+        tramiteLabel={`${tramite?.numero ?? ''} · ${workflow.paso1?.patente ?? tramite?.patente ?? ''}`}
+        onClose={() => setDevolucionOpen(false)}
+      />
+
       {/* Alerta: rebote */}
       {esRebotado && (
         <div className="bg-red-50 border border-red-200 rounded-2xl p-4">
@@ -796,6 +805,15 @@ const iniciarJob = httpsCallable(functions, 'iniciarDescargaCupones')
               >
                 <PlusCircle size={12} /> Registrar pago
               </button>
+              {puede('registrarDevoluciones') && (workflow.paso2?.montoTotal ?? 0) > 0 && (
+                <button
+                  onClick={() => setDevolucionOpen(true)}
+                  title="Registrar devolución al cliente"
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-red-50 hover:bg-red-100 text-red-600 text-xs font-bold rounded-xl transition-colors"
+                >
+                  <RotateCcw size={12} /> Devolución
+                </button>
+              )}
             </div>
           </div>
           <div className="px-4 py-3">
