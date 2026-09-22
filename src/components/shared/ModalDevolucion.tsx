@@ -52,11 +52,11 @@ export default function ModalDevolucion({
     if (!open || !tramiteId) return
     let vivo = true
     setError(null)
-    chequearDevolucion(tramiteId, 0, '')
+    chequearDevolucion(tramiteId, gestoriaId, 0, '')
       .then(c => { if (vivo) setChequeo(c) })
       .catch(e => { if (vivo) setError(e?.message ?? 'No se pudo leer el trámite') })
     return () => { vivo = false }
-  }, [open, tramiteId])
+  }, [open, tramiteId, gestoriaId])
 
   const montoNum   = Number(monto) || 0
   const disponible = chequeo?.disponible ?? 0

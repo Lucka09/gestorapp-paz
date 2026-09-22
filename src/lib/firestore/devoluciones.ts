@@ -61,6 +61,7 @@ export interface ChequeoDevolucion {
  */
 export async function chequearDevolucion(
   tramiteId: string,
+  gestoriaId: string,
   monto:     number,
   detalle:   string,
 ): Promise<ChequeoDevolucion> {
@@ -68,6 +69,7 @@ export async function chequearDevolucion(
  
   const snap = await getDocs(query(
     collection(db, 'recibos'),
+    where('gestoriaId', '==', gestoriaId),
     where('tramiteId', '==', tramiteId),
   ))
  
@@ -106,7 +108,7 @@ export async function registrarDevolucion(
   input: DevolucionInput,
   ctx:   ContextoDevolucion,
 ): Promise<string> {
-  const chequeo = await chequearDevolucion(input.tramiteId, input.monto, input.detalle)
+  const chequeo = await chequearDevolucion(input.tramiteId, input.gestoriaId, input.monto, input.detalle)
   if (!chequeo.ok) throw new Error(chequeo.errores.join('\n'))
  
   const tramiteSnap = await getDoc(doc(db, 'tramites', input.tramiteId))
@@ -121,7 +123,7 @@ export async function registrarDevolucion(
   // Se busca el recibo original (o el último del trámite) para saber a qué
   // secretario revertirle el ingreso. Si se lo atribuyéramos a quien hace la
   // devolución, el premio se le restaría a la persona equivocada.
-  const atribucion = await resolverAtribucion(input.tramiteId, input.reciboOriginalId)
+  const atribucion = await resolverAtribucion(input.tramiteId, input.gestoriaId, input.reciboOriginalId)
  
   const numeroRecibo = await generarNumeroRecibo(input.gestoriaId)
   const montoNegativo = -Math.abs(input.monto)
@@ -205,6 +207,7 @@ export async function registrarDevolucion(
  
 async function resolverAtribucion(
   tramiteId: string,
+  gestoriaId: string,
   reciboOriginalId?: string,
 ): Promise<{ uid: string; nombre: string }> {
   // 1. Si se indicó el recibo original, se usa su atribución
@@ -223,6 +226,7 @@ async function resolverAtribucion(
   //    en el premio del secretario.
   const snap = await getDocs(query(
     collection(db, 'recibos'),
+    where('gestoriaId', '==', gestoriaId),
     where('tramiteId', '==', tramiteId),
   ))
  
@@ -241,9 +245,10 @@ async function resolverAtribucion(
 }
  
 /** Devoluciones de un trámite, para mostrar en el detalle. */
-export async function getDevolucionesPorTramite(tramiteId: string): Promise<any[]> {
+export async function getDevolucionesPorTramite(tramiteId: string, gestoriaId: string): Promise<any[]> {
   const snap = await getDocs(query(
     collection(db, 'recibos'),
+    where('gestoriaId', '==', gestoriaId),
     where('tramiteId', '==', tramiteId),
   ))
   return snap.docs

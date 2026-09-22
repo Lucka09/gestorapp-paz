@@ -121,9 +121,9 @@ export default function TramiteDetallePage() {
   const actualizarDisponibleDevolucion = async () => {
     if (!id || !puede('registrarDevoluciones')) return
     try {
-      const chequeo = await chequearDevolucion(id, 0, '')
+      const chequeo = await chequearDevolucion(id, gestoriaId, 0, '')
       setMontoDisponibleDevolucion(chequeo.disponible)
-      setDevoluciones(await getDevolucionesPorTramite(id).catch(() => []))
+      setDevoluciones(await getDevolucionesPorTramite(id, gestoriaId).catch(() => []))
     } catch (error) {
       console.warn('[TramiteDetallePage] no se pudo consultar devolución:', error)
       setMontoDisponibleDevolucion(0)
