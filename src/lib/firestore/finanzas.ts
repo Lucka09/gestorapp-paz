@@ -47,6 +47,7 @@ export interface PartesRecibo {
   costoInformePersona?: number   // si no viene, se asume igual al precio
   comisionReferido?:    number
   montoAcreditado?:     number   // tarjeta: lo que realmente entra
+  costoFinanciero?:     number   // fallback si no se cargó montoAcreditado
 }
 
 export interface NetoCalculado {
@@ -74,7 +75,7 @@ export function calcularNetoGestoria(r: PartesRecibo): NetoCalculado {
 
   const costoFinanciero = r.montoAcreditado != null && num(r.montoAcreditado) > 0
     ? Math.max(0, monto - num(r.montoAcreditado))
-    : 0
+    : Math.max(0, num(r.costoFinanciero))
 
   const precioSUATS = num(r.montoSUATS)
   // Si hay SUATS cobrado pero no se registró su costo, se usa el default.
@@ -113,19 +114,19 @@ export function calcularNetoGestoria(r: PartesRecibo): NetoCalculado {
   }
 }
 
-/** Neto de un recibo guardado, con cascada defensiva para los viejos. */
+// Neto y base se calculan SIEMPRE desde las partes del recibo (monto, tarjeta,
+// SUATS, informe, comisión). Los campos netoGestoria / baseComisionable
+// guardados son solo caché: si alguien corrige el montoAcreditado después de
+// emitir el recibo, o el recibo se guardó con un cálculo viejo, el valor
+// guardado queda desactualizado. Recalcular es barato y nunca miente.
+
+/** Ingreso real de la gestoría para un recibo. */
 export function netoDeRecibo(r: any): number {
-  if (typeof r?.netoGestoria === 'number' && Number.isFinite(r.netoGestoria)) {
-    return r.netoGestoria
-  }
   return calcularNetoGestoria(r ?? { monto: 0 }).netoGestoria
 }
 
-/** Base comisionable de un recibo guardado. */
+/** Base de premios para un recibo. */
 export function baseDeRecibo(r: any): number {
-  if (typeof r?.baseComisionable === 'number' && Number.isFinite(r.baseComisionable)) {
-    return r.baseComisionable
-  }
   return calcularNetoGestoria(r ?? { monto: 0 }).baseComisionable
 }
 
@@ -203,8 +204,8 @@ function acumular(acc: DesgloseFinanciero, r: any, clientes: Set<string>): void 
     acc.porFormaPago[fp] = (acc.porFormaPago[fp] ?? 0) + monto
   }
 
-  acc.netoGestoria     += netoDeRecibo(r)
-  acc.baseComisionable += baseDeRecibo(r)
+  acc.netoGestoria     += calc.netoGestoria
+  acc.baseComisionable += calc.baseComisionable
   if (r.clienteId) clientes.add(String(r.clienteId))
 }
 

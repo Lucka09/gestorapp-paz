@@ -14,7 +14,7 @@
 
 import { collection, getDocs, query, where } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
-import { fechaDeRecibo, netoDeRecibo as netoDeReciboFinanzas } from './finanzas'
+import { fechaDeRecibo, calcularNetoGestoria } from './finanzas'
 
 // ─── TIPOS ────────────────────────────────────────────────────────────────────
 
@@ -35,8 +35,9 @@ export interface MetricaSecretario {
   deducInforme:        number
   deducComision:       number
   deducFinanciero:     number
-  netoGestoria:        number   // base comisionable para premios
-  /** @deprecated alias de netoGestoria — mantener hasta migrar los consumidores */
+  netoGestoria:        number   // ingreso real (descuenta el COSTO del SUATS)
+  baseComisionable:    number   // base de premios (PRECIO SUATS/informe, tarjeta, comisión, devoluciones)
+  /** alias de baseComisionable — lo que cuenta para premios */
   ingresos:            number
 }
 
@@ -48,14 +49,17 @@ export interface ResumenSecretario {
   // netos (los que importan)
   netoSemana:     number
   netoMes:        number
+  // base de premios (lo que cuenta para objetivos del secretario)
+  baseSemana:     number
+  baseMes:        number
   deduccionesMes: number
   recibosMes:     number
   cierresMes:     number
   leadsMes:       number
   consultasMes:   number
-  /** @deprecated alias de netoMes */
+  /** alias de baseMes — lo que muestra el Panel de Mando */
   ingresosMes:    number
-  /** @deprecated alias de netoSemana */
+  /** alias de baseSemana */
   ingresosSemana: number
 }
 
@@ -69,7 +73,7 @@ function filaVacia(uid: string): MetricaSecretario {
     respuestasMedidas: 0, tiempoRespuestaSegs: 0,
     recibosEmitidos: 0, cobradoBruto: 0,
     deducSUATS: 0, deducInforme: 0, deducComision: 0, deducFinanciero: 0,
-    netoGestoria: 0, ingresos: 0,
+    netoGestoria: 0, baseComisionable: 0, ingresos: 0,
   }
 }
 
@@ -90,16 +94,6 @@ const num = (v: unknown): number => {
   return Number.isFinite(n) ? n : 0
 }
 
-/**
- * Neto de un recibo. Si el recibo ya trae `netoGestoria` persistido, se usa.
- * Si no (recibos anteriores a la migración), se recalcula desde las partes.
- * Fallback final: el monto bruto — un recibo viejo sin desglose se considera
- * todo ingreso, que es como se contaba hasta ahora.
- */
-function netoDeRecibo(r: any): number {
-  // Misma fórmula que Reportes y Panel (finanzas.ts): una sola fuente de verdad.
-  return netoDeReciboFinanzas(r)
-}
 
 /** Quién se lleva el crédito del ingreso. */
 function uidAtribuido(r: any): string {
@@ -134,8 +128,10 @@ export async function getMetricasPorSecretario(
     f.deducSUATS      += num(r.montoSUATS)
     f.deducInforme    += num(r.montoInformePersona)
     f.deducComision   += num(r.comisionReferido)
-    f.deducFinanciero += num(r.costoFinanciero)
-    f.netoGestoria    += netoDeRecibo(r)
+    const calc = calcularNetoGestoria(r)
+    f.deducFinanciero  += calc.costoFinanciero
+    f.netoGestoria     += calc.netoGestoria
+    f.baseComisionable += calc.baseComisionable
   })
 
   // ── LEADS ─────────────────────────────────────────────────────────────────
@@ -194,7 +190,7 @@ export async function getMetricasPorSecretario(
   })
 
   // Alias de compatibilidad
-  return Object.values(acc).map(f => ({ ...f, ingresos: f.netoGestoria }))
+  return Object.values(acc).map(f => ({ ...f, ingresos: f.baseComisionable }))
 }
 
 // ─── RESUMEN PARA EL PANEL DE MANDO ──────────────────────────────────────────
@@ -227,6 +223,7 @@ export async function getResumenSecretarios(
     uid,
     brutoSemana: 0, brutoMes: 0,
     netoSemana: 0,  netoMes: 0,
+    baseSemana: 0,  baseMes: 0,
     deduccionesMes: 0, recibosMes: 0,
     cierresMes: 0, leadsMes: 0, consultasMes: 0,
     ingresosMes: 0, ingresosSemana: 0,
@@ -244,7 +241,9 @@ export async function getResumenSecretarios(
     if (!uid) return
 
     const bruto = num(r.monto)
-    const neto  = netoDeRecibo(r)
+    const calc  = calcularNetoGestoria(r)
+    const neto  = calc.netoGestoria
+    const base  = calc.baseComisionable
     const dedu  = Math.max(0, bruto - neto)
 
     if (fecha >= desdeMes && fecha <= ahora) {
@@ -252,12 +251,14 @@ export async function getResumenSecretarios(
       f.recibosMes++
       f.brutoMes       += bruto
       f.netoMes        += neto
+      f.baseMes        += base
       f.deduccionesMes += dedu
     }
     if (fecha >= desdeSemana && fecha <= ahora) {
       const f = fila(uid)
       f.brutoSemana += bruto
       f.netoSemana  += neto
+      f.baseSemana  += base
     }
   })
 
@@ -295,8 +296,8 @@ export async function getResumenSecretarios(
   // Alias de compatibilidad
   return Object.values(acc).map(f => ({
     ...f,
-    ingresosMes:    f.netoMes,
-    ingresosSemana: f.netoSemana,
+    ingresosMes:    f.baseMes,
+    ingresosSemana: f.baseSemana,
   }))
 }
 
@@ -342,8 +343,9 @@ export async function getTotalesGestoria(
     t.deducSUATS      += num(r.montoSUATS)
     t.deducInforme    += num(r.montoInformePersona)
     t.deducComision   += num(r.comisionReferido)
-    t.deducFinanciero += num(r.costoFinanciero)
-    t.netoGestoria    += netoDeRecibo(r)
+    const calc = calcularNetoGestoria(r)
+    t.deducFinanciero += calc.costoFinanciero
+    t.netoGestoria    += calc.netoGestoria
   })
 
   // Run-rate simple: neto a la fecha / días transcurridos × días del mes.

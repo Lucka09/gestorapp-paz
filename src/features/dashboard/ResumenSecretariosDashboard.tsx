@@ -84,11 +84,11 @@ export default function ResumenSecretariosDashboard() {
       {/* Totales */}
       <div className="mt-3 grid grid-cols-2 gap-3">
         <div className="rounded-lg bg-sky-50 p-3">
-          <p className="text-xs font-semibold text-sky-700">Ingresos esta semana</p>
+          <p className="text-xs font-semibold text-sky-700">"Base premios esta semana"</p>
           <p className="text-lg font-bold text-sky-900">{fmtARS(totalSemana)}</p>
         </div>
         <div className="rounded-lg bg-emerald-50 p-3">
-          <p className="text-xs font-semibold text-emerald-700 capitalize">Ingresos {mesActualLabel()}</p>
+          <p className="text-xs font-semibold text-emerald-700 capitalize">Base premios {mesActualLabel()}</p>
           <p className="text-lg font-bold text-emerald-900">{fmtARS(totalMes)}</p>
         </div>
       </div>
