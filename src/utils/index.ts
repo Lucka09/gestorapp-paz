@@ -42,16 +42,20 @@ export function initiales(nombre: string, apellido: string): string {
 
 // ─── PATENTE ──────────────────────────────────────────────────────────────────
 
-export function formatPatente(patente: string): string {
-  return patente.toUpperCase().replace(/\s/g, '')
+export function normalizarPatente(raw: string): string {
+  return raw.toUpperCase().replace(/[\s.-]/g, '')
 }
 
+// Esquemas oficiales: Mercosur auto AB123CD · Mercosur moto A123BCD · auto viejo ABC123 · moto vieja 123ABC
+export const RE_PATENTE = /^([A-Z]{2}\d{3}[A-Z]{2}|[A-Z]\d{3}[A-Z]{3}|[A-Z]{3}\d{3}|\d{3}[A-Z]{3})$/
+
 export function validarPatente(patente: string): boolean {
-  const cleaned = formatPatente(patente)
-  // Argentina vieja: AAA-000 | Argentina nueva: AA-000-AA | Mercosur: AA000AA
-  return /^[A-Z]{3}\d{3}$/.test(cleaned) ||
-         /^[A-Z]{2}\d{3}[A-Z]{2}$/.test(cleaned) ||
-         /^[A-Z]{2}-\d{3}-[A-Z]{2}$/.test(cleaned)
+  return RE_PATENTE.test(normalizarPatente(patente))
+}
+
+/** @deprecated usar normalizarPatente */
+export function formatPatente(patente: string): string {
+  return normalizarPatente(patente)
 }
 
 // ─── MONEDA ───────────────────────────────────────────────────────────────────

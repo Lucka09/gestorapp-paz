@@ -304,8 +304,11 @@ export function normalizarDNI(raw: string): string {
 }
 
 export function normalizarPatente(raw: string): string {
-  return raw.toUpperCase().replace(/\s/g, '')
+  return raw.toUpperCase().replace(/[\s.-]/g, '')
 }
+
+// Esquemas oficiales: Mercosur auto AB123CD · Mercosur moto A123BCD · auto viejo ABC123 · moto vieja 123ABC
+export const RE_PATENTE = /^([A-Z]{2}\d{3}[A-Z]{2}|[A-Z]\d{3}[A-Z]{3}|[A-Z]{3}\d{3}|\d{3}[A-Z]{3})$/
 
 export function normalizarTelefono(raw: string): string {
   const limpio = raw.replace(/\D/g, '')
@@ -319,12 +322,7 @@ export function normalizarTelefono(raw: string): string {
 }
 
 export function validarPatente(patente: string): boolean {
-  const normalizada = normalizarPatente(patente)
-  // Formato viejo: ABC123
-  if (/^[A-Z]{3}\d{3}$/.test(normalizada)) return true
-  // Formato nuevo: AB123CD
-  if (/^[A-Z]{2}\d{3}[A-Z]{2}$/.test(normalizada)) return true
-  return false
+  return RE_PATENTE.test(normalizarPatente(patente))
 }
 
 export function validarDNI(dni: string): boolean {
@@ -363,12 +361,11 @@ export function validarLead(data: LeadInput): ResultadoValidacion {
 
   if (patenteBruta) {
     const pat = normalizarPatente(patenteBruta)
-    if (!validarPatente(pat)) bloqueantes.push('Patente inválida (ABC123 o AB123CD)')
-    else datosNormalizados.patente = pat
+    if (!validarPatente(pat)) bloqueantes.push(`Patente "${pat}" no reconocida. Formatos válidos: AB123CD, A123BCD, ABC123 o 123ABC`)
   }
   if (documentoBruto) {
     const dni = normalizarDNI(documentoBruto)
-    if (!validarDNI(dni)) bloqueantes.push('DNI inválido (7-8 dígitos)')
+    if (!validarDNI(dni)) bloqueantes.push(`DNI "${dni}" inválido. Formato válido: 7-8 dígitos`)
     else datosNormalizados.documento = dni
   }
 
