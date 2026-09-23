@@ -11,6 +11,7 @@ export function extraerClaveMultas(texto: string): { patente?: string; dni?: str
   const out: { patente?: string; dni?: string } = {}
   const upper = texto.toUpperCase()
   const mPat = upper.match(/\b[A-Z]{2}\d{3}[A-Z]{2}\b|\b[A-Z]\d{3}[A-Z]{3}\b|\b[A-Z]{3}\d{3}\b|\b\d{3}[A-Z]{3}\b/)
+  if (mPat) out.patente = mPat[0] 
   const mDni = texto.match(/\b\d{1,2}(?:\.\d{3}){2}\b|\b\d{7,8}\b/)
   if (mDni) out.dni = mDni[0].replace(/[.\s-]/g, '')
   return out

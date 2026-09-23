@@ -362,7 +362,8 @@ export function validarLead(data: LeadInput): ResultadoValidacion {
   if (patenteBruta) {
     const pat = normalizarPatente(patenteBruta)
     if (!validarPatente(pat)) bloqueantes.push(`Patente "${pat}" no reconocida. Formatos válidos: AB123CD, A123BCD, ABC123 o 123ABC`)
-  }
+   else datosNormalizados.patente = pat
+    }
   if (documentoBruto) {
     const dni = normalizarDNI(documentoBruto)
     if (!validarDNI(dni)) bloqueantes.push(`DNI "${dni}" inválido. Formato válido: 7-8 dígitos`)
@@ -459,7 +460,7 @@ export async function convertirLeadAConsulta(
 
   const tipoConsulta: 'dominio' | 'dni' = patente ? 'dominio' : 'dni'
   const valor = patente || documento
-  if (!valor) throw new Error('El lead necesita patente o DNI para ir a la cola')
+  
 
   // 2) Consulta para la extensión (dominio O dni)
   let consultaId: string | undefined
