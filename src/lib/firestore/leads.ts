@@ -420,7 +420,14 @@ export async function convertirLeadAConsulta(
 ): Promise<{ prospectoId: string; consultaId?: string }> {
   const snap = await getDoc(leadDoc(leadId))
   if (!snap.exists()) throw new Error('Lead no encontrado')
-  const lead = { ...snap.data(), id: snap.id } as Lead
+    const lead = { ...snap.data(), id: snap.id } as Lead
+
+  // 0) Clave de consulta: campos del lead o, si faltan, extraída del texto de la consulta
+  const extraida = (!lead.patente || !lead.documento) ? extraerClaveMultas(lead.consulta ?? '') : {}
+  const patRaw   = lead.patente   || extraida.patente || ''
+  const dniRaw   = lead.documento || extraida.dni     || ''
+  const patente   = patRaw && validarPatente(patRaw) ? normalizarPatente(patRaw) : ''
+  const documento = dniRaw && validarDNI(dniRaw)     ? normalizarDNI(dniRaw)     : ''
 
   // 1) Prospecto en el pipeline
   const prospectoData = {
@@ -433,8 +440,8 @@ export async function convertirLeadAConsulta(
     etapa:       'nuevo' as const,
     color:       'azul' as const,
     tipoTramite: (lead.tipoTramiteInteres ?? 'descargo_multa') as TipoTramite,
-    patente:     lead.patente ? normalizarPatente(lead.patente) : '',
-    documento:   lead.documento ? normalizarDNI(lead.documento) : '',
+    patente,
+    documento,
     descripcion: lead.consulta ?? '',
     montoCierre: 0,
     formaPago:   '' as const,
@@ -450,13 +457,13 @@ export async function convertirLeadAConsulta(
     actor
   )
 
-  const tipoConsulta: 'dominio' | 'dni' = prospectoData.patente ? 'dominio' : 'dni'
-  const valor = prospectoData.patente || prospectoData.documento
+  const tipoConsulta: 'dominio' | 'dni' = patente ? 'dominio' : 'dni'
+  const valor = patente || documento
   if (!valor) throw new Error('El lead necesita patente o DNI para ir a la cola')
 
   // 2) Consulta para la extensión (dominio O dni)
   let consultaId: string | undefined
-  if (esTipoMulta(prospectoData.tipoTramite)) {
+    if (valor && esTipoMulta(prospectoData.tipoTramite)) {
     const consultaRef = await addDoc(consultasCol, {
       gestoriaId:   lead.gestoriaId,
       tipoConsulta,
@@ -478,11 +485,13 @@ export async function convertirLeadAConsulta(
   }
 
   // 3) Marcar lead convertido
-  await updateDoc(leadDoc(leadId), {
+    await updateDoc(leadDoc(leadId), {
     estado:        'convertido',
     convertidoA:   'prospecto',
     prospectoId,
     consultaId:    consultaId ?? null,
+    ...(patente   && !lead.patente   ? { patente }   : {}),
+    ...(documento && !lead.documento ? { documento } : {}),
     actualizadoEn: serverTimestamp(),
   })
 
