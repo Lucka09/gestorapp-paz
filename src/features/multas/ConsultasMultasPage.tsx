@@ -15,6 +15,8 @@ import {
   descartarConsulta,
   asignarConsulta,
   reclamarConsultaSiLibre,
+  reconsultarConsulta,
+  tieneActasDeOtraPatente,
 } from '@/lib/firestore/consultasInfracciones'
 import { money } from '@/lib/calcularPresupuesto'
 import type { ConsultaInfraccion } from '@/infraccion_types'
@@ -170,6 +172,17 @@ export default function ConsultasMultasPage() {
       setAbierta(null)
     } catch (e: any) { toast.error(e?.message ?? 'No se pudo enviar') }
   }
+  async function handleReconsultar(c: ConsultaInfraccion) {
+    const aviso = c.estado === 'enviada'
+      ? `El presupuesto de ${valorConsulta(c)} ya se envió al cliente. ¿Volver a consultarla igual? Se borra la cotización actual.`
+      : `¿Volver a poner ${valorConsulta(c)} en la cola? Se borra la cotización actual.`
+    if (!confirm(aviso)) return
+    try {
+      await reconsultarConsulta(c.id)
+      toast.success('Volvió a la cola de consultas')
+      if (abierta?.id === c.id) setAbierta(null)
+    } catch (e: any) { toast.error(e?.message ?? 'No se pudo reconsultar') }
+  }
   async function handleDescartar(id: string) {
     try { await descartarConsulta(id); toast('Consulta descartada') }
     catch (e: any) { toast.error(e?.message ?? 'Error al descartar') }
@@ -191,6 +204,23 @@ export default function ConsultasMultasPage() {
       </select>
     )
   }
+  const AvisoOtraPatente = ({ c }: { c: ConsultaInfraccion }) => {
+    if (!tieneActasDeOtraPatente(c)) return null
+    const otras = [...new Set((c.actas ?? []).map(a => a.dominio).filter(d => d && d.toUpperCase().replace(/[^A-Z0-9]/g, '') !== (c.dominio ?? '').toUpperCase().replace(/[^A-Z0-9]/g, '')))]
+    return (
+      <div className="mt-3 text-xs bg-red-50 border border-red-200 text-red-700 rounded-lg px-3 py-2 flex items-center justify-between gap-2">
+        <span>⚠️ Esta cotización tiene actas de otra patente ({otras.join(', ')}). No la envíes.</span>
+        {puede('gestionarMultas') && (
+          <button onClick={() => handleReconsultar(c)} className="shrink-0 font-semibold underline">Volver a consultar</button>
+        )}
+      </div>
+    )
+  }
+  const BotonReconsultar = ({ c }: { c: ConsultaInfraccion }) =>
+    puede('gestionarMultas')
+      ? <button onClick={() => handleReconsultar(c)} title="Volver a ponerla en la cola de la extensión"
+          className="rounded-lg px-3 py-2 text-sm text-gray-500 bg-gray-100 whitespace-nowrap">Reconsultar</button>
+      : null
   const BadgeAsignado = ({ c }: { c: ConsultaInfraccion }) =>
     c.asignadoANombre
       ? <span className="text-[10px] rounded-full px-2 py-0.5 bg-blue-50 text-blue-700 whitespace-nowrap">{c.asignadoANombre}</span>
@@ -270,6 +300,9 @@ export default function ConsultasMultasPage() {
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
                     <BadgeAsignado c={c} />
+                    {tieneActasDeOtraPatente(c) && (
+                      <span className="text-[11px] rounded-full px-2 py-0.5 whitespace-nowrap bg-red-50 text-red-700">⚠️ actas de otra patente</span>
+                    )}
                     <span className={`text-[11px] rounded-full px-2 py-0.5 whitespace-nowrap ${e.cls}`}>{e.label}</span>
                     {c.cotizacion && (
                       <button onClick={() => setAbierta(c)}
@@ -368,6 +401,7 @@ export default function ConsultasMultasPage() {
                   </span>
                 </div>
               </div>
+              <AvisoOtraPatente c={c} />
               {c.cotizacion && (
                 <div className="mt-3 grid grid-cols-3 gap-2 text-center">
                   <Metric label="Trabajables" value={String(c.cotizacion.cantidadTrabajable)} />
@@ -380,6 +414,7 @@ export default function ConsultasMultasPage() {
                   Ver presupuesto
                 </button>
                 <AsignarSelect c={c} />
+                <BotonReconsultar c={c} />
                 {c.estado !== 'enviada' && (
                   <button onClick={() => handleDescartar(c.id)} className="rounded-lg px-3 py-2 text-sm text-gray-500 bg-gray-100">
                     Descartar
@@ -408,6 +443,8 @@ export default function ConsultasMultasPage() {
                   </span>
                 </div>
               </div>
+              <AvisoOtraPatente c={c} />
+              <div className="mt-2 flex justify-end"><BotonReconsultar c={c} /></div>
               {c.cotizacion && c.cotizacion.actasExcluidas.length > 0 && (
                 <div className="mt-3 space-y-1">
                   {c.cotizacion.actasExcluidas.map(a => (

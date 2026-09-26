@@ -12,7 +12,7 @@
 
 import {
   collection, doc, query, where, onSnapshot, updateDoc, getDoc, setDoc,
-  serverTimestamp, type Unsubscribe,
+  serverTimestamp, deleteField, type Unsubscribe,
 } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
 import type { ConsultaInfraccion, EstadoConsulta } from '@/infraccion_types'
@@ -148,4 +148,29 @@ export async function marcarConsultaEnviada(
 /** Descarta una consulta (dato inválido / cliente que no avanza). */
 export async function descartarConsulta(consultaId: string): Promise<void> {
   await updateDoc(consultaDoc(consultaId), { estado: 'descartada' as EstadoConsulta })
+}
+
+/**
+ * Vuelve a poner la consulta en la cola para que la extensión la procese de
+ * nuevo (p. ej. si tomó actas de otra patente o el portal cambió).
+ * Conserva asignación, contacto y prospecto; borra lo capturado y cotizado.
+ */
+export async function reconsultarConsulta(consultaId: string): Promise<void> {
+  await updateDoc(consultaDoc(consultaId), {
+    estado:           'pendiente' as EstadoConsulta,
+    actas:            deleteField(),
+    cotizacion:       deleteField(),
+    mensajeWhatsapp:  deleteField(),
+    datosPresupuesto: deleteField(),
+    bloqueadoEn:      deleteField(),
+    reconsultadaEn:   serverTimestamp(),
+  })
+}
+
+/** true si la consulta por patente tiene guardadas actas de OTRA patente. */
+export function tieneActasDeOtraPatente(c: ConsultaInfraccion): boolean {
+  if (c.tipoConsulta === 'dni' || !c.dominio || !c.actas?.length) return false
+  const norm = (s?: string) => (s ?? '').toUpperCase().replace(/[^A-Z0-9]/g, '')
+  const esperado = norm(c.dominio)
+  return c.actas.some(a => !!a.dominio && norm(a.dominio) !== esperado)
 }
