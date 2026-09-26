@@ -67,5 +67,7 @@ export function useConsultasInfracciones() {
     [porEstado],
   )
 
-  return { consultas: visibles, porEstado, paraEnviar, pendientes, loading }
+  // `todas`: SOLO para chequear si una patente/DNI ya existe (buscador). La UI
+  // no muestra datos de contacto de consultas ajenas, solo estado y responsable.
+  return { consultas: visibles, todas: consultas, porEstado, paraEnviar, pendientes, loading }
 }
