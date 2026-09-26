@@ -7,8 +7,11 @@ import {
 } from 'lucide-react'
 import { useProspectos } from '@/hooks/usePipeline'
 import { useAuth } from '@/hooks/useAuth'
+import { useEquipo } from '@/hooks/useEquipo'
+import SelectorVista from '@/components/shared/SelectorVista'
+import { puedeVerTodo, vistaInicial, filtrarPorVista, contarPorVista, type Vista } from '@/lib/visibilidad'
 import {
-  crearProspecto, moverEtapa, actualizarProspecto,
+  crearProspecto, moverEtapa, actualizarProspecto, calcularMetricasPipeline,
   eliminarProspecto, agregarTarea, completarTarea, eliminarTarea,
   ETAPAS, COLOR_PROSPECTO,
   type Prospecto, type EtapaPipeline, type ColorProspecto,
@@ -421,11 +424,23 @@ function ModalDetalle({
   prospecto,
   onClose,
   actor,
+  verTodo = false,
+  equipo = [],
 }: {
   prospecto: Prospecto
   onClose:   () => void
   actor?:    ActorInfo
+  verTodo?:  boolean
+  equipo?:   { uid: string; nombre: string; apellido?: string; activo?: boolean }[]
 }) {
+  const [asignado, setAsignado] = useState(prospecto.asignadoA ?? '')
+  const handleAsignar = async (uid: string) => {
+    setAsignado(uid)
+    await actualizarProspecto(prospecto.id, { asignadoA: uid }, actor)
+    const m = equipo.find(x => x.uid === uid)
+    toast.success(uid === actor?.id ? 'Ahora es tuyo' : uid ? `Asignado a ${m?.nombre ?? 'usuario'}` : 'Quedó sin asignar')
+    if (!verTodo) onClose()
+  }
   const [editando,    setEditando]    = useState(false)
   const [presupOpen,  setPresupOpen]  = useState(false)
   const [nuevaTarea,  setNuevaTarea]  = useState('')
@@ -538,6 +553,29 @@ function ModalDetalle({
           <FileText size={16} /> Presupuesto
         </button>
       </div>
+
+      {/* Asignación: admins reasignan; secretarios toman los que no tienen dueño */}
+      {verTodo ? (
+        <div>
+          <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider block mb-1.5">
+            Asignado a
+          </label>
+          <select
+            value={asignado}
+            onChange={e => handleAsignar(e.target.value)}
+            className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm outline-none focus:border-[#D4621A]"
+          >
+            <option value="">Sin asignar</option>
+            {equipo.filter(m => m.activo !== false || m.uid === asignado).map(m => (
+              <option key={m.uid} value={m.uid}>{m.nombre} {m.apellido ?? ''}</option>
+            ))}
+          </select>
+        </div>
+      ) : !asignado && actor?.id ? (
+        <Button variant="secondary" onClick={() => handleAsignar(actor.id)} className="w-full">
+          <Users size={15} /> Tomar este prospecto
+        </Button>
+      ) : null}
 
       {/* Datos */}
       <div className="bg-gray-50 rounded-xl p-4 space-y-2 text-sm">
@@ -657,7 +695,26 @@ export default function PipelinePage() {
     ? { id: user.uid, nombre: `${user.nombre} ${user.apellido}`, rol: user.rol }
     : undefined
 
-  const { porEtapa, metricas, tareasUrgentes, loading } = useProspectos()
+  const { prospectos: todos, tareasUrgentes: tareasTodas, loading } = useProspectos()
+  const { equipo } = useEquipo()
+
+  // Cada secretario ve solo lo suyo (asignado o tomado); admins/CEO ven todo.
+  const verTodo = puedeVerTodo(user?.rol)
+  const miUid   = user?.uid ?? ''
+  const [vista, setVista] = useState<Vista>(() => vistaInicial(user?.rol))
+  const conteosVista = useMemo(() => contarPorVista(todos, miUid), [todos, miUid])
+  const visibles     = useMemo(() => filtrarPorVista(todos, vista, miUid, verTodo), [todos, vista, miUid, verTodo])
+  const idsVisibles  = useMemo(() => new Set(visibles.map(p => p.id)), [visibles])
+  const metricas     = useMemo(() => calcularMetricasPipeline(visibles), [visibles])
+  const tareasUrgentes = useMemo(() => tareasTodas.filter(t => idsVisibles.has(t.prospecto.id)), [tareasTodas, idsVisibles])
+  const porEtapa = useMemo(() => {
+    const map: Record<EtapaPipeline, Prospecto[]> = {
+      nuevo: [], contactado: [], presupuestado: [], en_tramite: [], ganado: [], perdido: [],
+    }
+    visibles.forEach(p => { if (map[p.etapa]) map[p.etapa].push(p) })
+    return map
+  }, [visibles])
+
   const [modalNuevo,       setModalNuevo]    = useState(false)
   const [search,           setSearch]        = useState('')
   const [etapaInicial,     setEtapaInicial]  = useState<EtapaPipeline>('nuevo')
@@ -676,18 +733,20 @@ export default function PipelinePage() {
     setModalNuevo(true)
   }
 
-  // DESPUÉS
-const gestoriaId = useGestoriaId()  // ← agregar este hook al inicio del componente
+  const gestoriaId = useGestoriaId()
 
-const handleCrear = async (data: Partial<Prospecto>) => {
-  if (!user || !gestoriaId) return
-  await crearProspecto(
-    { ...data, gestoriaId } as Omit<ProspectoInput, 'tareas' | 'creadoPor' | 'orden' | 'etiquetas'>,
-    user.uid
-  )
-  toast.success('Prospecto creado')
-  setModalNuevo(false)
-}
+  const handleCrear = async (data: Partial<Prospecto>) => {
+    if (!user || !gestoriaId) return
+    // Si lo crea un secretario, nace suyo (si no, "desaparecería" de su vista).
+    const asignadoA = data.asignadoA || (verTodo ? '' : user.uid)
+    await crearProspecto(
+      { ...data, asignadoA, gestoriaId } as Omit<ProspectoInput, 'tareas' | 'creadoPor' | 'orden' | 'etiquetas'>,
+      user.uid,
+      actor,
+    )
+    toast.success('Prospecto creado')
+    setModalNuevo(false)
+  }
 
   // Total de prospectos para el contador de búsqueda
   const totalProspectos = useMemo(
@@ -714,7 +773,7 @@ const handleCrear = async (data: Partial<Prospecto>) => {
       {/* Header */}
       <div className="flex items-start justify-between mb-5 flex-wrap gap-3">
         <div>
-          <h1 className="text-xl font-bold text-gray-900">Prospectos</h1>
+          <h1 className="text-xl font-bold text-gray-900">{verTodo ? 'Prospectos' : 'Mis prospectos'}</h1>
           <p className="text-sm text-gray-500 mt-0.5">
             {metricas.activos} activos · {metricas.cerrados} cerrados · {formatPesos(metricas.ingresos)} facturado
           </p>
@@ -750,6 +809,16 @@ const handleCrear = async (data: Partial<Prospecto>) => {
           </div>
         ))}
       </div>
+
+      {/* Qué ver */}
+      <SelectorVista
+        vista={vista}
+        onChange={setVista}
+        verTodo={verTodo}
+        conteos={conteosVista}
+        equipo={equipo}
+        etiquetaMios="Mis prospectos"
+      />
 
       {/* Búsqueda global */}
       <div className="relative mb-4">
@@ -850,6 +919,8 @@ const handleCrear = async (data: Partial<Prospecto>) => {
             prospecto={prospectoAbierto}
             onClose={() => setAbierto(null)}
             actor={actor}
+            verTodo={verTodo}
+            equipo={equipo}
           />
         </Modal>
       )}

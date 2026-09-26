@@ -5,7 +5,9 @@ import {
   Trash2, MoreVertical, Search, Check, X, Users, Target,
 } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
-import { useLeads } from '@/hooks/useLeads'
+import { useLeads, calcularMetricasLeads } from '@/hooks/useLeads'
+import SelectorVista from '@/components/shared/SelectorVista'
+import { puedeVerTodo, vistaInicial, filtrarPorVista, contarPorVista, type Vista } from '@/lib/visibilidad'
 import { useEquipo } from '@/hooks/useEquipo'
 import { useGestoriaId } from '@/context/GestoriaContext'
 import { usePageTitle } from '@/hooks/usePageTitle'
@@ -31,8 +33,8 @@ import { getFunctions, httpsCallable } from 'firebase/functions'
 
 type Tab = 'bandeja' | 'nuevos' | 'convertidos' | 'perdidos' | 'todos'
 
-// Roles que reasignan a terceros y ven todo el pool de leads.
-const ROLES_ADMIN = ['propietario', 'admin', 'admin_gral', 'superadmin']
+// Roles que reasignan a terceros y ven todos los leads (fuente única: visibilidad.ts)
+const esRolAdmin = (rol?: string | null) => puedeVerTodo(rol)
 
 const TABS: { key: Tab; label: string }[] = [
   { key: 'bandeja',     label: '📥 Bandeja'    },
@@ -378,7 +380,7 @@ function ModalDetalleLead({
     : undefined
 
   const esActivo = ESTADOS_LEAD_ACTIVOS.includes(lead.estado)
-  const esAdmin  = ROLES_ADMIN.includes(user?.rol ?? '')
+  const esAdmin  = esRolAdmin(user?.rol)
 
 const handleConvertir = async () => {
   setConvirtiendo(true)
@@ -601,8 +603,18 @@ export default function LeadsPage() {
   const gestoriaId = useGestoriaId()
   usePageTitle('Leads')
 
-  const { leads, loading, metricas } = useLeads()
+  const verTodo = esRolAdmin(user?.rol)
+  const miUid   = user?.uid ?? ''
+  const { leads: todosLosLeads, loading } = useLeads({ propiosDe: verTodo ? undefined : miUid })
   const { equipo } = useEquipo() as { equipo: Usuario[] }
+
+  // Cada secretario ve lo suyo; admins/CEO ven todo y filtran por persona.
+  const [vista, setVista] = useState<Vista>(() => vistaInicial(user?.rol))
+  const conteosVista = useMemo(() => contarPorVista(
+    todosLosLeads.filter(l => ESTADOS_LEAD_ACTIVOS.includes(l.estado)), miUid,
+  ), [todosLosLeads, miUid])
+  const leads    = useMemo(() => filtrarPorVista(todosLosLeads, vista, miUid, verTodo), [todosLosLeads, vista, miUid, verTodo])
+  const metricas = useMemo(() => calcularMetricasLeads(leads), [leads])
 
   const [tab, setTab] = useState<Tab>('bandeja')
   const [search, setSearch] = useState('')
@@ -688,7 +700,7 @@ export default function LeadsPage() {
   // 4. Crear el lead con datos normalizados.
   //    Si lo crea un secretario, nace asignado a él (solo lo ve él + admins).
   //    Si lo crea un admin, queda sin asignar → pool (lo asigna o lo dejan libre).
-  const asignar = ROLES_ADMIN.includes(user.rol ?? '')
+  const asignar = esRolAdmin(user.rol)
     ? undefined
     : { uid: user.uid, nombre: `${user.nombre} ${user.apellido}`.trim() }
   const leadId = await crearLead(
@@ -708,7 +720,13 @@ export default function LeadsPage() {
     // AUTOMÁTICO: crear prospecto + encolar consulta
     try {
       await convertirLeadAConsulta(leadId, actor)
-      toast.success('Lead creado → prospecto y en cola de consultas')
+      toast.success(
+        asignar
+          ? 'Lead creado y convertido: ya está en tu Pipeline y en tu cola de consultas de multas'
+          : 'Lead creado y convertido: está en el Pipeline y en la cola de consultas (sin asignar)',
+        { duration: 6000 },
+      )
+      setTab('convertidos')
     } catch (e: any) {
       toast.error(`Lead creado pero no se pudo encolar: ${e.message}`)
     }
@@ -781,15 +799,17 @@ export default function LeadsPage() {
       {/* Header */}
       <div className="flex items-start justify-between mb-5 flex-wrap gap-3">
         <div>
-          <h1 className="text-xl font-bold text-gray-900">Leads</h1>
+          <h1 className="text-xl font-bold text-gray-900">{verTodo ? 'Leads' : 'Mis leads'}</h1>
           <p className="text-sm text-gray-500 mt-0.5">
-            {metricas.nuevos} nuevos · {metricas.sinAsignar} sin asignar · {metricas.convertidos} convertidos
+            {metricas.nuevos} nuevos · {metricas.activos} activos · {metricas.convertidos} convertidos
           </p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
-          <Button variant="secondary" onClick={activarAutomatizaciones}>
-            ⚙ Automatizaciones
-          </Button>
+          {verTodo && (
+            <Button variant="secondary" onClick={activarAutomatizaciones}>
+              ⚙ Automatizaciones
+            </Button>
+          )}
           <Button onClick={() => setModalNuevo(true)}>
             <Plus size={16} /> Nuevo lead
           </Button>
@@ -801,7 +821,7 @@ export default function LeadsPage() {
         {[
           { label: 'Bandeja activa', value: metricas.activos,     color: 'text-gray-900'   },
           { label: 'Nuevos',         value: metricas.nuevos,      color: 'text-blue-600'   },
-          { label: 'Sin asignar',    value: metricas.sinAsignar,  color: 'text-amber-500'  },
+          { label: 'Sin asignar',    value: conteosVista.sin_asignar, color: 'text-amber-500' },
           { label: 'Convertidos',    value: metricas.convertidos, color: 'text-green-600'  },
         ].map(m => (
           <div key={m.label} className="bg-white border border-gray-100 rounded-xl p-3 text-center shadow-sm">
@@ -810,6 +830,16 @@ export default function LeadsPage() {
           </div>
         ))}
       </div>
+
+      {/* Qué ver: lo mío / pool / (admins) persona o todo el equipo */}
+      <SelectorVista
+        vista={vista}
+        onChange={v => { setVista(v); setTab('bandeja') }}
+        verTodo={verTodo}
+        conteos={conteosVista}
+        equipo={equipo}
+        etiquetaMios="Mis leads"
+      />
 
       {/* Tabs */}
       <div className="flex items-center gap-2 mb-4 overflow-x-auto">
@@ -869,6 +899,12 @@ export default function LeadsPage() {
           <p className="text-base font-semibold text-gray-500">
             {search ? `Sin resultados para "${search}"` : 'No hay leads en esta vista'}
           </p>
+          {!search && !verTodo && vista === 'mios' && (
+            <p className="text-sm text-gray-400 mt-1 max-w-sm">
+              Acá vas a ver solo los leads asignados a vos. Para tomar uno libre, entrá a
+              «Sin asignar» y tocá «Reclamar este lead».
+            </p>
+          )}
           {!search && tab === 'bandeja' && (
             <p className="text-sm text-gray-400 mt-1">
               Los leads van a aparecer acá cuando entren desde la web, WhatsApp o carga manual.

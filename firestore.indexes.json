@@ -368,6 +368,17 @@
       "density": "SPARSE_ALL"
     },
     {
+      "collectionGroup": "leads",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "gestoriaId", "order": "ASCENDING" },
+        { "fieldPath": "asignadoA",  "order": "ASCENDING" },
+        { "fieldPath": "creadoEn",   "order": "DESCENDING" },
+        { "fieldPath": "__name__",   "order": "DESCENDING" }
+      ],
+      "density": "SPARSE_ALL"
+    },
+    {
       "collectionGroup": "multaWorkflow",
       "queryScope": "COLLECTION",
       "fields": [

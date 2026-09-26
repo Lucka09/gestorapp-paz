@@ -36,15 +36,18 @@ const EVENTO_POR_ESTADO: Partial<Record<EstadoLead, TipoEvento>> = {
 export function subscribeLeads(
   gestoriaId: string,
   callback:   (leads: Lead[]) => void,
+  opts: { asignadoA?: string; onError?: (e: Error) => void } = {},
 ): Unsubscribe {
-  const q = query(
-    leadsCol,
-    where('gestoriaId', '==', gestoriaId),
-    orderBy('creadoEn', 'desc'),
-    limit(300),
-  )
-  return onSnapshot(q, snap =>
-    callback(snap.docs.map(d => ({ ...d.data(), id: d.id }) as Lead))
+  // Con `asignadoA` trae SOLO los leads de esa persona (sus 300 más recientes),
+  // así a un secretario no se le "caen" leads viejos por el límite general.
+  // Requiere índice: leads (gestoriaId ASC, asignadoA ASC, creadoEn DESC).
+  const filtros = [where('gestoriaId', '==', gestoriaId)]
+  if (opts.asignadoA) filtros.push(where('asignadoA', '==', opts.asignadoA))
+  const q = query(leadsCol, ...filtros, orderBy('creadoEn', 'desc'), limit(300))
+  return onSnapshot(
+    q,
+    snap => callback(snap.docs.map(d => ({ ...d.data(), id: d.id }) as Lead)),
+    err  => { console.warn('[leads] subscribe:', err.message); opts.onError?.(err) },
   )
 }
 
@@ -304,11 +307,8 @@ export function normalizarDNI(raw: string): string {
 }
 
 export function normalizarPatente(raw: string): string {
-  return raw.toUpperCase().replace(/[\s.-]/g, '')
+  return raw.toUpperCase().replace(/\s/g, '')
 }
-
-// Esquemas oficiales: Mercosur auto AB123CD · Mercosur moto A123BCD · auto viejo ABC123 · moto vieja 123ABC
-export const RE_PATENTE = /^([A-Z]{2}\d{3}[A-Z]{2}|[A-Z]\d{3}[A-Z]{3}|[A-Z]{3}\d{3}|\d{3}[A-Z]{3})$/
 
 export function normalizarTelefono(raw: string): string {
   const limpio = raw.replace(/\D/g, '')
@@ -322,7 +322,12 @@ export function normalizarTelefono(raw: string): string {
 }
 
 export function validarPatente(patente: string): boolean {
-  return RE_PATENTE.test(normalizarPatente(patente))
+  const normalizada = normalizarPatente(patente)
+  // Formato viejo: ABC123
+  if (/^[A-Z]{3}\d{3}$/.test(normalizada)) return true
+  // Formato nuevo: AB123CD
+  if (/^[A-Z]{2}\d{3}[A-Z]{2}$/.test(normalizada)) return true
+  return false
 }
 
 export function validarDNI(dni: string): boolean {
@@ -361,12 +366,12 @@ export function validarLead(data: LeadInput): ResultadoValidacion {
 
   if (patenteBruta) {
     const pat = normalizarPatente(patenteBruta)
-    if (!validarPatente(pat)) bloqueantes.push(`Patente "${pat}" no reconocida. Formatos válidos: AB123CD, A123BCD, ABC123 o 123ABC`)
-   else datosNormalizados.patente = pat
-    }
+    if (!validarPatente(pat)) bloqueantes.push('Patente inválida (ABC123 o AB123CD)')
+    else datosNormalizados.patente = pat
+  }
   if (documentoBruto) {
     const dni = normalizarDNI(documentoBruto)
-    if (!validarDNI(dni)) bloqueantes.push(`DNI "${dni}" inválido. Formato válido: 7-8 dígitos`)
+    if (!validarDNI(dni)) bloqueantes.push('DNI inválido (7-8 dígitos)')
     else datosNormalizados.documento = dni
   }
 
@@ -421,14 +426,7 @@ export async function convertirLeadAConsulta(
 ): Promise<{ prospectoId: string; consultaId?: string }> {
   const snap = await getDoc(leadDoc(leadId))
   if (!snap.exists()) throw new Error('Lead no encontrado')
-    const lead = { ...snap.data(), id: snap.id } as Lead
-
-  // 0) Clave de consulta: campos del lead o, si faltan, extraída del texto de la consulta
-  const extraida = (!lead.patente || !lead.documento) ? extraerClaveMultas(lead.consulta ?? '') : {}
-  const patRaw   = lead.patente   || extraida.patente || ''
-  const dniRaw   = lead.documento || extraida.dni     || ''
-  const patente   = patRaw && validarPatente(patRaw) ? normalizarPatente(patRaw) : ''
-  const documento = dniRaw && validarDNI(dniRaw)     ? normalizarDNI(dniRaw)     : ''
+  const lead = { ...snap.data(), id: snap.id } as Lead
 
   // 1) Prospecto en el pipeline
   const prospectoData = {
@@ -441,8 +439,8 @@ export async function convertirLeadAConsulta(
     etapa:       'nuevo' as const,
     color:       'azul' as const,
     tipoTramite: (lead.tipoTramiteInteres ?? 'descargo_multa') as TipoTramite,
-    patente,
-    documento,
+    patente:     lead.patente ? normalizarPatente(lead.patente) : '',
+    documento:   lead.documento ? normalizarDNI(lead.documento) : '',
     descripcion: lead.consulta ?? '',
     montoCierre: 0,
     formaPago:   '' as const,
@@ -458,13 +456,13 @@ export async function convertirLeadAConsulta(
     actor
   )
 
-  const tipoConsulta: 'dominio' | 'dni' = patente ? 'dominio' : 'dni'
-  const valor = patente || documento
-  
+  const tipoConsulta: 'dominio' | 'dni' = prospectoData.patente ? 'dominio' : 'dni'
+  const valor = prospectoData.patente || prospectoData.documento
+  if (!valor) throw new Error('El lead necesita patente o DNI para ir a la cola')
 
   // 2) Consulta para la extensión (dominio O dni)
   let consultaId: string | undefined
-    if (valor && esTipoMulta(prospectoData.tipoTramite)) {
+  if (esTipoMulta(prospectoData.tipoTramite)) {
     const consultaRef = await addDoc(consultasCol, {
       gestoriaId:   lead.gestoriaId,
       tipoConsulta,
@@ -480,19 +478,22 @@ export async function convertirLeadAConsulta(
       estado:       'pendiente',
       prospectoId,
       leadId,
+      // Hereda el dueño del lead: la extensión se la da primero a esa persona
+      // (colaProximaConsulta: "mías" antes que el pool) y la ve en Consultas.
+      asignadoA:       lead.asignadoA || null,
+      asignadoANombre: lead.asignadoNombre || null,
+      ...(lead.asignadoA ? { asignadaEn: serverTimestamp() } : {}),
       creadaEn:     serverTimestamp(),
     })
     consultaId = consultaRef.id
   }
 
   // 3) Marcar lead convertido
-    await updateDoc(leadDoc(leadId), {
+  await updateDoc(leadDoc(leadId), {
     estado:        'convertido',
     convertidoA:   'prospecto',
     prospectoId,
     consultaId:    consultaId ?? null,
-    ...(patente   && !lead.patente   ? { patente }   : {}),
-    ...(documento && !lead.documento ? { documento } : {}),
     actualizadoEn: serverTimestamp(),
   })
 
